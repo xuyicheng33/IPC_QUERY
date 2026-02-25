@@ -1,0 +1,122 @@
+[
+  {
+    "name": "auto-cross-page-11-21___083.pdf-11-21-11-40-p9-BAC27XSTN3097",
+    "pdf_name": "11-21___083.pdf",
+    "page_num": 9,
+    "part_number": "BAC27XSTN3097",
+    "fig_item": "65",
+    "expected": {
+      "figure_code": "11-21-11-40",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-11-21___083.pdf-11-21-11-41-p12-280-2745-120",
+    "pdf_name": "11-21___083.pdf",
+    "page_num": 12,
+    "part_number": "280-2745-120",
+    "fig_item": "5",
+    "expected": {
+      "figure_code": "11-21-11-41",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-11-21___083.pdf-11-21-13-06-p15-BAC27DEX6912",
+    "pdf_name": "11-21___083.pdf",
+    "page_num": 15,
+    "part_number": "BAC27DEX6912",
+    "fig_item": "45",
+    "expected": {
+      "figure_code": "11-21-13-06",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-11-21___083.pdf-11-21-13-08-p20-822-0334-003",
+    "pdf_name": "11-21___083.pdf",
+    "page_num": 20,
+    "part_number": "822-0334-003",
+    "fig_item": "- 2",
+    "expected": {
+      "figure_code": "11-21-13-08",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-11-21___083.pdf-11-21-13-09-p26-M0DREF316828",
+    "pdf_name": "11-21___083.pdf",
+    "page_num": 26,
+    "part_number": "M0DREF316828",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "11-21-13-09",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-11-21___083.pdf-11-21-13-46-p38-BAC27XSTN1441",
+    "pdf_name": "11-21___083.pdf",
+    "page_num": 38,
+    "part_number": "BAC27XSTN1441",
+    "fig_item": "65",
+    "expected": {
+      "figure_code": "11-21-13-46",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-11-21___083.pdf-11-21-14-13-p50-414A4600-228",
+    "pdf_name": "11-21___083.pdf",
+    "page_num": 50,
+    "part_number": "414A4600-228",
+    "fig_item": "50",
+    "expected": {
+      "figure_code": "11-21-14-13",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-11-21___083.pdf-11-21-18-05-p64-M0DREF422246",
+    "pdf_name": "11-21___083.pdf",
+    "page_num": 64,
+    "part_number": "M0DREF422246",
+    "fig_item": "- 7",
+    "expected": {
+      "figure_code": "11-21-18-05",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-11-21___083.pdf-11-21-20-09-p74-355A5340-5",
+    "pdf_name": "11-21___083.pdf",
+    "page_num": 74,
+    "part_number": "355A5340-5",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "11-21-20-09",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-11-21___083.pdf-11-21-20-10-p79-355A5340-5",
+    "pdf_name": "11-21___083.pdf",
+    "page_num": 79,
+    "part_number": "355A5340-5",
+    "fig_item": "- 5",
+    "expected": {
+      "figure_code": "11-21-20-10",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  }
+]

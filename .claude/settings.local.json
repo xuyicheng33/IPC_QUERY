@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(D:/Anaconda/envs/sz/python.exe -m pytest tests/unit/test_search.py tests/unit/test_repository.py -v --tb=short)",
+      "Bash(D:/Anaconda/envs/sz/python.exe -m pytest tests/unit/ -v --tb=short)"
+    ]
+  }
+}

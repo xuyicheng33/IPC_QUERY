@@ -1,0 +1,98 @@
+[
+  {
+    "name": "auto-cross-page-21-45___083.pdf-21-45-00-01-p4-210N0013-10",
+    "pdf_name": "21-45___083.pdf",
+    "page_num": 4,
+    "part_number": "210N0013-10",
+    "fig_item": "105",
+    "expected": {
+      "figure_code": "21-45-00-01",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-21-45___083.pdf-21-45-01-01-p10-116817-5",
+    "pdf_name": "21-45___083.pdf",
+    "page_num": 10,
+    "part_number": "116817-5",
+    "fig_item": "40",
+    "expected": {
+      "figure_code": "21-45-01-01",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-21-45___083.pdf-21-45-01-01A-p20-116817-5",
+    "pdf_name": "21-45___083.pdf",
+    "page_num": 20,
+    "part_number": "116817-5",
+    "fig_item": "40",
+    "expected": {
+      "figure_code": "21-45-01-01A",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-21-45___083.pdf-21-45-01-01B-p29-116817-5",
+    "pdf_name": "21-45___083.pdf",
+    "page_num": 29,
+    "part_number": "116817-5",
+    "fig_item": "40",
+    "expected": {
+      "figure_code": "21-45-01-01B",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-21-45___083.pdf-21-45-01-02-p34-BACN10VR2CG",
+    "pdf_name": "21-45___083.pdf",
+    "page_num": 34,
+    "part_number": "BACN10VR2CG",
+    "fig_item": "50",
+    "expected": {
+      "figure_code": "21-45-01-02",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-21-45___083.pdf-21-45-01-02A-p42-S258DT24",
+    "pdf_name": "21-45___083.pdf",
+    "page_num": 42,
+    "part_number": "S258DT24",
+    "fig_item": "65",
+    "expected": {
+      "figure_code": "21-45-01-02A",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-21-45___083.pdf-21-45-01-07-p51-116817-3",
+    "pdf_name": "21-45___083.pdf",
+    "page_num": 51,
+    "part_number": "116817-3",
+    "fig_item": "45",
+    "expected": {
+      "figure_code": "21-45-01-07",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-21-45___083.pdf-21-45-51-14S-p66-NAS1149DN816K",
+    "pdf_name": "21-45___083.pdf",
+    "page_num": 66,
+    "part_number": "NAS1149DN816K",
+    "fig_item": "20",
+    "expected": {
+      "figure_code": "21-45-51-14S",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  }
+]

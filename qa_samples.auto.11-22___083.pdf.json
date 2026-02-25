@@ -1,0 +1,167 @@
+[
+  {
+    "name": "auto-cross-page-11-22___083.pdf-11-22-01-02-p8-M0DREF303072",
+    "pdf_name": "11-22___083.pdf",
+    "page_num": 8,
+    "part_number": "M0DREF303072",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "11-22-01-02",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-11-22___083.pdf-11-22-02-04-p20-144A6505-5",
+    "pdf_name": "11-22___083.pdf",
+    "page_num": 20,
+    "part_number": "144A6505-5",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "11-22-02-04",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-11-22___083.pdf-11-22-02-05-p27-144A6505-5",
+    "pdf_name": "11-22___083.pdf",
+    "page_num": 27,
+    "part_number": "144A6505-5",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "11-22-02-05",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-11-22___083.pdf-11-22-02-17-p40-141A6902-21",
+    "pdf_name": "11-22___083.pdf",
+    "page_num": 40,
+    "part_number": "141A6902-21",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "11-22-02-17",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-11-22___083.pdf-11-22-02-22A-p49-141A6902-23",
+    "pdf_name": "11-22___083.pdf",
+    "page_num": 49,
+    "part_number": "141A6902-23",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "11-22-02-22A",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-11-22___083.pdf-11-22-04-01-p65-BACC30BL6",
+    "pdf_name": "11-22___083.pdf",
+    "page_num": 65,
+    "part_number": "BACC30BL6",
+    "fig_item": "- 20",
+    "expected": {
+      "figure_code": "11-22-04-01",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-11-22___083.pdf-11-22-04-03-p69-M0DREF293907",
+    "pdf_name": "11-22___083.pdf",
+    "page_num": 69,
+    "part_number": "M0DREF293907",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "11-22-04-03",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-11-22___083.pdf-11-22-04-04-p79-273A3610-5",
+    "pdf_name": "11-22___083.pdf",
+    "page_num": 79,
+    "part_number": "273A3610-5",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "11-22-04-04",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-11-22___083.pdf-11-22-06-01-p91-BAC27DHY0284",
+    "pdf_name": "11-22___083.pdf",
+    "page_num": 91,
+    "part_number": "BAC27DHY0284",
+    "fig_item": "45",
+    "expected": {
+      "figure_code": "11-22-06-01",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-11-22___083.pdf-11-22-06-03-p101-BAC27DHY361",
+    "pdf_name": "11-22___083.pdf",
+    "page_num": 101,
+    "part_number": "BAC27DHY361",
+    "fig_item": "65",
+    "expected": {
+      "figure_code": "11-22-06-03",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-dup-pn-11-22___083.pdf-p58-BAC27DBY0170",
+    "pdf_name": "11-22___083.pdf",
+    "page_num": 58,
+    "part_number": "BAC27DBY0170",
+    "fig_item_set": [
+      "25",
+      "35",
+      "5"
+    ],
+    "expected": {
+      "count_at_least": 3,
+      "pdf_truth": 1
+    }
+  },
+  {
+    "name": "auto-dup-pn-11-22___083.pdf-p91-BACM10V21-2JH",
+    "pdf_name": "11-22___083.pdf",
+    "page_num": 91,
+    "part_number": "BACM10V21-2JH",
+    "fig_item_set": [
+      "22",
+      "23",
+      "24"
+    ],
+    "expected": {
+      "count_at_least": 3,
+      "pdf_truth": 1
+    }
+  },
+  {
+    "name": "auto-dup-pn-11-22___083.pdf-p92-BACM10F11-3AH",
+    "pdf_name": "11-22___083.pdf",
+    "page_num": 92,
+    "part_number": "BACM10F11-3AH",
+    "fig_item_set": [
+      "80",
+      "81",
+      "82"
+    ],
+    "expected": {
+      "count_at_least": 3,
+      "pdf_truth": 1
+    }
+  }
+]

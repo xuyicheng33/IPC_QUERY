@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ipc_query"
+version = "2.0.0"
+description = "IPC (Illustrated Parts Catalog) data extraction and query system"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "IPC_QUERY Team"}
+]
+requires-python = ">=3.10"
+keywords = ["ipc", "pdf", "extraction", "parts-catalog", "aviation"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "mypy>=1.0",
+]
+
+[project.scripts]
+ipc_query = "cli.commands:main"
+
+[tool.setuptools.packages.find]
+include = ["ipc_query*", "cli*"]
+
+[tool.setuptools.package-data]
+ipc_query = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.coverage.run]
+source = ["ipc_query"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]

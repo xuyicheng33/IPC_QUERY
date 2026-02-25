@@ -1,0 +1,1186 @@
+[
+  {
+    "name": "regression-digit-only-31576526",
+    "pdf_name": "11-21___083.pdf",
+    "page_num": 85,
+    "part_number": "31576526",
+    "fig_item": "60",
+    "expected": {
+      "pdf_truth": 1
+    }
+  },
+  {
+    "name": "regression-zero-shortcode-C0ML",
+    "pdf_name": "25-22.pdf",
+    "page_num": 268,
+    "part_number": "C0ML",
+    "fig_item": "195",
+    "pdf_root": "IPC/7CL",
+    "expected": {
+      "pdf_truth": 1
+    }
+  },
+  {
+    "name": "regression-zero-shortcode-DEM0KIT",
+    "pdf_name": "25-64___083.pdf",
+    "page_num": 60,
+    "part_number": "DEM0KIT",
+    "fig_item": "- 500",
+    "expected": {
+      "pdf_truth": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-11-20-00-01C",
+    "pdf_name": "11-20___083.pdf",
+    "page_num": 4,
+    "part_number": "414A4184-3",
+    "fig_item": "- 300",
+    "expected": {
+      "figure_code": "11-20-00-01C",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "figure-code-from-footer-not-xref",
+    "pdf_name": "11-20___083.pdf",
+    "page_num": 21,
+    "part_number": "270A0442-1",
+    "fig_item": "- 55",
+    "expected": {
+      "figure_code": "11-20-00-19",
+      "parent_part_number": "270A0240-678",
+      "pdf_truth": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-11-20-00-21",
+    "pdf_name": "11-20___083.pdf",
+    "page_num": 24,
+    "part_number": "113A4100-10",
+    "fig_item": "- 5",
+    "expected": {
+      "figure_code": "11-20-00-21",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-11-20-00-21A",
+    "pdf_name": "11-20___083.pdf",
+    "page_num": 27,
+    "part_number": "113A4100-10",
+    "fig_item": "- 5",
+    "expected": {
+      "figure_code": "11-20-00-21A",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-11-20-00-23",
+    "pdf_name": "11-20___083.pdf",
+    "page_num": 34,
+    "part_number": "113A4300-2",
+    "fig_item": "- 5",
+    "expected": {
+      "figure_code": "11-20-00-23",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-11-20-00-23A",
+    "pdf_name": "11-20___083.pdf",
+    "page_num": 38,
+    "part_number": "113A4300-2",
+    "fig_item": "- 5",
+    "expected": {
+      "figure_code": "11-20-00-23A",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-11-20-00-24",
+    "pdf_name": "11-20___083.pdf",
+    "page_num": 42,
+    "part_number": "113A4400-2",
+    "fig_item": "- 5",
+    "expected": {
+      "figure_code": "11-20-00-24",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-11-20-00-24A",
+    "pdf_name": "11-20___083.pdf",
+    "page_num": 46,
+    "part_number": "113A4400-2",
+    "fig_item": "- 5",
+    "expected": {
+      "figure_code": "11-20-00-24A",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-11-20-00-25",
+    "pdf_name": "11-20___083.pdf",
+    "page_num": 50,
+    "part_number": "113A4500-4",
+    "fig_item": "- 5",
+    "expected": {
+      "figure_code": "11-20-00-25",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-11-20-00-25A",
+    "pdf_name": "11-20___083.pdf",
+    "page_num": 53,
+    "part_number": "113A4500-4",
+    "fig_item": "- 5",
+    "expected": {
+      "figure_code": "11-20-00-25A",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-11-20-00-26A",
+    "pdf_name": "11-20___083.pdf",
+    "page_num": 58,
+    "part_number": "113A4600-3",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "11-20-00-26A",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-11-20-00-26C",
+    "pdf_name": "11-20___083.pdf",
+    "page_num": 68,
+    "part_number": "113A4600-2",
+    "fig_item": "- 5",
+    "expected": {
+      "figure_code": "11-20-00-26C",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "cross-page-parent-figure-09",
+    "pdf_name": "11-20___083.pdf",
+    "page_num": 105,
+    "part_number": "BAC27DPA5155",
+    "fig_item": "125",
+    "expected": {
+      "figure_code": "11-20-51-09",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-21___083.pdf-auto-cross-page-11-21___083.pdf-11-21-11-40-p9-BAC27XSTN3097",
+    "pdf_name": "11-21___083.pdf",
+    "page_num": 9,
+    "part_number": "BAC27XSTN3097",
+    "fig_item": "65",
+    "expected": {
+      "figure_code": "11-21-11-40",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-21___083.pdf-auto-cross-page-11-21___083.pdf-11-21-11-41-p12-280-2745-120",
+    "pdf_name": "11-21___083.pdf",
+    "page_num": 12,
+    "part_number": "280-2745-120",
+    "fig_item": "5",
+    "expected": {
+      "figure_code": "11-21-11-41",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-21___083.pdf-auto-cross-page-11-21___083.pdf-11-21-13-06-p15-BAC27DEX6912",
+    "pdf_name": "11-21___083.pdf",
+    "page_num": 15,
+    "part_number": "BAC27DEX6912",
+    "fig_item": "45",
+    "expected": {
+      "figure_code": "11-21-13-06",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-21___083.pdf-auto-cross-page-11-21___083.pdf-11-21-13-08-p20-822-0334-003",
+    "pdf_name": "11-21___083.pdf",
+    "page_num": 20,
+    "part_number": "822-0334-003",
+    "fig_item": "- 2",
+    "expected": {
+      "figure_code": "11-21-13-08",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-21___083.pdf-auto-cross-page-11-21___083.pdf-11-21-13-09-p26-M0DREF316828",
+    "pdf_name": "11-21___083.pdf",
+    "page_num": 26,
+    "part_number": "M0DREF316828",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "11-21-13-09",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-21___083.pdf-auto-cross-page-11-21___083.pdf-11-21-13-46-p38-BAC27XSTN1441",
+    "pdf_name": "11-21___083.pdf",
+    "page_num": 38,
+    "part_number": "BAC27XSTN1441",
+    "fig_item": "65",
+    "expected": {
+      "figure_code": "11-21-13-46",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-21___083.pdf-auto-cross-page-11-21___083.pdf-11-21-14-13-p50-414A4600-228",
+    "pdf_name": "11-21___083.pdf",
+    "page_num": 50,
+    "part_number": "414A4600-228",
+    "fig_item": "50",
+    "expected": {
+      "figure_code": "11-21-14-13",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-21___083.pdf-auto-cross-page-11-21___083.pdf-11-21-18-05-p64-M0DREF422246",
+    "pdf_name": "11-21___083.pdf",
+    "page_num": 64,
+    "part_number": "M0DREF422246",
+    "fig_item": "- 7",
+    "expected": {
+      "figure_code": "11-21-18-05",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-22___083.pdf-auto-cross-page-11-22___083.pdf-11-22-01-02-p8-M0DREF303072",
+    "pdf_name": "11-22___083.pdf",
+    "page_num": 8,
+    "part_number": "M0DREF303072",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "11-22-01-02",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-22___083.pdf-auto-cross-page-11-22___083.pdf-11-22-02-04-p20-144A6505-5",
+    "pdf_name": "11-22___083.pdf",
+    "page_num": 20,
+    "part_number": "144A6505-5",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "11-22-02-04",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-22___083.pdf-auto-cross-page-11-22___083.pdf-11-22-02-05-p27-144A6505-5",
+    "pdf_name": "11-22___083.pdf",
+    "page_num": 27,
+    "part_number": "144A6505-5",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "11-22-02-05",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-22___083.pdf-auto-cross-page-11-22___083.pdf-11-22-02-17-p40-141A6902-21",
+    "pdf_name": "11-22___083.pdf",
+    "page_num": 40,
+    "part_number": "141A6902-21",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "11-22-02-17",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-22___083.pdf-auto-cross-page-11-22___083.pdf-11-22-02-22A-p49-141A6902-23",
+    "pdf_name": "11-22___083.pdf",
+    "page_num": 49,
+    "part_number": "141A6902-23",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "11-22-02-22A",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-22___083.pdf-auto-cross-page-11-22___083.pdf-11-22-04-01-p65-BACC30BL6",
+    "pdf_name": "11-22___083.pdf",
+    "page_num": 65,
+    "part_number": "BACC30BL6",
+    "fig_item": "- 20",
+    "expected": {
+      "figure_code": "11-22-04-01",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-22___083.pdf-auto-cross-page-11-22___083.pdf-11-22-04-03-p69-M0DREF293907",
+    "pdf_name": "11-22___083.pdf",
+    "page_num": 69,
+    "part_number": "M0DREF293907",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "11-22-04-03",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-22___083.pdf-auto-cross-page-11-22___083.pdf-11-22-04-04-p79-273A3610-5",
+    "pdf_name": "11-22___083.pdf",
+    "page_num": 79,
+    "part_number": "273A3610-5",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "11-22-04-04",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-24___083.pdf-auto-cross-page-11-24___083.pdf-11-24-01-01-p5-BAC27DFS340",
+    "pdf_name": "11-24___083.pdf",
+    "page_num": 5,
+    "part_number": "BAC27DFS340",
+    "fig_item": "60",
+    "expected": {
+      "figure_code": "11-24-01-01",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-24___083.pdf-auto-cross-page-11-24___083.pdf-11-24-01-05-p23-BAC27DFS299",
+    "pdf_name": "11-24___083.pdf",
+    "page_num": 23,
+    "part_number": "BAC27DFS299",
+    "fig_item": "10",
+    "expected": {
+      "figure_code": "11-24-01-05",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-24___083.pdf-auto-cross-page-11-24___083.pdf-11-24-01-09-p37-BAC27NFS0106",
+    "pdf_name": "11-24___083.pdf",
+    "page_num": 37,
+    "part_number": "BAC27NFS0106",
+    "fig_item": "115",
+    "expected": {
+      "figure_code": "11-24-01-09",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-24___083.pdf-auto-cross-page-11-24___083.pdf-11-24-01-15-p58-BAC27DFS253",
+    "pdf_name": "11-24___083.pdf",
+    "page_num": 58,
+    "part_number": "BAC27DFS253",
+    "fig_item": "35",
+    "expected": {
+      "figure_code": "11-24-01-15",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-24___083.pdf-auto-cross-page-11-24___083.pdf-11-24-03-01-p72-113A7002-15",
+    "pdf_name": "11-24___083.pdf",
+    "page_num": 72,
+    "part_number": "113A7002-15",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "11-24-03-01",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-24___083.pdf-auto-cross-page-11-24___083.pdf-11-24-04-03-p83-30-2392-3",
+    "pdf_name": "11-24___083.pdf",
+    "page_num": 83,
+    "part_number": "30-2392-3",
+    "fig_item": "10",
+    "expected": {
+      "figure_code": "11-24-04-03",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-24___083.pdf-auto-cross-page-11-24___083.pdf-11-24-51-03B-p107-72303218-1",
+    "pdf_name": "11-24___083.pdf",
+    "page_num": 107,
+    "part_number": "72303218-1",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "11-24-51-03B",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-24___083.pdf-auto-cross-page-11-24___083.pdf-11-24-51-03B-p125-72305039-3",
+    "pdf_name": "11-24___083.pdf",
+    "page_num": 125,
+    "part_number": "72305039-3",
+    "fig_item": "- 100",
+    "expected": {
+      "figure_code": "11-24-51-03B",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-30___083.pdf-auto-cross-page-11-30___083.pdf-11-30-00-01C-p6-414A5102-4",
+    "pdf_name": "11-30___083.pdf",
+    "page_num": 6,
+    "part_number": "414A5102-4",
+    "fig_item": "- 118",
+    "expected": {
+      "figure_code": "11-30-00-01C",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-30___083.pdf-auto-cross-page-11-30___083.pdf-11-30-00-05-p19-65-52820-2",
+    "pdf_name": "11-30___083.pdf",
+    "page_num": 19,
+    "part_number": "65-52820-2",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "11-30-00-05",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-30___083.pdf-auto-cross-page-11-30___083.pdf-11-30-00-07A-p27-M0DREF349520",
+    "pdf_name": "11-30___083.pdf",
+    "page_num": 27,
+    "part_number": "M0DREF349520",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "11-30-00-07A",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-30___083.pdf-auto-cross-page-11-30___083.pdf-11-30-00-09-p34-256A3195-13",
+    "pdf_name": "11-30___083.pdf",
+    "page_num": 34,
+    "part_number": "256A3195-13",
+    "fig_item": "10",
+    "expected": {
+      "figure_code": "11-30-00-09",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-30___083.pdf-auto-cross-page-11-30___083.pdf-11-30-00-09A-p39-256A3310-203",
+    "pdf_name": "11-30___083.pdf",
+    "page_num": 39,
+    "part_number": "256A3310-203",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "11-30-00-09A",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-30___083.pdf-auto-cross-page-11-30___083.pdf-11-30-00-10-p46-256A3410-203",
+    "pdf_name": "11-30___083.pdf",
+    "page_num": 46,
+    "part_number": "256A3410-203",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "11-30-00-10",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-30___083.pdf-auto-cross-page-11-30___083.pdf-11-30-00-11-p54-256A3110-201",
+    "pdf_name": "11-30___083.pdf",
+    "page_num": 54,
+    "part_number": "256A3110-201",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "11-30-00-11",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-11-30___083.pdf-auto-cross-page-11-30___083.pdf-11-30-00-12-p63-256A3210-10",
+    "pdf_name": "11-30___083.pdf",
+    "page_num": 63,
+    "part_number": "256A3210-10",
+    "fig_item": "- 5",
+    "expected": {
+      "figure_code": "11-30-00-12",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-21-23-00-13",
+    "pdf_name": "21-23___083.pdf",
+    "page_num": 4,
+    "part_number": "M0DREF233914",
+    "fig_item": "- 2",
+    "expected": {
+      "figure_code": "21-23-00-13",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-21-23-00-15B",
+    "pdf_name": "21-23___083.pdf",
+    "page_num": 8,
+    "part_number": "411A1101-3006C",
+    "fig_item": "- 355",
+    "expected": {
+      "figure_code": "21-23-00-15B",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-21-23-00-16B",
+    "pdf_name": "21-23___083.pdf",
+    "page_num": 17,
+    "part_number": "65C37395-1",
+    "fig_item": "30",
+    "expected": {
+      "figure_code": "21-23-00-16B",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-21-23___083.pdf-auto-cross-page-21-23___083.pdf-21-23-00-16C-p27-65C37395-1",
+    "pdf_name": "21-23___083.pdf",
+    "page_num": 27,
+    "part_number": "65C37395-1",
+    "fig_item": "25",
+    "expected": {
+      "figure_code": "21-23-00-16C",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-21-23___083.pdf-auto-cross-page-21-23___083.pdf-21-23-01-05-p44-214N2035-1",
+    "pdf_name": "21-23___083.pdf",
+    "page_num": 44,
+    "part_number": "214N2035-1",
+    "fig_item": "65",
+    "expected": {
+      "figure_code": "21-23-01-05",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "deep-dots-5-p47",
+    "pdf_name": "21-23___083.pdf",
+    "page_num": 47,
+    "part_number": "65C36911-1",
+    "expected": {
+      "min_nom_level": 5,
+      "pdf_truth": 1
+    }
+  },
+  {
+    "name": "qa2-21-23___083.pdf-auto-cross-page-21-23___083.pdf-21-23-01-05A-p66-214N2035-1",
+    "pdf_name": "21-23___083.pdf",
+    "page_num": 66,
+    "part_number": "214N2035-1",
+    "fig_item": "55",
+    "expected": {
+      "figure_code": "21-23-01-05A",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-21-23___083.pdf-auto-cross-page-21-23___083.pdf-21-23-01-05C-p90-214N2035-1",
+    "pdf_name": "21-23___083.pdf",
+    "page_num": 90,
+    "part_number": "214N2035-1",
+    "fig_item": "60",
+    "expected": {
+      "figure_code": "21-23-01-05C",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-21-23___083.pdf-auto-cross-page-21-23___083.pdf-21-23-01-05F-p123-821A4240-11",
+    "pdf_name": "21-23___083.pdf",
+    "page_num": 123,
+    "part_number": "821A4240-11",
+    "fig_item": "85",
+    "expected": {
+      "figure_code": "21-23-01-05F",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-dup-pn-PLH53CD",
+    "pdf_name": "21-23___083.pdf",
+    "page_num": 131,
+    "part_number": "PLH53CD",
+    "fig_item_set": [
+      "510",
+      "565",
+      "615"
+    ],
+    "expected": {
+      "count_at_least": 3,
+      "pdf_truth": 1
+    }
+  },
+  {
+    "name": "duplicate-pn-four-items",
+    "pdf_name": "21-23___083.pdf",
+    "page_num": 133,
+    "part_number": "210N0013-17",
+    "fig_item_set": [
+      "710",
+      "755",
+      "815",
+      "875"
+    ],
+    "expected": {
+      "count_at_least": 4,
+      "min_nom_level": 2,
+      "pdf_truth": 1
+    }
+  },
+  {
+    "name": "qa2-21-23___083.pdf-auto-cross-page-21-23___083.pdf-21-23-01-05J-p158-BACB30NN3K22",
+    "pdf_name": "21-23___083.pdf",
+    "page_num": 158,
+    "part_number": "BACB30NN3K22",
+    "fig_item": "25",
+    "expected": {
+      "figure_code": "21-23-01-05J",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-dup-pn-NAS1149D0332J",
+    "pdf_name": "21-23___083.pdf",
+    "page_num": 161,
+    "part_number": "NAS1149D0332J",
+    "fig_item_set": [
+      "345",
+      "- 430",
+      "- 450"
+    ],
+    "expected": {
+      "count_at_least": 3,
+      "pdf_truth": 1
+    }
+  },
+  {
+    "name": "qa2-21-23___083.pdf-auto-cross-page-21-23___083.pdf-21-23-01-16-p167-214A2020-1",
+    "pdf_name": "21-23___083.pdf",
+    "page_num": 167,
+    "part_number": "214A2020-1",
+    "fig_item": "55",
+    "expected": {
+      "figure_code": "21-23-01-16",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-21-23___083.pdf-auto-cross-page-21-23___083.pdf-21-23-01-17-p174-214A2001-9A",
+    "pdf_name": "21-23___083.pdf",
+    "page_num": 174,
+    "part_number": "214A2001-9A",
+    "fig_item": "100",
+    "expected": {
+      "figure_code": "21-23-01-17",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "deep-dots-6",
+    "pdf_name": "21-23___083.pdf",
+    "page_num": 288,
+    "part_number": "BACR15BA3B",
+    "fig_item": "- 605",
+    "expected": {
+      "min_nom_level": 6,
+      "pdf_truth": 1
+    }
+  },
+  {
+    "name": "auto-dup-pn-BACR15CE3M4",
+    "pdf_name": "21-23___083.pdf",
+    "page_num": 394,
+    "part_number": "BACR15CE3M4",
+    "fig_item_set": [
+      "- 175",
+      "- 205",
+      "- 225"
+    ],
+    "expected": {
+      "count_at_least": 3,
+      "pdf_truth": 1
+    }
+  },
+  {
+    "name": "duplicate-pn-two-items",
+    "pdf_name": "21-23___083.pdf",
+    "page_num": 1505,
+    "part_number": "TM2S8",
+    "fig_item_set": [
+      "65",
+      "67"
+    ],
+    "expected": {
+      "count_at_least": 2,
+      "pdf_truth": 1
+    }
+  },
+  {
+    "name": "qa2-21-24___083.pdf-auto-cross-page-21-24___083.pdf-21-24-00-01-p4-417N3011-401B",
+    "pdf_name": "21-24___083.pdf",
+    "page_num": 4,
+    "part_number": "417N3011-401B",
+    "fig_item": "- 5",
+    "expected": {
+      "figure_code": "21-24-00-01",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-21-24___083.pdf-auto-cross-page-21-24___083.pdf-21-24-00-01A-p19-417N3011-213A",
+    "pdf_name": "21-24___083.pdf",
+    "page_num": 19,
+    "part_number": "417N3011-213A",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "21-24-00-01A",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-21-24___083.pdf-auto-cross-page-21-24___083.pdf-21-24-00-28B-p48-417N3011-1401B",
+    "pdf_name": "21-24___083.pdf",
+    "page_num": 48,
+    "part_number": "417N3011-1401B",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "21-24-00-28B",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-21-24___083.pdf-auto-cross-page-21-24___083.pdf-21-24-00-28B-p66-417N3011-1402B",
+    "pdf_name": "21-24___083.pdf",
+    "page_num": 66,
+    "part_number": "417N3011-1402B",
+    "fig_item": "- 5",
+    "expected": {
+      "figure_code": "21-24-00-28B",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-21-24___083.pdf-auto-cross-page-21-24___083.pdf-21-24-00-28C-p78-417N3011-613B",
+    "pdf_name": "21-24___083.pdf",
+    "page_num": 78,
+    "part_number": "417N3011-613B",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "21-24-00-28C",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-21-24___083.pdf-auto-cross-page-21-24___083.pdf-21-24-00-28D-p97-417N3011-2603B",
+    "pdf_name": "21-24___083.pdf",
+    "page_num": 97,
+    "part_number": "417N3011-2603B",
+    "fig_item": "- 2",
+    "expected": {
+      "figure_code": "21-24-00-28D",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-21-24___083.pdf-auto-cross-page-21-24___083.pdf-21-24-00-52-p110-417N3011-201A",
+    "pdf_name": "21-24___083.pdf",
+    "page_num": 110,
+    "part_number": "417N3011-201A",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "21-24-00-52",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-21-24___083.pdf-auto-cross-page-21-24___083.pdf-21-24-00-52B-p144-70111-0132",
+    "pdf_name": "21-24___083.pdf",
+    "page_num": 144,
+    "part_number": "70111-0132",
+    "fig_item": "- 5",
+    "expected": {
+      "figure_code": "21-24-00-52B",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-21-27___083.pdf-auto-cross-page-21-27___083.pdf-21-27-00-01-p4-69-44578-2",
+    "pdf_name": "21-27___083.pdf",
+    "page_num": 4,
+    "part_number": "69-44578-2",
+    "fig_item": "20",
+    "expected": {
+      "figure_code": "21-27-00-01",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-21-27___083.pdf-auto-cross-page-21-27___083.pdf-21-27-00-05-p10-284A9200-89",
+    "pdf_name": "21-27___083.pdf",
+    "page_num": 10,
+    "part_number": "284A9200-89",
+    "fig_item": "- 6",
+    "expected": {
+      "figure_code": "21-27-00-05",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-21-27___083.pdf-auto-cross-page-21-27___083.pdf-21-27-00-05A-p18-ES410-1538",
+    "pdf_name": "21-27___083.pdf",
+    "page_num": 18,
+    "part_number": "ES410-1538",
+    "fig_item": "30",
+    "expected": {
+      "figure_code": "21-27-00-05A",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-21-27___083.pdf-auto-cross-page-21-27___083.pdf-21-27-03-01-p36-M0DREF773647",
+    "pdf_name": "21-27___083.pdf",
+    "page_num": 36,
+    "part_number": "M0DREF773647",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "21-27-03-01",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-21-27___083.pdf-auto-cross-page-21-27___083.pdf-21-27-04-03-p55-BAC27DAC81",
+    "pdf_name": "21-27___083.pdf",
+    "page_num": 55,
+    "part_number": "BAC27DAC81",
+    "fig_item": "- 5",
+    "expected": {
+      "figure_code": "21-27-04-03",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-21-27___083.pdf-auto-cross-page-21-27___083.pdf-21-27-05-01-p68-20798-01",
+    "pdf_name": "21-27___083.pdf",
+    "page_num": 68,
+    "part_number": "20798-01",
+    "fig_item": "15",
+    "expected": {
+      "figure_code": "21-27-05-01",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-21-27___083.pdf-auto-cross-page-21-27___083.pdf-21-27-51-01-p73-214T3424-16",
+    "pdf_name": "21-27___083.pdf",
+    "page_num": 73,
+    "part_number": "214T3424-16",
+    "fig_item": "75",
+    "expected": {
+      "figure_code": "21-27-51-01",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-21-27___083.pdf-auto-cross-page-21-27___083.pdf-21-27-51-02-p78-214T3424-16",
+    "pdf_name": "21-27___083.pdf",
+    "page_num": 78,
+    "part_number": "214T3424-16",
+    "fig_item": "85",
+    "expected": {
+      "figure_code": "21-27-51-02",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-21-45___083.pdf-auto-cross-page-21-45___083.pdf-21-45-00-01-p4-210N0013-10",
+    "pdf_name": "21-45___083.pdf",
+    "page_num": 4,
+    "part_number": "210N0013-10",
+    "fig_item": "105",
+    "expected": {
+      "figure_code": "21-45-00-01",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-21-45___083.pdf-auto-cross-page-21-45___083.pdf-21-45-01-01-p10-116817-5",
+    "pdf_name": "21-45___083.pdf",
+    "page_num": 10,
+    "part_number": "116817-5",
+    "fig_item": "40",
+    "expected": {
+      "figure_code": "21-45-01-01",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-21-45___083.pdf-auto-cross-page-21-45___083.pdf-21-45-01-01A-p20-116817-5",
+    "pdf_name": "21-45___083.pdf",
+    "page_num": 20,
+    "part_number": "116817-5",
+    "fig_item": "40",
+    "expected": {
+      "figure_code": "21-45-01-01A",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-21-45___083.pdf-auto-cross-page-21-45___083.pdf-21-45-01-01B-p29-116817-5",
+    "pdf_name": "21-45___083.pdf",
+    "page_num": 29,
+    "part_number": "116817-5",
+    "fig_item": "40",
+    "expected": {
+      "figure_code": "21-45-01-01B",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-21-45___083.pdf-auto-cross-page-21-45___083.pdf-21-45-01-02-p34-BACN10VR2CG",
+    "pdf_name": "21-45___083.pdf",
+    "page_num": 34,
+    "part_number": "BACN10VR2CG",
+    "fig_item": "50",
+    "expected": {
+      "figure_code": "21-45-01-02",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-21-45___083.pdf-auto-cross-page-21-45___083.pdf-21-45-01-02A-p42-S258DT24",
+    "pdf_name": "21-45___083.pdf",
+    "page_num": 42,
+    "part_number": "S258DT24",
+    "fig_item": "65",
+    "expected": {
+      "figure_code": "21-45-01-02A",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-21-45___083.pdf-auto-cross-page-21-45___083.pdf-21-45-01-07-p51-116817-3",
+    "pdf_name": "21-45___083.pdf",
+    "page_num": 51,
+    "part_number": "116817-3",
+    "fig_item": "45",
+    "expected": {
+      "figure_code": "21-45-01-07",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-21-45___083.pdf-auto-cross-page-21-45___083.pdf-21-45-51-14S-p66-NAS1149DN816K",
+    "pdf_name": "21-45___083.pdf",
+    "page_num": 66,
+    "part_number": "NAS1149DN816K",
+    "fig_item": "20",
+    "expected": {
+      "figure_code": "21-45-51-14S",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-22-11___083.pdf-auto-cross-page-22-11___083.pdf-22-11-11-01-p4-251A1814-14",
+    "pdf_name": "22-11___083.pdf",
+    "page_num": 4,
+    "part_number": "251A1814-14",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "22-11-11-01",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-22-11___083.pdf-auto-cross-page-22-11___083.pdf-22-11-24-01-p11-69-49750-4",
+    "pdf_name": "22-11___083.pdf",
+    "page_num": 11,
+    "part_number": "69-49750-4",
+    "fig_item": "5",
+    "expected": {
+      "figure_code": "22-11-24-01",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-22-11___083.pdf-auto-cross-page-22-11___083.pdf-22-11-25-01-p21-69-71010-7",
+    "pdf_name": "22-11___083.pdf",
+    "page_num": 21,
+    "part_number": "69-71010-7",
+    "fig_item": "25",
+    "expected": {
+      "figure_code": "22-11-25-01",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-22-11___083.pdf-auto-cross-page-22-11___083.pdf-22-11-26-01-p37-REP4M6-5FS428",
+    "pdf_name": "22-11___083.pdf",
+    "page_num": 37,
+    "part_number": "REP4M6-5FS428",
+    "fig_item": "40",
+    "expected": {
+      "figure_code": "22-11-26-01",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-22-11___083.pdf-auto-cross-page-22-11___083.pdf-22-11-27-01-p51-251A1230-6",
+    "pdf_name": "22-11___083.pdf",
+    "page_num": 51,
+    "part_number": "251A1230-6",
+    "fig_item": "- 5",
+    "expected": {
+      "figure_code": "22-11-27-01",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-22-11___083.pdf-auto-cross-page-22-11___083.pdf-22-11-29-01-p63-69-43490-16",
+    "pdf_name": "22-11___083.pdf",
+    "page_num": 63,
+    "part_number": "69-43490-16",
+    "fig_item": "27",
+    "expected": {
+      "figure_code": "22-11-29-01",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-22-11___083.pdf-auto-cross-page-22-11___083.pdf-22-11-31-01-p76-BACB30LH3D10",
+    "pdf_name": "22-11___083.pdf",
+    "page_num": 76,
+    "part_number": "BACB30LH3D10",
+    "fig_item": "10",
+    "expected": {
+      "figure_code": "22-11-31-01",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "qa2-22-11___083.pdf-auto-cross-page-22-11___083.pdf-22-11-32-01-p93-233A2221-13",
+    "pdf_name": "22-11___083.pdf",
+    "page_num": 93,
+    "part_number": "233A2221-13",
+    "fig_item": "80",
+    "expected": {
+      "figure_code": "22-11-32-01",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  }
+]

@@ -1,0 +1,134 @@
+/**
+ * CSS变量定义
+ * 设计系统的基础变量
+ */
+
+:root {
+  /* 颜色系统 - Apple HIG 灵感 */
+  --bg: #ffffff;
+  --bg-elevated: #ffffff;
+  --panel: #f5f5f7;
+  --panel-alt: #fafafa;
+  --text: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --text-muted: #86868b;
+  --border: rgba(0, 0, 0, 0.1);
+  --border-strong: rgba(0, 0, 0, 0.15);
+
+  /* 强调色 */
+  --accent: #ff3b30;        /* 系统红 */
+  --accent-hover: #ff453a;
+  --accent-light: rgba(255, 59, 48, 0.1);
+
+  /* 状态色 */
+  --success: #34c759;       /* 成功绿 */
+  --warning: #ff9500;       /* 警告橙 */
+  --info: #007aff;          /* 信息蓝 */
+  --error: #ff3b30;         /* 错误红 */
+
+  /* 阴影 */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.15);
+  --shadow-xl: 0 28px 70px rgba(0, 0, 0, 0.18);
+
+  /* 圆角 - Squircle 风格 */
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+
+  /* 间距 */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space: 12px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+
+  /* 字体 */
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Segoe UI Mono", Consolas, monospace;
+
+  /* 字号 */
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-base: 15px;
+  --text-md: 17px;
+  --text-lg: 20px;
+  --text-xl: 24px;
+  --text-2xl: 28px;
+
+  /* 行高 */
+  --leading-tight: 1.2;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.75;
+
+  /* 布局 */
+  --max-width: 1240px;
+  --sidebar-width: 320px;
+  --header-height: 60px;
+
+  /* 过渡 */
+  --transition-fast: 120ms ease-out;
+  --transition: 180ms ease-out;
+  --transition-slow: 280ms ease-out;
+
+  /* z-index */
+  --z-base: 0;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal: 300;
+  --z-toast: 400;
+}
+
+/* 暗色模式 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1c1e;
+    --bg-elevated: #2c2c2e;
+    --panel: #2c2c2e;
+    --panel-alt: #3a3a3c;
+    --text: #f5f5f7;
+    --text-secondary: #ababab;
+    --text-muted: #8e8e93;
+    --border: rgba(255, 255, 255, 0.1);
+    --border-strong: rgba(255, 255, 255, 0.15);
+
+    --accent: #ff453a;
+    --accent-hover: #ff6961;
+    --accent-light: rgba(255, 69, 58, 0.15);
+
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+    --shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.5);
+    --shadow-xl: 0 28px 70px rgba(0, 0, 0, 0.6);
+  }
+}
+
+/* 强制暗色模式 */
+[data-theme="dark"] {
+  --bg: #1c1c1e;
+  --bg-elevated: #2c2c2e;
+  --panel: #2c2c2e;
+  --panel-alt: #3a3a3c;
+  --text: #f5f5f7;
+  --text-secondary: #ababab;
+  --text-muted: #8e8e93;
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.15);
+}
+
+/* 强制亮色模式 */
+[data-theme="light"] {
+  --bg: #ffffff;
+  --bg-elevated: #ffffff;
+  --panel: #f5f5f7;
+  --panel-alt: #fafafa;
+  --text: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --text-muted: #86868b;
+  --border: rgba(0, 0, 0, 0.1);
+  --border-strong: rgba(0, 0, 0, 0.15);
+}

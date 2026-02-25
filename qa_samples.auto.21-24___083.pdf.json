@@ -1,0 +1,272 @@
+[
+  {
+    "name": "auto-cross-page-21-24___083.pdf-21-24-00-01-p4-417N3011-401B",
+    "pdf_name": "21-24___083.pdf",
+    "page_num": 4,
+    "part_number": "417N3011-401B",
+    "fig_item": "- 5",
+    "expected": {
+      "figure_code": "21-24-00-01",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-21-24___083.pdf-21-24-00-01A-p19-417N3011-213A",
+    "pdf_name": "21-24___083.pdf",
+    "page_num": 19,
+    "part_number": "417N3011-213A",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "21-24-00-01A",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-21-24___083.pdf-21-24-00-28B-p48-417N3011-1401B",
+    "pdf_name": "21-24___083.pdf",
+    "page_num": 48,
+    "part_number": "417N3011-1401B",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "21-24-00-28B",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-21-24___083.pdf-21-24-00-28B-p66-417N3011-1402B",
+    "pdf_name": "21-24___083.pdf",
+    "page_num": 66,
+    "part_number": "417N3011-1402B",
+    "fig_item": "- 5",
+    "expected": {
+      "figure_code": "21-24-00-28B",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-21-24___083.pdf-21-24-00-28C-p78-417N3011-613B",
+    "pdf_name": "21-24___083.pdf",
+    "page_num": 78,
+    "part_number": "417N3011-613B",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "21-24-00-28C",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-21-24___083.pdf-21-24-00-28D-p97-417N3011-2603B",
+    "pdf_name": "21-24___083.pdf",
+    "page_num": 97,
+    "part_number": "417N3011-2603B",
+    "fig_item": "- 2",
+    "expected": {
+      "figure_code": "21-24-00-28D",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-21-24___083.pdf-21-24-00-52-p110-417N3011-201A",
+    "pdf_name": "21-24___083.pdf",
+    "page_num": 110,
+    "part_number": "417N3011-201A",
+    "fig_item": "- 1",
+    "expected": {
+      "figure_code": "21-24-00-52",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-21-24___083.pdf-21-24-00-52B-p144-70111-0132",
+    "pdf_name": "21-24___083.pdf",
+    "page_num": 144,
+    "part_number": "70111-0132",
+    "fig_item": "- 5",
+    "expected": {
+      "figure_code": "21-24-00-52B",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-21-24___083.pdf-21-24-00-52C-p148-70057-32",
+    "pdf_name": "21-24___083.pdf",
+    "page_num": 148,
+    "part_number": "70057-32",
+    "fig_item": "15",
+    "expected": {
+      "figure_code": "21-24-00-52C",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-cross-page-21-24___083.pdf-21-24-00-52E-p152-70057-32",
+    "pdf_name": "21-24___083.pdf",
+    "page_num": 152,
+    "part_number": "70057-32",
+    "fig_item": "15",
+    "expected": {
+      "figure_code": "21-24-00-52E",
+      "pdf_truth": 1,
+      "pdf_truth_parent": 1
+    }
+  },
+  {
+    "name": "auto-dup-pn-21-24___083.pdf-p238-NAS1149D0332K",
+    "pdf_name": "21-24___083.pdf",
+    "page_num": 238,
+    "part_number": "NAS1149D0332K",
+    "fig_item_set": [
+      "160",
+      "175",
+      "200"
+    ],
+    "expected": {
+      "count_at_least": 3,
+      "pdf_truth": 1
+    }
+  },
+  {
+    "name": "auto-dup-pn-21-24___083.pdf-p255-NAS1149D0332K",
+    "pdf_name": "21-24___083.pdf",
+    "page_num": 255,
+    "part_number": "NAS1149D0332K",
+    "fig_item_set": [
+      "20",
+      "35",
+      "50"
+    ],
+    "expected": {
+      "count_at_least": 3,
+      "pdf_truth": 1
+    }
+  },
+  {
+    "name": "auto-dup-pn-21-24___083.pdf-p255-BACC10DK13",
+    "pdf_name": "21-24___083.pdf",
+    "page_num": 255,
+    "part_number": "BACC10DK13",
+    "fig_item_set": [
+      "25",
+      "40",
+      "5"
+    ],
+    "expected": {
+      "count_at_least": 3,
+      "pdf_truth": 1
+    }
+  },
+  {
+    "name": "auto-dup-pn-21-24___083.pdf-p259-BACC10DK13",
+    "pdf_name": "21-24___083.pdf",
+    "page_num": 259,
+    "part_number": "BACC10DK13",
+    "fig_item_set": [
+      "20",
+      "35",
+      "5"
+    ],
+    "expected": {
+      "count_at_least": 3,
+      "pdf_truth": 1
+    }
+  },
+  {
+    "name": "auto-dup-pn-21-24___083.pdf-p293-NAS1149D0332K",
+    "pdf_name": "21-24___083.pdf",
+    "page_num": 293,
+    "part_number": "NAS1149D0332K",
+    "fig_item_set": [
+      "10",
+      "25",
+      "40"
+    ],
+    "expected": {
+      "count_at_least": 3,
+      "pdf_truth": 1
+    }
+  },
+  {
+    "name": "auto-dup-pn-21-24___083.pdf-p301-NAS1149D0332K",
+    "pdf_name": "21-24___083.pdf",
+    "page_num": 301,
+    "part_number": "NAS1149D0332K",
+    "fig_item_set": [
+      "115",
+      "130",
+      "80"
+    ],
+    "expected": {
+      "count_at_least": 3,
+      "pdf_truth": 1
+    }
+  },
+  {
+    "name": "auto-dup-pn-21-24___083.pdf-p316-NAS1149D0332K",
+    "pdf_name": "21-24___083.pdf",
+    "page_num": 316,
+    "part_number": "NAS1149D0332K",
+    "fig_item_set": [
+      "15",
+      "30",
+      "45"
+    ],
+    "expected": {
+      "count_at_least": 3,
+      "pdf_truth": 1
+    }
+  },
+  {
+    "name": "auto-dup-pn-21-24___083.pdf-p316-BACC10DK13",
+    "pdf_name": "21-24___083.pdf",
+    "page_num": 316,
+    "part_number": "BACC10DK13",
+    "fig_item_set": [
+      "20",
+      "35",
+      "5"
+    ],
+    "expected": {
+      "count_at_least": 3,
+      "pdf_truth": 1
+    }
+  },
+  {
+    "name": "auto-dup-pn-21-24___083.pdf-p321-NAS1149D0332K",
+    "pdf_name": "21-24___083.pdf",
+    "page_num": 321,
+    "part_number": "NAS1149D0332K",
+    "fig_item_set": [
+      "15",
+      "30",
+      "50"
+    ],
+    "expected": {
+      "count_at_least": 3,
+      "pdf_truth": 1
+    }
+  },
+  {
+    "name": "auto-dup-pn-21-24___083.pdf-p321-BACC10DK13",
+    "pdf_name": "21-24___083.pdf",
+    "page_num": 321,
+    "part_number": "BACC10DK13",
+    "fig_item_set": [
+      "20",
+      "35",
+      "5"
+    ],
+    "expected": {
+      "count_at_least": 3,
+      "pdf_truth": 1
+    }
+  }
+]

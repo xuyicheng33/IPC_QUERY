@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>IPC查询</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <meta name="color-scheme" content="light" />
+  </head>
+  <body>
+    <header class="top">
+      <div class="brand">
+        <div class="brand-text">
+          <div class="title">IPC查询</div>
+        </div>
+      </div>
+
+      <div class="meta">
+        <button class="chip link" id="dbChip" type="button" title="查看已入库 PDF 目录">
+          <span class="dot"></span>
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <ellipse cx="12" cy="5" rx="7" ry="3" fill="none" stroke="currentColor" stroke-width="2" />
+            <path
+              d="M5 5v6c0 1.7 3.1 3 7 3s7-1.3 7-3V5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
+            <path
+              d="M5 11v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
+          </svg>
+          <span class="chipText">DB</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel left">
+        <form id="searchForm" class="search" autocomplete="off">
+          <div class="searchRow">
+            <label class="srOnly" for="q">搜索（件号 / 术语关键字）</label>
+            <div class="searchField">
+              <svg class="icon searchIcon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2" />
+                <path d="M20 20l-3.5-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              </svg>
+              <input
+                id="q"
+                name="q"
+                type="text"
+                spellcheck="false"
+                placeholder="请输入件号/术语关键字"
+              />
+            </div>
+            <button id="btnSearch" type="submit" class="btn primary">查询</button>
+          </div>
+        </form>
+
+        <div class="resultsWrap" id="resultsWrap" hidden>
+          <div class="resultsHead">
+            <div class="resultsTitle">结果</div>
+            <div class="resultsMeta">
+              <div class="resultsCount" id="resultsCount">0</div>
+              <div class="resultsStatus" id="statusText"></div>
+            </div>
+          </div>
+
+          <div class="filters" role="tablist" aria-label="结果筛选">
+            <button class="segBtn" type="button" data-filter="all" aria-selected="false">全部</button>
+            <button class="segBtn active" type="button" data-filter="pn" aria-selected="true">件号匹配</button>
+            <button class="segBtn" type="button" data-filter="term" aria-selected="false">术语匹配</button>
+          </div>
+
+          <div class="results" id="results"></div>
+
+          <div class="pager" id="pager" hidden>
+            <button class="btn ghost neutral" id="btnPrev" type="button">上一页</button>
+            <div class="pagerInfo" id="pagerInfo">第 1 / 1 页</div>
+            <button class="btn ghost neutral" id="btnNext" type="button">下一页</button>
+            <div class="pagerJump">
+              <label class="srOnly" for="pageInput">页码</label>
+              <input class="pageInput" id="pageInput" type="number" min="1" step="1" inputmode="numeric" />
+              <button class="btn ghost neutral" id="btnJump" type="button">跳转</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel right">
+        <div class="empty" id="emptyState">
+          <div class="emptyTitle">选择一条结果查看详情</div>
+        </div>
+
+        <div class="detail" id="detail" hidden>
+          <div class="detailTop">
+            <div class="pnBlock">
+              <div class="pn" id="pnMain">—</div>
+              <div class="pnSub" id="pnSub"></div>
+              <div class="badges" id="badges"></div>
+            </div>
+
+            <div class="actions">
+              <button class="btn ghost neutral" id="btnBack" type="button" hidden>
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                </svg>
+                返回
+              </button>
+              <a class="btn ghost neutral" id="btnOpenPage" target="_blank" rel="noreferrer">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linejoin="round"
+                  />
+                  <path d="M14 2v6h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
+                </svg>
+                打开页面
+              </a>
+              <a class="btn ghost" id="btnOpenPdf" target="_blank" rel="noreferrer">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path
+                    d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linejoin="round"
+                  />
+                  <path d="M14 2v6h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
+                </svg>
+                原 PDF
+              </a>
+            </div>
+          </div>
+
+          <div class="grid2">
+            <div class="kv">
+              <div class="k">来源PDF</div>
+              <div class="v mono" id="srcPdf">—</div>
+            </div>
+            <div class="kv">
+              <div class="k">页码</div>
+              <div class="v mono" id="srcPage">—</div>
+            </div>
+            <div class="kv">
+              <div class="k">图号</div>
+              <div class="v mono" id="srcFigure">—</div>
+            </div>
+            <div class="kv">
+              <div class="k">项号</div>
+              <div class="v mono" id="srcFigItem">—</div>
+            </div>
+            <div class="kv">
+              <div class="k">装机数量</div>
+              <div class="v mono" id="srcQty">—</div>
+            </div>
+            <div class="kv">
+              <div class="k">适用号段</div>
+              <div class="v mono" id="srcEff">—</div>
+            </div>
+            <div class="kv">
+              <div class="k">页脚信息</div>
+              <div class="v mono" id="srcMeta">—</div>
+            </div>
+            <div class="kv" id="kwReplaceCard">
+              <div class="k">术语是否包含 <span class="mono">replace</span></div>
+              <div class="v mono" id="kwReplaceVal">—</div>
+            </div>
+            <div class="kv" id="kwOptionalCard">
+              <div class="k">术语是否包含 <span class="mono">optional</span></div>
+              <div class="v mono" id="kwOptionalVal">—</div>
+            </div>
+          </div>
+
+          <div class="block">
+            <div class="blockTitle">术语</div>
+            <pre class="desc" id="desc"></pre>
+          </div>
+
+          <div class="block">
+            <div class="blockTitle">层级</div>
+            <div class="hierGrid" id="hier"></div>
+          </div>
+
+          <div class="block">
+            <div class="blockTitle">整页预览</div>
+            <div class="previewWrap">
+              <div class="previewHint" id="previewHint"></div>
+              <img id="preview" class="preview" alt="PDF page preview" />
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="/app.js" defer></script>
+
+    <div class="modal" id="docsModal" hidden>
+      <div class="modalBackdrop" data-close></div>
+      <div class="modalCard" role="dialog" aria-modal="true" aria-labelledby="docsTitle">
+        <div class="modalHeader">
+          <div class="modalTitle" id="docsTitle">PDF 目录</div>
+          <button class="iconBtn" id="btnCloseDocs" type="button" aria-label="关闭">✕</button>
+        </div>
+        <div class="modalBody">
+          <div class="docsHead">
+            <div class="docsCount" id="docsCount">—</div>
+            <a class="docsApi" href="/api/docs" target="_blank" rel="noreferrer">/api/docs</a>
+          </div>
+          <div class="docsList" id="docsList"></div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
