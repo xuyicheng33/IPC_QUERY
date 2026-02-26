@@ -122,6 +122,20 @@ class ApiHandlers:
         result = [d.to_dict() for d in docs]
         return HTTPStatus.OK, _json_bytes(result), "application/json; charset=utf-8"
 
+    def handle_doc_delete(self, pdf_name: str) -> tuple[int, bytes, str]:
+        """
+        处理文档删除请求
+
+        DELETE /api/docs?name=... 或 DELETE /api/docs/{pdf_name}
+        """
+        if self._import is None:
+            raise ValidationError("Import service is not enabled")
+
+        result = self._import.delete_document(pdf_name)
+        if not result.get("deleted"):
+            raise NotFoundError(f"PDF not found: {pdf_name}")
+        return HTTPStatus.OK, _json_bytes(result), "application/json; charset=utf-8"
+
     def handle_health(self) -> tuple[int, bytes, str]:
         """
         处理健康检查请求
@@ -241,7 +255,9 @@ class ApiHandlers:
                         end = int(end_raw) if end_raw != "" else size - 1
                         if start < 0 or start >= size:
                             raise ValueError("start out of range")
-                        end = min(max(end, start), size - 1)
+                        if end_raw != "" and end < start:
+                            raise ValueError("end before start")
+                        end = min(end, size - 1)
 
                     chunk_len = (end - start) + 1
                     with pdf_path.open("rb") as f:
