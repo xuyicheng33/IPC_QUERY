@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>数据库 - ipc_query_system</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body data-page="db">
+    <header class="topbar">
+      <a class="linkTitle" href="/">ipc_query_system</a>
+      <a class="btn ghost" href="/search">搜索</a>
+    </header>
+
+    <main class="page dbGrid">
+      <section class="card stack gap">
+        <div class="row between">
+          <div class="k">目录</div>
+          <button id="btnRescan" class="btn ghost" type="button">重扫当前目录</button>
+        </div>
+        <div id="dbStatus" class="muted">加载中...</div>
+        <div id="pathCrumb" class="mono">/</div>
+        <div id="dirList" class="stack"></div>
+        <div id="fileList" class="stack"></div>
+      </section>
+
+      <section class="card stack gap">
+        <div class="k">创建子目录</div>
+        <form id="folderForm" class="row gap">
+          <input id="folderName" class="input flex" type="text" placeholder="例如：engine" />
+          <button class="btn primary" type="submit">创建</button>
+        </form>
+
+        <div class="k">上传 PDF（支持批量）</div>
+        <form id="uploadForm" class="stack gap">
+          <input id="uploadFiles" class="input" type="file" accept=".pdf,application/pdf" multiple />
+          <button class="btn primary" type="submit">上传并入库</button>
+        </form>
+
+        <div class="k">任务状态</div>
+        <div id="jobsList" class="stack"></div>
+      </section>
+    </main>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>

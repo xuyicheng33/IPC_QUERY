@@ -40,6 +40,15 @@ python3 -m ipc_query serve --db ./data/ipc.sqlite --port 8791
 
 访问：`http://127.0.0.1:8791`
 
+## Web 交互
+
+- 首页：`/`（仅标题 + 搜索框 + 搜索按钮）
+- 结果页：`/search`（支持来源目录/文档、匹配模式、备注筛选）
+- 详情页：`/part/{id}`（保留术语、层级、预览、打开 PDF）
+- 数据库页：`/db`（目录浏览、创建子目录、单/批量上传、删除、重扫）
+
+服务启动后会自动提交一次 PDF 目录增量扫描任务（新增/变更文件入库）。
+
 ## API
 
 | 端点 | 方法 | 说明 |
@@ -47,12 +56,16 @@ python3 -m ipc_query serve --db ./data/ipc.sqlite --port 8791
 | `/api/search` | GET | 搜索零件 |
 | `/api/part/{id}` | GET | 获取零件详情 |
 | `/api/docs` | GET | 获取文档列表 |
+| `/api/docs/tree?path={relative_dir}` | GET | 获取目录树（子目录 + PDF 文件 + 入库状态） |
 | `/api/docs?name={pdf_name}` | DELETE | 删除指定 PDF 及关联数据 |
 | `/api/health` | GET | 健康检查 |
 | `/api/metrics` | GET | 性能指标 |
-| `/api/import` | POST | 上传 PDF 并创建导入任务 |
+| `/api/import` | POST | 上传 PDF 并创建导入任务（支持 `target_dir`） |
 | `/api/import/jobs` | GET | 查询最近导入任务 |
 | `/api/import/{job_id}` | GET | 查询指定导入任务状态 |
+| `/api/folders` | POST | 创建子目录 |
+| `/api/scan` | POST | 触发增量重扫任务 |
+| `/api/scan/{job_id}` | GET | 查询重扫任务状态 |
 | `/render/{pdf}/{page}.png` | GET | 渲染 PDF 页面 |
 | `/pdf/{name}` | GET | 获取 PDF 文件 |
 
@@ -106,6 +119,8 @@ python3 -m ipc_query serve --db ./data/ipc.sqlite --port 8791
 | `IMPORT_QUEUE_SIZE` | 导入队列长度 | `8` |
 | `IMPORT_JOB_TIMEOUT_S` | 导入超时预算（秒） | `600` |
 | `IMPORT_JOBS_RETAINED` | 保留导入任务数 | `1000` |
+| `DEFAULT_PAGE_SIZE` | 默认搜索分页大小 | `20` |
+| `MAX_PAGE_SIZE` | 最大搜索分页大小 | `100` |
 | `CACHE_SIZE` | 缓存大小 | `1000` |
 | `CACHE_TTL` | 缓存过期时间(秒) | `300` |
 | `LOG_LEVEL` | 日志级别 | `INFO` |

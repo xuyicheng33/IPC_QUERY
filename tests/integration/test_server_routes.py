@@ -85,6 +85,22 @@ def test_head_root_and_static_not_found(tmp_path: Path) -> None:
         thread.join(timeout=3.0)
 
 
+def test_web_route_aliases_return_html(tmp_path: Path) -> None:
+    db_path = tmp_path / "data.sqlite"
+    cfg = _make_config(tmp_path, db_path)
+    server = create_server(cfg)
+    thread, port = _start_server(server)
+    try:
+        for path in ("/search", "/db", "/part/1"):
+            status, payload, headers = _request(port, "GET", path)
+            assert status == 200
+            assert "text/html" in headers.get("content-type", "")
+            assert b"<!doctype html>" in payload.lower()
+    finally:
+        server.stop()
+        thread.join(timeout=3.0)
+
+
 def test_post_and_delete_unsupported_paths_return_not_found(tmp_path: Path) -> None:
     db_path = tmp_path / "data.sqlite"
     cfg = _make_config(tmp_path, db_path)

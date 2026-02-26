@@ -1,13 +1,8 @@
-/**
- * Application Entry
- *
- * Single-file frontend implementation currently used by `web/index.html`.
- */
+const PAGE_SIZE = 60;
 
-const $ = (sel) => document.querySelector(sel);
-
-const PAGE_SIZE = 80;
-const SHOW_BADGES = false;
+function $(sel, root = document) {
+  return root.querySelector(sel);
+}
 
 function escapeHtml(s) {
   return (s ?? "")
@@ -19,404 +14,66 @@ function escapeHtml(s) {
     .replaceAll("'", "&#039;");
 }
 
-function escapeRegExp(s) {
-  return (s ?? "").toString().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function toPositiveInt(v, fallback) {
+  const n = Number.parseInt(String(v ?? ""), 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
-function tokenizeQuery(q) {
-  return (q ?? "")
-    .toString()
-    .trim()
-    .split(/\s+/)
-    .map((t) => t.trim())
-    .filter(Boolean);
+function normalizeDir(v) {
+  const raw = (v ?? "").toString().replaceAll("\\", "/").trim().replace(/^\/+|\/+$/g, "");
+  if (!raw) return "";
+  return raw
+    .split("/")
+    .filter((x) => x && x !== "." && x !== "..")
+    .join("/");
 }
 
-function highlightHtml(text, tokens) {
-  const s = (text ?? "").toString();
-  if (!s) return "";
-  if (!tokens?.length) return escapeHtml(s);
-
-  const pattern = tokens
-    .map((t) => t.trim())
-    .filter(Boolean)
-    .sort((a, b) => b.length - a.length)
-    .map(escapeRegExp)
-    .join("|");
-  if (!pattern) return escapeHtml(s);
-
-  const re = new RegExp(pattern, "ig");
-  let out = "";
-  let lastIndex = 0;
-  for (const m of s.matchAll(re)) {
-    const idx = m.index ?? 0;
-    out += escapeHtml(s.slice(lastIndex, idx));
-    out += `<span class="hl">${escapeHtml(m[0])}</span>`;
-    lastIndex = idx + m[0].length;
-  }
-  out += escapeHtml(s.slice(lastIndex));
-  return out;
-}
-
-function detectTermKeywords(text) {
-  const s = (text ?? "").toString();
-  if (!s.trim()) return { replace: false, optional: false };
-  const lower = s.toLowerCase();
-  return {
-    replace: lower.includes("replace"),
-    optional: lower.includes("optional"),
-  };
-}
-
-function highlightTermKeywordsHtml(text, keywords, focusKeyword) {
-  const s = (text ?? "").toString();
-  if (!s) return "";
-  const kws = (keywords ?? []).map((k) => (k ?? "").toString().trim().toLowerCase()).filter(Boolean);
-  if (!kws.length) return escapeHtml(s);
-
-  const pattern = kws.sort((a, b) => b.length - a.length).map(escapeRegExp).join("|");
-  if (!pattern) return escapeHtml(s);
-
-  const re = new RegExp(pattern, "ig");
-  let out = "";
-  let lastIndex = 0;
-  for (const m of s.matchAll(re)) {
-    const idx = m.index ?? 0;
-    const raw = (m[0] ?? "").toString();
-    const kw = raw.toLowerCase();
-    const focus = focusKeyword && kw === focusKeyword;
-    out += escapeHtml(s.slice(lastIndex, idx));
-    out += `<span class="hl${focus ? " hlFocus hlPulse" : ""}" data-kw="${escapeHtml(kw)}">${escapeHtml(
-      raw
-    )}</span>`;
-    lastIndex = idx + raw.length;
-  }
-  out += escapeHtml(s.slice(lastIndex));
-  return out;
-}
-
-function badge(text, cls = "") {
-  const el = document.createElement("span");
-  el.className = `badge ${cls}`.trim();
-  el.textContent = text;
-  return el;
-}
-
-function labelRowKind(kind) {
-  const k = (kind || "").toString();
-  if (!k) return "";
-  if (k === "part") return "件";
-  if (k === "figure_header") return "图头";
-  if (k === "note") return "备注";
-  if (k === "boilerplate") return "声明";
-  return k;
-}
-
-function labelPnMethod(method) {
-  const m = (method || "").toString();
-  if (!m) return "";
-  if (m === "exact") return "精确";
-  if (m === "loose") return "近似";
-  if (m === "fuzzy") return "模糊";
-  if (m === "fuzzy_low") return "模糊(低置信)";
-  if (m === "unverified") return "未验证";
-  return m;
-}
-
-function fmtFig(r) {
-  if (!r) return "";
-  if (r.fig_item) return r.fig_item;
-  return "";
-}
-
-function fmtPn(r) {
-  return (r.part_number_canonical || r.part_number_extracted || r.part_number_cell || "").toString();
-}
-
-function fmtSrc(r) {
-  const fig = r.figure_code ? ` ${r.figure_code}` : "";
-  const p1 = Number(r.page_num);
-  const p2 = Number(r.page_end ?? r.page_num);
-  const pr = p2 && p2 !== p1 ? `~${p2}` : "";
-  return `${r.source_pdf} · 页${p1}${pr}${fig}`;
-}
-
-function fmtUnits(units) {
-  const s = (units ?? "").toString().replace(/\s+/g, " ").trim();
-  if (!s) return "";
-  const m = s.match(/^(RF|AR)\s+(\d+(?:\.\d+)?)$/i);
-  if (m) return m[1].toUpperCase();
-  return s;
-}
-
-async function fetchJson(url) {
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return await res.json();
-}
-
-function readUrlState() {
+function searchStateFromUrl() {
   const params = new URLSearchParams(window.location.search || "");
-  const q = (params.get("q") || "").toString();
-  const idRaw = (params.get("id") || "").toString();
-  const id = /^\d+$/.test(idRaw) ? Number(idRaw) : null;
-  const pageRaw = (params.get("p") || "").toString();
-  const page = /^\d+$/.test(pageRaw) ? Math.max(1, Number(pageRaw)) : 1;
-  const matchRaw = (params.get("m") || "pn").toString();
-  const match = ["all", "pn", "term"].includes(matchRaw) ? matchRaw : "pn";
-  return { q, id, page, match };
+  return {
+    q: (params.get("q") || "").trim(),
+    match: ["pn", "term", "all"].includes(params.get("match") || "") ? params.get("match") : "pn",
+    page: toPositiveInt(params.get("page"), 1),
+    include_notes: params.get("include_notes") === "1",
+    source_dir: normalizeDir(params.get("source_dir") || ""),
+    source_pdf: (params.get("source_pdf") || "").trim(),
+  };
 }
 
-function writeUrlState(next, opts = {}) {
-  const replace = Boolean(opts.replace);
-  const q = (next?.q || "").toString().trim();
-  const id = typeof next?.id === "number" && Number.isFinite(next.id) ? next.id : null;
-  const page = typeof next?.page === "number" && Number.isFinite(next.page) ? Math.max(1, Math.floor(next.page)) : 1;
-  const match = (next?.match || "all").toString();
-
+function buildSearchQuery(state) {
   const params = new URLSearchParams();
-  if (q) params.set("q", q);
-  if (id) params.set("id", String(id));
-  if (q && page > 1) params.set("p", String(page));
-  if (q && match && match !== "pn") params.set("m", match);
-  const qs = params.toString();
-  const url = `${window.location.pathname}${qs ? `?${qs}` : ""}`;
-
-  const state = { q, id, page, match };
-  if (replace) history.replaceState(state, "", url);
-  else history.pushState(state, "", url);
+  if (state.q) params.set("q", state.q);
+  params.set("match", state.match || "pn");
+  params.set("page", String(toPositiveInt(state.page, 1)));
+  params.set("page_size", String(PAGE_SIZE));
+  if (state.include_notes) params.set("include_notes", "1");
+  if (state.source_dir) params.set("source_dir", state.source_dir);
+  if (state.source_pdf) params.set("source_pdf", state.source_pdf);
+  return params;
 }
 
-let activeId = null;
-let lastQuery = "";
-let debounceTimer = null;
-let navStack = [];
-let docsCache = null;
-let isRestoring = false;
-let hasSearched = false;
-let currentPage = 1;
-let currentMatch = "pn";
-let totalResults = 0;
-let currentTermText = "";
-let currentTermHas = { replace: false, optional: false };
-let importPollTimer = null;
-let latestImportJobId = null;
-
-function updateKeywordCards(has) {
-  const applyOne = (kw, cardId, valId, present) => {
-    const card = document.getElementById(cardId);
-    const val = document.getElementById(valId);
-    if (val) val.textContent = present === null ? "—" : present ? "是" : "否";
-    if (!card) return;
-    const p = present === null ? null : Boolean(present);
-    card.title = p === null ? "" : p ? `包含：${kw}` : `不包含：${kw}`;
-  };
-
-  applyOne("replace", "kwReplaceCard", "kwReplaceVal", has?.replace ?? null);
-  applyOne("optional", "kwOptionalCard", "kwOptionalVal", has?.optional ?? null);
+function buildSearchPageUrl(state) {
+  return `/search?${buildSearchQuery(state).toString()}`;
 }
 
-function renderTermDesc(opts = {}) {
-  const el = $("#desc");
-  if (!el) return;
-
-  const text = (currentTermText ?? "").toString();
-  if (!text.trim()) {
-    el.textContent = "—";
-    updateKeywordCards({ replace: false, optional: false });
-    return;
-  }
-
-  const kws = [];
-  if (currentTermHas.replace) kws.push("replace");
-  if (currentTermHas.optional) kws.push("optional");
-
-  el.innerHTML = highlightTermKeywordsHtml(text, kws, null);
-  updateKeywordCards(currentTermHas);
+function contextParamsFromState(state) {
+  const params = new URLSearchParams();
+  if (state.q) params.set("q", state.q);
+  if (state.match) params.set("match", state.match);
+  if (state.page) params.set("page", String(state.page));
+  if (state.include_notes) params.set("include_notes", "1");
+  if (state.source_dir) params.set("source_dir", state.source_dir);
+  if (state.source_pdf) params.set("source_pdf", state.source_pdf);
+  return params;
 }
 
-function setResultsWrapVisible(on) {
-  const el = $("#resultsWrap");
-  if (!el) return;
-  el.hidden = !on;
-}
-
-function setPagerVisible(on) {
-  const el = $("#pager");
-  if (!el) return;
-  el.hidden = !on;
-}
-
-function setSearching(on) {
-  const btn = $("#btnSearch");
-  if (!btn) return;
-  btn.disabled = Boolean(on);
-  btn.textContent = on ? "查询中…" : "查询";
-}
-
-function syncBodyModalOpen() {
-  const anyOpen = Array.from(document.querySelectorAll(".modal")).some((m) => !m.hidden);
-  document.body.classList.toggle("modalOpen", anyOpen);
-}
-
-function openModal(sel) {
-  const modal = $(sel);
-  if (!modal) return;
-  modal.hidden = false;
-  syncBodyModalOpen();
-}
-
-function closeModal(sel) {
-  const modal = $(sel);
-  if (!modal) return;
-  modal.hidden = true;
-  syncBodyModalOpen();
-}
-
-function openDocs() {
-  openModal("#docsModal");
-}
-
-function closeDocs() {
-  closeModal("#docsModal");
-}
-
-function setDbChip(ok, text) {
-  const chip = $("#dbChip");
-  chip.classList.remove("ok", "bad");
-  chip.classList.add(ok ? "ok" : "bad");
-  $("#dbChip .chipText").textContent = text;
-}
-
-function setDocsCount(n) {
-  const el = $("#docsCount");
-  if (!el) return;
-  el.textContent = typeof n === "number" ? `共 ${n} 个 PDF` : "—";
-}
-
-function normalizeDocsPayload(docs) {
-  if (Array.isArray(docs)) {
-    return { documents: docs };
-  }
-  if (docs && Array.isArray(docs.documents)) {
-    return docs;
-  }
-  return { documents: [] };
-}
-
-function renderDocsList(docs) {
-  const list = $("#docsList");
-  if (!list) return;
-  const normalized = normalizeDocsPayload(docs);
-  const items = normalized.documents;
-  list.innerHTML = "";
-  for (const d of items) {
-    const name = (d?.pdf_name || "").toString();
-    if (!name) continue;
-    const row = document.createElement("div");
-    row.className = "docRow";
-
-    const a = document.createElement("a");
-    a.className = "docItem";
-    a.href = `/pdf/${encodeURIComponent(name)}`;
-    a.target = "_blank";
-    a.rel = "noreferrer";
-    a.innerHTML = `<span class="name">${escapeHtml(name)}</span><span class="meta">打开</span>`;
-
-    const btnDelete = document.createElement("button");
-    btnDelete.type = "button";
-    btnDelete.className = "docDelete";
-    btnDelete.textContent = "删除";
-    btnDelete.addEventListener("click", async () => {
-      await deleteDocByName(name, btnDelete);
-    });
-
-    row.appendChild(a);
-    row.appendChild(btnDelete);
-    list.appendChild(row);
-  }
-  if (!list.childElementCount) {
-    list.innerHTML = `<div class="hint">没有可用的 PDF</div>`;
-  }
-}
-
-function setImportStatus(text, kind = "neutral") {
-  const el = $("#importStatus");
-  if (!el) return;
-  el.textContent = text || "";
-  el.classList.remove("ok", "bad", "running");
-  if (kind === "ok") el.classList.add("ok");
-  if (kind === "bad") el.classList.add("bad");
-  if (kind === "running") el.classList.add("running");
-}
-
-async function refreshDocsCache() {
-  const docs = await fetchJson("/api/docs");
-  docsCache = normalizeDocsPayload(docs);
-  const n = docsCache.documents.length;
-  setDbChip(true, `DB:${n}`);
-  setDocsCount(n);
-  renderDocsList(docsCache);
-}
-
-function stopImportPolling() {
-  if (importPollTimer) {
-    clearInterval(importPollTimer);
-    importPollTimer = null;
-  }
-}
-
-function startImportPolling(jobId) {
-  stopImportPolling();
-  latestImportJobId = jobId;
-
-  let inFlight = false;
-  const tick = async () => {
-    if (inFlight) return;
-    inFlight = true;
-    try {
-      const job = await fetchJson(`/api/import/${encodeURIComponent(jobId)}`);
-      const status = (job?.status || "").toString();
-      if (status === "queued") {
-        setImportStatus(`任务 ${jobId.slice(0, 8)} 已排队`, "running");
-      } else if (status === "running") {
-        setImportStatus(`任务 ${jobId.slice(0, 8)} 正在解析…`, "running");
-      } else if (status === "success") {
-        stopImportPolling();
-        const docsIngested = Number(job?.summary?.docs_ingested || 0);
-        const partsIngested = Number(job?.summary?.parts_ingested || 0);
-        setImportStatus(`导入完成：文档 ${docsIngested}，零件 ${partsIngested}`, "ok");
-        await refreshDocsCache();
-      } else if (status === "failed") {
-        stopImportPolling();
-        setImportStatus(`导入失败：${job?.error || "unknown error"}`, "bad");
-      }
-    } catch (e) {
-      stopImportPolling();
-      setImportStatus(`任务查询失败：${e?.message || e}`, "bad");
-    } finally {
-      inFlight = false;
-    }
-  };
-
-  tick();
-  importPollTimer = setInterval(tick, 1500);
-}
-
-async function submitImportFile(file) {
-  if (!file) {
-    setImportStatus("请选择一个 PDF 文件", "bad");
-    return;
-  }
-
-  setImportStatus(`正在上传：${file.name}`, "running");
-  const res = await fetch(`/api/import?filename=${encodeURIComponent(file.name)}`, {
-    method: "POST",
+async function fetchJson(url, options = {}) {
+  const res = await fetch(url, {
+    ...options,
     headers: {
-      "Content-Type": file.type || "application/pdf",
-      "X-File-Name": file.name,
+      Accept: "application/json",
+      ...(options.headers || {}),
     },
-    body: file,
   });
 
   let data = {};
@@ -425,621 +82,577 @@ async function submitImportFile(file) {
   } catch {
     data = {};
   }
+
   if (!res.ok) {
-    throw new Error(data?.message || `${res.status} ${res.statusText}`);
+    const message = data?.message || `${res.status} ${res.statusText}`;
+    throw new Error(message);
   }
-
-  const jobId = (data?.job_id || "").toString();
-  if (!jobId) {
-    throw new Error("导入任务创建失败");
-  }
-  setImportStatus(`任务 ${jobId.slice(0, 8)} 已提交`, "running");
-  startImportPolling(jobId);
+  return data;
 }
 
-async function deleteDocByName(pdfName, triggerBtn = null) {
-  const name = (pdfName || "").toString().trim();
-  if (!name) {
-    setImportStatus("缺少要删除的 PDF 名称", "bad");
-    return;
-  }
+function initHomePage() {
+  const form = $("#homeSearchForm");
+  const input = $("#homeQ");
+  if (!form || !input) return;
 
-  const confirmed = window.confirm(`确认删除 ${name} 吗？\n将同时删除数据库中的关联记录。`);
-  if (!confirmed) return;
-
-  try {
-    if (triggerBtn) triggerBtn.disabled = true;
-    setImportStatus(`正在删除：${name}`, "running");
-
-    const res = await fetch(`/api/docs?name=${encodeURIComponent(name)}`, {
-      method: "DELETE",
-      headers: { Accept: "application/json" },
-    });
-    let data = {};
-    try {
-      data = await res.json();
-    } catch {
-      data = {};
+  form.addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    const q = (input.value || "").trim();
+    if (!q) {
+      input.focus();
+      return;
     }
-    if (!res.ok) {
-      throw new Error(data?.message || `${res.status} ${res.statusText}`);
-    }
-
-    const parts = Number(data?.deleted_counts?.parts || 0);
-    setImportStatus(`删除完成：${name}（零件 ${parts}）`, "ok");
-    await refreshDocsCache();
-
-    const currentPdf = ($("#srcPdf")?.textContent || "").toString().trim();
-    if (currentPdf && currentPdf === name) {
-      closeDetail({ updateUrl: true });
-    }
-
-    if (hasSearched && lastQuery) {
-      await doSearch(lastQuery, { page: currentPage, match: currentMatch });
-    }
-  } catch (e) {
-    setImportStatus(`删除失败：${e?.message || e}`, "bad");
-  } finally {
-    if (triggerBtn) triggerBtn.disabled = false;
-  }
-}
-
-async function init() {
-  try {
-    await refreshDocsCache();
-  } catch {
-    setDbChip(false, "DB:ERR");
-    setDocsCount(null);
-  }
-}
-
-function clearActive() {
-  closeDetail({ updateUrl: false });
-}
-
-function closeDetail(opts = {}) {
-  const updateUrl = opts.updateUrl !== false;
-  const replaceHistory = Boolean(opts.replaceHistory);
-
-  activeId = null;
-  navStack = [];
-  document.body.classList.remove("detailOpen");
-  $("#detail").hidden = true;
-  $("#emptyState").hidden = false;
-  $("#results")
-    .querySelectorAll(".card.active")
-    .forEach((el) => el.classList.remove("active"));
-  updateBackButton();
-
-  if (updateUrl && !isRestoring) {
-    writeUrlState({ q: lastQuery, id: null, page: currentPage, match: currentMatch }, { replace: replaceHistory });
-  }
-}
-
-function setStatus(text) {
-  $("#statusText").textContent = text;
-}
-
-function setCount(shown, total = null) {
-  const el = $("#resultsCount");
-  if (!el) return;
-  if (typeof total === "number" && total > 0) el.textContent = `${shown} / ${total}`;
-  else el.textContent = `${shown}`;
-}
-
-function updateBackButton() {
-  const btn = $("#btnBack");
-  if (!btn) return;
-  btn.hidden = !document.body.classList.contains("detailOpen");
-}
-
-function setMatch(next) {
-  const m = ["all", "pn", "term"].includes(next) ? next : "all";
-  currentMatch = m;
-  document.querySelectorAll(".segBtn[data-filter]").forEach((btn) => {
-    const on = btn.dataset.filter === m;
-    btn.classList.toggle("active", on);
-    btn.setAttribute("aria-selected", on ? "true" : "false");
+    const params = new URLSearchParams();
+    params.set("q", q);
+    params.set("match", "pn");
+    params.set("page", "1");
+    window.location.href = `/search?${params.toString()}`;
   });
 }
 
-function getTotalPages() {
-  const t = Number(totalResults) || 0;
-  return Math.max(1, Math.ceil(t / PAGE_SIZE));
-}
+async function initSearchPage() {
+  const form = $("#searchForm");
+  const qInput = $("#searchQ");
+  const matchSelect = $("#matchSelect");
+  const includeNotes = $("#includeNotes");
+  const dirSelect = $("#dirSelect");
+  const docSelect = $("#docSelect");
+  const summary = $("#resultSummary");
+  const statusEl = $("#queryStatus");
+  const tbody = $("#resultsBody");
+  const empty = $("#emptyState");
+  const prevBtn = $("#btnPrev");
+  const nextBtn = $("#btnNext");
+  const pagerInfo = $("#pagerInfo");
 
-function updatePagerUi() {
-  const pages = getTotalPages();
-  const info = $("#pagerInfo");
-  if (info) info.textContent = `第 ${currentPage} / ${pages} 页`;
+  if (!form || !qInput || !matchSelect || !includeNotes || !dirSelect || !docSelect || !tbody || !empty) return;
 
-  const prev = $("#btnPrev");
-  const next = $("#btnNext");
-  if (prev) prev.disabled = currentPage <= 1;
-  if (next) next.disabled = currentPage >= pages;
+  let state = searchStateFromUrl();
+  let docs = [];
+  let total = 0;
 
-  const input = $("#pageInput");
-  if (input) {
-    input.value = String(currentPage);
-    input.max = String(pages);
+  function applyStateToControls() {
+    qInput.value = state.q;
+    matchSelect.value = state.match;
+    includeNotes.checked = Boolean(state.include_notes);
   }
 
-  setPagerVisible((Number(totalResults) || 0) > PAGE_SIZE);
+  function populateDirOptions() {
+    const dirs = new Set([""]);
+    for (const d of docs) {
+      const relDir = normalizeDir(d?.relative_dir || "");
+      dirs.add(relDir);
+    }
+    const items = Array.from(dirs.values()).sort((a, b) => a.localeCompare(b));
+    dirSelect.innerHTML = items
+      .map((dir) => `<option value="${escapeHtml(dir)}">${dir || "全部目录"}</option>`)
+      .join("");
+    if (!items.includes(state.source_dir || "")) {
+      state.source_dir = "";
+    }
+    dirSelect.value = state.source_dir || "";
+  }
+
+  function populateDocOptions() {
+    const currentDir = state.source_dir || "";
+    const list = docs.filter((d) => {
+      const dir = normalizeDir(d?.relative_dir || "");
+      return !currentDir || dir === currentDir;
+    });
+
+    const options = ['<option value="">全部文档</option>'];
+    for (const d of list) {
+      const rel = (d?.relative_path || d?.pdf_name || "").toString();
+      const name = (d?.pdf_name || rel).toString();
+      options.push(`<option value="${escapeHtml(rel)}">${escapeHtml(name)}</option>`);
+    }
+    docSelect.innerHTML = options.join("");
+
+    if (state.source_pdf) {
+      const ok = list.some((d) => {
+        const rel = (d?.relative_path || d?.pdf_name || "").toString();
+        return rel === state.source_pdf;
+      });
+      if (!ok) state.source_pdf = "";
+    }
+    docSelect.value = state.source_pdf || "";
+  }
+
+  async function loadFilters() {
+    const payload = await fetchJson("/api/docs");
+    docs = Array.isArray(payload) ? payload : payload?.documents || [];
+    populateDirOptions();
+    populateDocOptions();
+  }
+
+  function updateUrl() {
+    const url = buildSearchPageUrl(state);
+    history.replaceState({ ...state }, "", url);
+  }
+
+  function renderResults(results) {
+    tbody.innerHTML = "";
+    if (!results.length) {
+      empty.hidden = false;
+      return;
+    }
+
+    empty.hidden = true;
+    const ctx = contextParamsFromState(state).toString();
+    for (const r of results) {
+      const tr = document.createElement("tr");
+      tr.className = "resultRow";
+      tr.innerHTML = `
+        <td class="mono">${escapeHtml(r.part_number_canonical || r.part_number_cell || "-")}</td>
+        <td>${escapeHtml(r.source_relative_path || r.source_pdf || "-")}</td>
+        <td class="mono">${escapeHtml(String(r.page_num ?? "-"))}</td>
+        <td>${escapeHtml(r.nomenclature_preview || "")}</td>
+      `;
+      tr.addEventListener("click", () => {
+        const target = `/part/${encodeURIComponent(String(r.id))}${ctx ? `?${ctx}` : ""}`;
+        window.location.href = target;
+      });
+      tbody.appendChild(tr);
+    }
+  }
+
+  async function runSearch() {
+    if (!state.q) {
+      tbody.innerHTML = "";
+      empty.hidden = false;
+      if (summary) summary.textContent = "请输入查询词";
+      if (statusEl) statusEl.textContent = "";
+      return;
+    }
+
+    updateUrl();
+    if (statusEl) statusEl.textContent = "查询中...";
+    const params = buildSearchQuery(state);
+    try {
+      const data = await fetchJson(`/api/search?${params.toString()}`);
+      const results = Array.isArray(data?.results) ? data.results : [];
+      total = Number(data?.total || 0);
+      const pageSize = Number(data?.page_size || PAGE_SIZE) || PAGE_SIZE;
+      const pages = Math.max(1, Math.ceil(total / pageSize));
+      state.page = Math.min(state.page, pages);
+
+      renderResults(results);
+      if (summary) summary.textContent = `总计 ${total} 条`;
+      if (pagerInfo) pagerInfo.textContent = `第 ${state.page} / ${pages} 页`;
+      if (statusEl) statusEl.textContent = `match=${data?.match || state.match}`;
+      if (prevBtn) prevBtn.disabled = state.page <= 1;
+      if (nextBtn) nextBtn.disabled = state.page >= pages;
+    } catch (e) {
+      tbody.innerHTML = "";
+      empty.hidden = false;
+      if (summary) summary.textContent = "查询失败";
+      if (statusEl) statusEl.textContent = String(e?.message || e);
+    }
+  }
+
+  form.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    state.q = (qInput.value || "").trim();
+    state.match = matchSelect.value || "pn";
+    state.include_notes = includeNotes.checked;
+    state.source_dir = normalizeDir(dirSelect.value || "");
+    state.source_pdf = (docSelect.value || "").trim();
+    state.page = 1;
+    await runSearch();
+  });
+
+  dirSelect.addEventListener("change", () => {
+    state.source_dir = normalizeDir(dirSelect.value || "");
+    state.source_pdf = "";
+    populateDocOptions();
+  });
+
+  docSelect.addEventListener("change", () => {
+    state.source_pdf = (docSelect.value || "").trim();
+  });
+
+  prevBtn?.addEventListener("click", async () => {
+    if (state.page <= 1) return;
+    state.page -= 1;
+    await runSearch();
+  });
+
+  nextBtn?.addEventListener("click", async () => {
+    const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    if (state.page >= pages) return;
+    state.page += 1;
+    await runSearch();
+  });
+
+  applyStateToControls();
+  await loadFilters();
+  await runSearch();
 }
 
-function matchesPn(r, q) {
-  const needle = (q ?? "").toString().trim().toUpperCase();
-  if (!needle) return false;
-  const fields = [r?.part_number_canonical, r?.part_number_extracted, r?.part_number_cell];
-  return fields.some((v) => (v ?? "").toString().toUpperCase().includes(needle));
+function renderHierarchyLinks(el, items, state) {
+  if (!el) return;
+  el.innerHTML = "";
+  if (!Array.isArray(items) || items.length === 0) {
+    el.innerHTML = '<div class="muted">无</div>';
+    return;
+  }
+  const qs = contextParamsFromState(state).toString();
+  for (const item of items) {
+    const a = document.createElement("a");
+    a.className = "linkBtn";
+    a.href = `/part/${encodeURIComponent(String(item.id))}${qs ? `?${qs}` : ""}`;
+    a.textContent = item?.pn || item?.part_number || "-";
+    el.appendChild(a);
+  }
 }
 
-function matchesTerm(r, q) {
-  const needle = (q ?? "").toString().trim().toUpperCase();
-  if (!needle) return false;
-  const text = (r?.nomenclature_preview_raw || r?.nomenclature_preview || "").toString().toUpperCase();
-  return text.includes(needle);
+async function initDetailPage() {
+  const m = window.location.pathname.match(/^\/part\/(\d+)$/);
+  if (!m) return;
+  const id = Number(m[1]);
+  if (!Number.isFinite(id)) return;
+
+  const state = searchStateFromUrl();
+  const back = $("#backToResults");
+  if (back) back.href = buildSearchPageUrl(state);
+
+  try {
+    const data = await fetchJson(`/api/part/${id}`);
+    const p = data?.part || {};
+    const pn = (p.pn || p.part_number_canonical || p.part_number_cell || "-").toString();
+    const pdf = (p.pdf || p.source_pdf || "").toString();
+    const page = Number(p.page || p.page_num || 1);
+    const pageEnd = Number(p.page_end || page);
+
+    $("#partPn").textContent = pn;
+    $("#partMeta").textContent = `${pdf || "-"} · 页 ${page}${pageEnd !== page ? `~${pageEnd}` : ""}`;
+    $("#srcPath").textContent = pdf || "-";
+    $("#srcPage").textContent = pageEnd !== page ? `${page}~${pageEnd}` : String(page);
+    $("#srcFigure").textContent = (p.fig || p.figure_code || "-").toString();
+    $("#srcItem").textContent = (p.fig_item || "-").toString();
+    $("#srcQty").textContent = (p.units || p.units_per_assy || "-").toString();
+    $("#srcEff").textContent = (p.eff || p.effectivity || "-").toString();
+    $("#partDesc").textContent = (p.nom || p.nomenclature || p.nomenclature_clean || "-").toString();
+
+    const pdfEnc = encodeURIComponent(pdf);
+    const openPage = $("#openPage");
+    const openPdf = $("#openPdf");
+    if (openPage) openPage.href = `/viewer.html?pdf=${pdfEnc}&page=${page}`;
+    if (openPdf) openPdf.href = `/pdf/${pdfEnc}#page=${page}`;
+
+    const preview = $("#previewImg");
+    const hint = $("#previewHint");
+    if (preview) {
+      preview.src = `/render/${pdfEnc}/${page}.png`;
+      preview.onload = () => {
+        if (hint) hint.textContent = `${pdf} 第 ${page} 页`;
+      };
+      preview.onerror = () => {
+        if (hint) hint.textContent = "预览加载失败";
+      };
+    }
+
+    renderHierarchyLinks($("#parents"), data?.parents || [], state);
+    renderHierarchyLinks($("#siblings"), data?.siblings || [], state);
+    renderHierarchyLinks($("#children"), data?.children || [], state);
+  } catch (e) {
+    $("#partDesc").textContent = `加载失败：${e?.message || e}`;
+  }
 }
 
-function renderResults(results) {
-  const tokens = tokenizeQuery(lastQuery);
-  const root = $("#results");
-  root.innerHTML = "";
-  if (!results.length) {
-    root.innerHTML = `<div class="empty" style="margin:10px; opacity:.9">
-      <div class="emptyTitle">暂无结果</div>
-      <div class="emptyTips">
-        <div class="tip">
-          <div class="k">提示</div>
-          <div class="v">可切换“术语匹配/全部”再试，或输入更完整的件号。</div>
-        </div>
-      </div>
-    </div>`;
+function normalizeDbPathFromUrl() {
+  const params = new URLSearchParams(window.location.search || "");
+  return normalizeDir(params.get("path") || "");
+}
+
+function buildDbUrl(path) {
+  const p = normalizeDir(path || "");
+  if (!p) return "/db";
+  return `/db?path=${encodeURIComponent(p)}`;
+}
+
+function formatJobStatus(job) {
+  const status = (job?.status || "").toString();
+  if (status === "success") return "success";
+  if (status === "failed") return "failed";
+  if (status === "running") return "running";
+  return "queued";
+}
+
+async function initDbPage() {
+  const statusEl = $("#dbStatus");
+  const crumbEl = $("#pathCrumb");
+  const dirList = $("#dirList");
+  const fileList = $("#fileList");
+  const folderForm = $("#folderForm");
+  const folderName = $("#folderName");
+  const uploadForm = $("#uploadForm");
+  const uploadFiles = $("#uploadFiles");
+  const jobsList = $("#jobsList");
+  const btnRescan = $("#btnRescan");
+
+  if (!statusEl || !crumbEl || !dirList || !fileList || !folderForm || !folderName || !uploadForm || !uploadFiles || !jobsList) {
     return;
   }
 
-  for (const r of results) {
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = "card";
-    card.dataset.id = String(r.id);
+  let currentPath = normalizeDbPathFromUrl();
+  const activeImportJobs = new Set();
+  let pollTimer = null;
+  let activeScanJobId = "";
 
-    const pn = fmtPn(r);
-    const src = fmtSrc(r);
-    const desc = (r.nomenclature_preview || "").toString();
-    const level = Number(r.nom_level ?? 0) || 0;
-
-    const row1 = document.createElement("div");
-    row1.className = "row1";
-    row1.innerHTML = `<div class="pnMini">${highlightHtml(pn || "—", tokens)}</div><div class="srcMini">${escapeHtml(
-      src
-    )}</div>`;
-
-    const row2 = document.createElement("div");
-    row2.className = "row2";
-    row2.innerHTML = highlightHtml(desc || "", tokens);
-    if (level > 0) {
-      row2.style.paddingLeft = `${Math.min(level, 6) * 12}px`;
-      row2.style.borderLeft = "2px solid rgba(0, 0, 0, 0.12)";
-      row2.style.marginLeft = "2px";
-    }
-
-    if (SHOW_BADGES) {
-      const badgeRow = document.createElement("div");
-      badgeRow.className = "badges";
-
-      if (r.not_illustrated) badgeRow.appendChild(badge("不可见", "warn"));
-      if (r.pn_method) {
-        const m = r.pn_method.toString();
-        badgeRow.appendChild(badge(labelPnMethod(m), m === "unverified" ? "warn" : ""));
-      }
-      if (r.page_end && Number(r.page_end) !== Number(r.page_num)) badgeRow.appendChild(badge("跨页", ""));
-
-      if (badgeRow.childElementCount) card.appendChild(badgeRow);
-    }
-
-    card.appendChild(row1);
-    card.appendChild(row2);
-    card.addEventListener("click", () => selectPart(r.id, card, { resetHistory: true }));
-    root.appendChild(card);
-  }
-}
-
-async function selectPart(id, cardEl, opts = {}) {
-  if (!id) return;
-
-  const resetHistory = Boolean(opts.resetHistory);
-  const pushHistory = Boolean(opts.pushHistory);
-  const fromBack = Boolean(opts.fromBack);
-  const fromUrl = Boolean(opts.fromUrl);
-
-  if (resetHistory) navStack = [];
-  if (!fromBack && pushHistory && activeId && activeId !== id) navStack.push(activeId);
-
-  activeId = id;
-  document.body.classList.add("detailOpen");
-  updateBackButton();
-  if (!isRestoring) {
-    writeUrlState({ q: lastQuery, id, page: currentPage, match: currentMatch }, { replace: fromBack || fromUrl });
+  function setStatus(text) {
+    statusEl.textContent = text;
   }
 
-  const resultsRoot = $("#results");
-  resultsRoot.querySelectorAll(".card.active").forEach((el) => el.classList.remove("active"));
-  const toActivate = cardEl || resultsRoot.querySelector(`.card[data-id="${String(id)}"]`);
-  toActivate?.classList.add("active");
-
-  $("#emptyState").hidden = true;
-  $("#detail").hidden = false;
-  $("#pnSub").textContent = "";
-  $("#desc").textContent = "加载中…";
-  currentTermText = "";
-  currentTermHas = { replace: false, optional: false };
-  updateKeywordCards({ replace: null, optional: null });
-  $("#previewHint").textContent = "正在加载预览…";
-  $("#preview").removeAttribute("src");
-
-  try {
-    const detail = await fetchJson(`/api/part/${id}`);
-    const p = detail.part;
-
-    const pnMain = (p.pn || p.part_number_canonical || p.part_number_extracted || p.part_number_cell || "—").toString();
-    $("#pnMain").textContent = pnMain;
-
-    const badgesEl = $("#badges");
-    badgesEl.innerHTML = "";
-    badgesEl.hidden = !SHOW_BADGES;
-    if (SHOW_BADGES) {
-      if (p.not_illustrated) badgesEl.appendChild(badge("不可见", "warn"));
-      if (p.pn_method) {
-        const m = p.pn_method.toString();
-        badgesEl.appendChild(badge(labelPnMethod(m), m === "unverified" ? "warn" : ""));
-      }
+  function addJobRow(job, kind = "import") {
+    const rowId = `${kind}-${job.job_id}`;
+    let row = document.getElementById(rowId);
+    if (!row) {
+      row = document.createElement("div");
+      row.id = rowId;
+      row.className = "jobRow";
+      jobsList.prepend(row);
     }
 
-    $("#srcPdf").textContent = p.pdf || p.source_pdf || "—";
-    const p1 = Number(p.page ?? p.page_num);
-    const p2 = Number(p.page_end ?? p.page ?? p.page_num);
-    $("#srcPage").textContent = p2 && p2 !== p1 ? `${p1}~${p2}` : `${p1}`;
-    $("#srcFigure").textContent = p.fig || p.figure_code || p.figure_label || "—";
-    $("#srcFigItem").textContent = p.fig_item || "—";
-    $("#srcQty").textContent = fmtUnits(p.units ?? p.units_per_assy) || "—";
-    $("#srcEff").textContent = p.eff || p.effectivity || "—";
-    const metaLine = (p.meta_data_raw || "").toString().replace(/\s+/g, " ").trim();
-    $("#srcMeta").textContent = metaLine || "—";
-    const descFull = (p.nom || p.nomenclature_full || p.nom_clean || p.nomenclature_clean || p.nomenclature || "").toString().trim();
-    currentTermText = descFull || "";
-    currentTermHas = detectTermKeywords(currentTermText);
-    renderTermDesc();
+    const status = formatJobStatus(job);
+    row.innerHTML = `
+      <div>
+        <div class="mono">${escapeHtml(job.relative_path || job.filename || job.path || "-")}</div>
+        <div class="muted">${escapeHtml(kind)} · ${escapeHtml(status)}</div>
+      </div>
+      <span class="badge ${status === "success" ? "ok" : status === "failed" ? "bad" : ""}">${escapeHtml(status)}</span>
+    `;
+  }
 
-    // Hierarchy: only part numbers + jump history
-    const hierRoot = $("#hier");
-    hierRoot.innerHTML = "";
+  function ensurePolling() {
+    if (pollTimer) return;
+    pollTimer = setInterval(async () => {
+      const done = [];
+      for (const jobId of activeImportJobs.values()) {
+        try {
+          const job = await fetchJson(`/api/import/${encodeURIComponent(jobId)}`);
+          addJobRow(job, "import");
+          if (["success", "failed"].includes(job.status || "")) {
+            done.push(jobId);
+          }
+        } catch {
+          done.push(jobId);
+        }
+      }
+      for (const jobId of done) activeImportJobs.delete(jobId);
 
-    const mkCol = (title, nodes) => {
-      const col = document.createElement("div");
-      col.className = "hierCol";
-
-      const h = document.createElement("div");
-      h.className = "hierTitle";
-      h.textContent = title;
-
-      const list = document.createElement("div");
-      list.className = "hierItems";
-
-      if (!nodes?.length) {
-        const empty = document.createElement("div");
-        empty.className = "hierEmpty";
-        empty.textContent = "无";
-        list.appendChild(empty);
-      } else {
-        for (const n of nodes) {
-          const pn = (n?.pn || n?.part_number || "").toString().trim() || "—";
-          const btn = document.createElement("button");
-          btn.type = "button";
-          btn.className = "hierBtn";
-          btn.textContent = pn;
-          btn.addEventListener("click", () => selectPart(n.id, null, { pushHistory: true }));
-          list.appendChild(btn);
+      if (activeScanJobId) {
+        try {
+          const scanJob = await fetchJson(`/api/scan/${encodeURIComponent(activeScanJobId)}`);
+          addJobRow(scanJob, "scan");
+          if (["success", "failed"].includes(scanJob.status || "")) {
+            activeScanJobId = "";
+          }
+        } catch {
+          activeScanJobId = "";
         }
       }
 
-      col.appendChild(h);
-      col.appendChild(list);
-      return col;
-    };
-
-    const anc = detail.parents ?? detail.hierarchy?.ancestors ?? [];
-    const parent = anc.length ? anc[anc.length - 1] : null;
-    const siblings = detail.siblings ?? detail.hierarchy?.siblings ?? [];
-    const children = detail.children ?? detail.hierarchy?.children ?? [];
-
-    hierRoot.appendChild(mkCol("父辈", parent ? [parent] : []));
-    hierRoot.appendChild(mkCol("平辈", siblings.slice(0, 18)));
-    hierRoot.appendChild(mkCol("子辈", children.slice(0, 24)));
-
-    // Links + preview
-    const pdfName = encodeURIComponent(p.pdf || p.source_pdf);
-    const pageNum = Number(p.page ?? p.page_num);
-    const pdfUrl = `/pdf/${pdfName}#page=${pageNum}`;
-    const pageUrl = `/viewer.html?pdf=${pdfName}&page=${pageNum}`;
-    const imgUrl = `/render/${pdfName}/${pageNum}.png?scale=2`;
-    const btnOpenPage = $("#btnOpenPage");
-    if (btnOpenPage) btnOpenPage.href = pageUrl;
-    const btnOpenPdf = $("#btnOpenPdf");
-    if (btnOpenPdf) btnOpenPdf.href = pdfUrl;
-
-    const img = $("#preview");
-    img.onload = () => {
-      const hint =
-        p2 && p2 !== p1
-          ? `预览：${p.pdf || p.source_pdf} 第 ${pageNum} 页（跨页至 ${p2}）`
-          : `预览：${p.pdf || p.source_pdf} 第 ${pageNum} 页`;
-      $("#previewHint").textContent = hint;
-    };
-    img.onerror = () => {
-      $("#previewHint").textContent = "预览加载失败（可点击“打开 PDF”重试）";
-    };
-    img.src = imgUrl;
-  } catch (e) {
-    $("#desc").textContent = `加载失败：${e?.message ?? e}`;
-    currentTermText = "";
-    currentTermHas = { replace: false, optional: false };
-    updateKeywordCards({ replace: false, optional: false });
-    $("#previewHint").textContent = "预览加载失败";
-  }
-}
-
-async function doSearch(q, opts = {}) {
-  clearActive();
-  lastQuery = (q || "").toString().trim();
-  hasSearched = Boolean(lastQuery);
-  setResultsWrapVisible(false);
-  totalResults = 0;
-  setPagerVisible(false);
-
-  if (!hasSearched) {
-    setCount(0);
-    setStatus("");
-    setSearching(false);
-    return;
-  }
-
-  currentPage =
-    typeof opts?.page === "number" && Number.isFinite(opts.page) ? Math.max(1, Math.floor(opts.page)) : 1;
-  setMatch(opts?.match ?? currentMatch);
-  updatePagerUi();
-
-  if (!isRestoring) writeUrlState({ q: lastQuery, id: null, page: currentPage, match: currentMatch }, { replace: true });
-
-  const url = `/api/search?q=${encodeURIComponent(q)}&page=${currentPage}&page_size=${PAGE_SIZE}&match=${encodeURIComponent(
-    currentMatch
-  )}&include_notes=0`;
-  setStatus("查询中…");
-  setSearching(true);
-  try {
-    const data = await fetchJson(url);
-    const serverMatchRaw = (data.match ?? "").toString().trim().toLowerCase();
-    const serverHasPaging =
-      typeof data?.total === "number" && typeof data?.page === "number" && typeof data?.page_size === "number";
-    const serverHasMatch = Boolean(serverMatchRaw);
-    const serverMatchMismatch = serverHasMatch && serverMatchRaw !== currentMatch;
-    let results = data.results ?? [];
-    let total = Number(data.total ?? data.total_count ?? data.count ?? results.length) || 0;
-
-    // Backward-compatible guard: only fallback when server explicitly returns a mismatched match mode.
-    if (serverMatchMismatch) {
-      if (currentMatch === "pn") results = results.filter((r) => matchesPn(r, lastQuery));
-      if (currentMatch === "term") results = results.filter((r) => matchesTerm(r, lastQuery));
-      total = results.length;
-    }
-
-    totalResults = total;
-
-    const pages = getTotalPages();
-    if (!results.length && total > 0 && currentPage > pages && !opts._adjusted) {
-      currentPage = pages;
-      return doSearch(lastQuery, { page: currentPage, match: currentMatch, _adjusted: true });
-    }
-
-    if (total <= 0) {
-      totalResults = 0;
-      setCount(0);
-      setStatus("暂无结果");
-      setResultsWrapVisible(true);
-      renderResults([]);
-      updatePagerUi();
-      return;
-    }
-
-    setResultsWrapVisible(true);
-    setCount(results.length, serverHasPaging && !serverMatchMismatch ? total : null);
-    renderResults(results);
-
-    const elapsed = Number(data.elapsed_ms ?? 0) || 0;
-    if (!serverHasPaging || serverMatchMismatch) {
-      setStatus(
-        "\u63d0\u793a\uff1a\u670d\u52a1\u7aef\u4e0d\u652f\u6301\u201c\u5206\u9875/\u5339\u914d\u7b5b\u9009\u201d\u63a5\u53e3\uff08\u53ef\u80fd\u662f\u542f\u52a8\u4e86 demo/web_server.py\uff09\uff0c\u5f53\u524d\u53ea\u5c55\u793a\u8fd4\u56de\u7684\u524d\u51e0\u6761\u7ed3\u679c\u3002"
-      );
-    } else {
-      setStatus(`共 ${total} 条 · 第 ${currentPage}/${pages} 页 · ${elapsed}ms`);
-    }
-    updatePagerUi();
-  } catch (e) {
-    totalResults = 0;
-    setCount(0, 0);
-    $("#results").innerHTML = `<div class="empty" style="margin:10px">
-      <div class="emptyTitle">查询失败</div>
-      <div class="emptyTips"><div class="tip"><div class="k">错误</div><div class="v">${escapeHtml(
-        e?.message ?? e
-      )}</div></div></div></div>`;
-    setStatus("查询失败");
-    clearActive();
-    updatePagerUi();
-    setResultsWrapVisible(true);
-  } finally {
-    setSearching(false);
-  }
-}
-
-function scheduleSearch(q) {
-  if (debounceTimer) clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => {
-    if (!q.trim()) {
-      setCount(0);
-      $("#results").innerHTML = "";
-      setStatus("");
-      clearActive();
-      hasSearched = false;
-      currentPage = 1;
-      totalResults = 0;
-      setMatch("pn");
-      setPagerVisible(false);
-      setResultsWrapVisible(false);
-      if (!isRestoring) writeUrlState({ q: "", id: null }, { replace: true });
-      return;
-    }
-    if (q.trim() === lastQuery && hasSearched) return;
-    currentPage = 1;
-    doSearch(q.trim(), { page: 1, match: currentMatch });
-  }, 260);
-}
-
-async function restoreFromUrl() {
-  const { q, id, page, match } = readUrlState();
-  isRestoring = true;
-  try {
-    $("#q").value = q || "";
-    setMatch(match);
-    currentPage = page;
-
-    if (!q.trim()) {
-      setCount(0);
-      $("#results").innerHTML = "";
-      setStatus("");
-      clearActive();
-      hasSearched = false;
-      currentPage = 1;
-      totalResults = 0;
-      setMatch(match || "pn");
-      setPagerVisible(false);
-      setResultsWrapVisible(false);
-      if (id) await selectPart(id, null, { fromUrl: true, resetHistory: true });
-      return;
-    }
-
-    lastQuery = q.trim();
-    await doSearch(lastQuery, { page: currentPage, match: currentMatch });
-    if (id) await selectPart(id, null, { fromUrl: true, resetHistory: true });
-  } finally {
-    isRestoring = false;
-  }
-}
-
-function wire() {
-  $("#searchForm").addEventListener("submit", (ev) => {
-    ev.preventDefault();
-    const q = $("#q").value;
-    lastQuery = "";
-    scheduleSearch(q);
-  });
-
-  $("#q").addEventListener("input", (ev) => scheduleSearch(ev.target.value));
-
-  document.querySelectorAll(".segBtn[data-filter]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const nextMatch = (btn.dataset.filter || "all").toString();
-      const q = ($("#q")?.value || "").toString().trim();
-      if (!q) return;
-      if (nextMatch === currentMatch && hasSearched) return;
-      currentPage = 1;
-      doSearch(q, { page: 1, match: nextMatch });
-    });
-  });
-
-  $("#btnPrev")?.addEventListener("click", () => {
-    if (!hasSearched || currentPage <= 1) return;
-    doSearch(lastQuery, { page: currentPage - 1, match: currentMatch });
-  });
-
-  $("#btnNext")?.addEventListener("click", () => {
-    const pages = getTotalPages();
-    if (!hasSearched || currentPage >= pages) return;
-    doSearch(lastQuery, { page: currentPage + 1, match: currentMatch });
-  });
-
-  const jump = () => {
-    const pages = getTotalPages();
-    const raw = ($("#pageInput")?.value || "").toString();
-    const n = /^\d+$/.test(raw) ? Number(raw) : NaN;
-    if (!Number.isFinite(n)) return;
-    const p = Math.min(Math.max(1, n), pages);
-    if (p === currentPage) return;
-    doSearch(lastQuery, { page: p, match: currentMatch });
-  };
-
-  $("#btnJump")?.addEventListener("click", jump);
-  $("#pageInput")?.addEventListener("keydown", (ev) => {
-    if (ev.key === "Enter") {
-      ev.preventDefault();
-      jump();
-    }
-  });
-
-  $("#btnBack")?.addEventListener("click", () => {
-    if (navStack.length) {
-      const prev = navStack.pop();
-      if (prev) return selectPart(prev, null, { fromBack: true });
-    }
-    closeDetail({ updateUrl: true });
-  });
-
-  $("#dbChip")?.addEventListener("click", async () => {
-    try {
-      if (!docsCache) {
-        await refreshDocsCache();
+      if (activeImportJobs.size === 0 && !activeScanJobId) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+        await loadTree(currentPath);
       }
-    } catch {
-      // ignore
+    }, 1500);
+  }
+
+  function renderCrumb(path) {
+    const parts = path ? path.split("/") : [];
+    const nodes = ['<a href="/db">/</a>'];
+    let acc = "";
+    for (const part of parts) {
+      acc = acc ? `${acc}/${part}` : part;
+      nodes.push(`<span>/</span><a href="${buildDbUrl(acc)}">${escapeHtml(part)}</a>`);
     }
-    openDocs();
-  });
+    crumbEl.innerHTML = nodes.join("");
+    crumbEl.querySelectorAll("a").forEach((a) => {
+      a.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        const href = a.getAttribute("href") || "/db";
+        history.pushState({}, "", href);
+        currentPath = normalizeDbPathFromUrl();
+        loadTree(currentPath);
+      });
+    });
+  }
 
-  $("#btnCloseDocs")?.addEventListener("click", closeDocs);
-  $("#docsModal")?.addEventListener("click", (ev) => {
-    const target = ev.target;
-    if (target && target.matches("[data-close]")) closeDocs();
-  });
+  async function loadTree(path) {
+    setStatus("加载中...");
+    try {
+      const payload = await fetchJson(`/api/docs/tree?path=${encodeURIComponent(path || "")}`);
+      currentPath = normalizeDir(payload?.path || "");
+      renderCrumb(currentPath);
 
-  window.addEventListener("keydown", (ev) => {
-    if (ev.key !== "Escape") return;
-    if (!$("#docsModal")?.hidden) return closeDocs();
-  });
+      const dirs = Array.isArray(payload?.directories) ? payload.directories : [];
+      const files = Array.isArray(payload?.files) ? payload.files : [];
+
+      dirList.innerHTML = "";
+      if (dirs.length) {
+        for (const d of dirs) {
+          const row = document.createElement("div");
+          row.className = "dirRow";
+          row.innerHTML = `
+            <div class="pathLink">📁 ${escapeHtml(d.name || "")}</div>
+            <button class="btn ghost" type="button">进入</button>
+          `;
+          row.querySelector("button")?.addEventListener("click", () => {
+            const next = normalizeDir(d.path || "");
+            history.pushState({}, "", buildDbUrl(next));
+            loadTree(next);
+          });
+          dirList.appendChild(row);
+        }
+      } else {
+        dirList.innerHTML = '<div class="muted">无子目录</div>';
+      }
+
+      fileList.innerHTML = "";
+      if (files.length) {
+        for (const f of files) {
+          const row = document.createElement("div");
+          row.className = "fileRow";
+          const indexed = Boolean(f.indexed);
+          row.innerHTML = `
+            <div>
+              <div class="pathLink">${escapeHtml(f.relative_path || f.name || "")}</div>
+              <div class="muted">${indexed ? "已入库" : "未入库"}</div>
+            </div>
+            <div class="row gap">
+              <span class="badge ${indexed ? "ok" : ""}">${indexed ? "indexed" : "pending"}</span>
+              <button class="btn ghost" type="button">删除</button>
+            </div>
+          `;
+          const delBtn = row.querySelector("button");
+          delBtn?.addEventListener("click", async () => {
+            const rel = (f.relative_path || f.name || "").toString();
+            if (!rel) return;
+            const ok = window.confirm(`确认删除 ${rel} ?\n将删除数据库记录和磁盘文件。`);
+            if (!ok) return;
+            try {
+              await fetchJson(`/api/docs?name=${encodeURIComponent(rel)}`, { method: "DELETE" });
+              await loadTree(currentPath);
+            } catch (e) {
+              setStatus(`删除失败：${e?.message || e}`);
+            }
+          });
+          fileList.appendChild(row);
+        }
+      } else {
+        fileList.innerHTML = '<div class="muted">无 PDF 文件</div>';
+      }
+
+      setStatus(`目录 ${currentPath || "/"} · 文件 ${files.length}`);
+    } catch (e) {
+      setStatus(`加载失败：${e?.message || e}`);
+      dirList.innerHTML = "";
+      fileList.innerHTML = "";
+    }
+  }
 
   window.addEventListener("popstate", () => {
-    restoreFromUrl();
+    currentPath = normalizeDbPathFromUrl();
+    loadTree(currentPath);
   });
 
-  $("#importForm")?.addEventListener("submit", async (ev) => {
+  folderForm.addEventListener("submit", async (ev) => {
     ev.preventDefault();
-    const fileInput = $("#importFile");
-    const submitBtn = $("#btnImport");
-    const file = fileInput?.files?.[0] ?? null;
-    if (!file) {
-      setImportStatus("请选择一个 PDF 文件", "bad");
+    const name = (folderName.value || "").trim();
+    if (!name) return;
+    try {
+      await fetchJson("/api/folders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: currentPath, name }),
+      });
+      folderName.value = "";
+      await loadTree(currentPath);
+    } catch (e) {
+      setStatus(`创建失败：${e?.message || e}`);
+    }
+  });
+
+  uploadForm.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const files = Array.from(uploadFiles.files || []);
+    if (files.length === 0) {
+      setStatus("请选择 PDF 文件");
       return;
     }
+    setStatus(`准备上传 ${files.length} 个文件...`);
+
+    for (const file of files) {
+      try {
+        const res = await fetch(`/api/import?filename=${encodeURIComponent(file.name)}&target_dir=${encodeURIComponent(currentPath)}`, {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": file.type || "application/pdf",
+            "X-File-Name": file.name,
+            "X-Target-Dir": currentPath,
+          },
+          body: file,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.message || `${res.status} ${res.statusText}`);
+        activeImportJobs.add(String(data.job_id));
+        addJobRow(data, "import");
+      } catch (e) {
+        const fakeJob = {
+          job_id: `error-${Date.now()}`,
+          filename: file.name,
+          status: "failed",
+          error: String(e?.message || e),
+        };
+        addJobRow(fakeJob, "import");
+      }
+    }
+
+    uploadFiles.value = "";
+    ensurePolling();
+  });
+
+  btnRescan?.addEventListener("click", async () => {
     try {
-      if (submitBtn) submitBtn.disabled = true;
-      await submitImportFile(file);
-      if (fileInput) fileInput.value = "";
+      const job = await fetchJson(`/api/scan?path=${encodeURIComponent(currentPath)}`, { method: "POST" });
+      activeScanJobId = String(job.job_id || "");
+      if (activeScanJobId) {
+        addJobRow(job, "scan");
+        ensurePolling();
+      }
     } catch (e) {
-      setImportStatus(`导入失败：${e?.message || e}`, "bad");
-    } finally {
-      if (submitBtn) submitBtn.disabled = false;
+      setStatus(`触发重扫失败：${e?.message || e}`);
     }
   });
+
+  await loadTree(currentPath);
 }
 
-init();
-wire();
-restoreFromUrl();
+function bootstrap() {
+  const page = (document.body?.dataset?.page || "").toString();
+  if (page === "home") {
+    initHomePage();
+    return;
+  }
+  if (page === "search") {
+    initSearchPage();
+    return;
+  }
+  if (page === "detail") {
+    initDetailPage();
+    return;
+  }
+  if (page === "db") {
+    initDbPage();
+  }
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", bootstrap);
+} else {
+  bootstrap();
+}

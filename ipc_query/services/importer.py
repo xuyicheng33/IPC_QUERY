@@ -31,6 +31,7 @@ class ImportJob:
     id: str
     filename: str
     path: Path
+    target_dir: str
     status: str
     created_at: float
     started_at: float | None = None
@@ -42,6 +43,8 @@ class ImportJob:
         return {
             "job_id": self.id,
             "filename": self.filename,
+            "target_dir": self.target_dir,
+            "relative_path": self.relative_path(),
             "status": self.status,
             "created_at": self.created_at,
             "started_at": self.started_at,
@@ -49,6 +52,11 @@ class ImportJob:
             "error": self.error,
             "summary": self.summary,
         }
+
+    def relative_path(self) -> str:
+        if not self.target_dir:
+            return self.filename
+        return f"{self.target_dir}/{self.filename}"
 
 
 class ImportService:
@@ -69,6 +77,7 @@ class ImportService:
         job_timeout_s: int = 600,
         max_jobs_retained: int = 1000,
         on_success: Callable[[], None] | None = None,
+        db_write_lock: threading.Lock | None = None,
     ):
         self._db_path = db_path
         self._pdf_dir = pdf_dir
@@ -77,6 +86,7 @@ class ImportService:
         self._job_timeout_s = max(1, int(job_timeout_s))
         self._max_jobs_retained = max(1, int(max_jobs_retained))
         self._on_success = on_success
+        self._db_write_lock = db_write_lock or threading.Lock()
 
         self._pdf_dir.mkdir(parents=True, exist_ok=True)
         self._upload_dir.mkdir(parents=True, exist_ok=True)
@@ -89,9 +99,16 @@ class ImportService:
         self._worker = threading.Thread(target=self._run_worker, name="ipc-import-worker", daemon=True)
         self._worker.start()
 
-    def submit_upload(self, filename: str, payload: bytes, content_type: str | None) -> dict[str, Any]:
+    def submit_upload(
+        self,
+        filename: str,
+        payload: bytes,
+        content_type: str | None,
+        target_dir: str = "",
+    ) -> dict[str, Any]:
         """提交上传内容到导入队列"""
         safe_name = self._validate_and_normalize_filename(filename)
+        safe_target_dir = self._normalize_target_dir(target_dir)
         self._validate_payload(payload, content_type)
 
         job_id = uuid.uuid4().hex
@@ -102,6 +119,7 @@ class ImportService:
             id=job_id,
             filename=safe_name,
             path=staged_path,
+            target_dir=safe_target_dir,
             status="queued",
             created_at=time.time(),
         )
@@ -158,6 +176,15 @@ class ImportService:
             raise ValidationError("Only .pdf files are supported")
         return safe_name
 
+    def _normalize_target_dir(self, target_dir: str) -> str:
+        raw = (target_dir or "").replace("\\", "/").strip().strip("/")
+        if not raw:
+            return ""
+        parts = [p for p in raw.split("/") if p]
+        if any(p in {".", ".."} for p in parts):
+            raise ValidationError("Invalid target_dir")
+        return "/".join(parts)
+
     def _validate_payload(self, payload: bytes, content_type: str | None) -> None:
         if not payload:
             raise ValidationError("Empty file payload")
@@ -197,22 +224,28 @@ class ImportService:
             job.error = None
 
         started = time.time()
-        final_path = self._pdf_dir / job.filename
+        relative_path = job.relative_path()
+        final_path = self._pdf_dir / relative_path
         backup_path: Path | None = None
         final_promoted = False
         try:
             backup_path = self._promote_uploaded_file(job.path, final_path)
             final_promoted = True
 
-            with sqlite3.connect(str(self._db_path), timeout=60.0) as conn:
-                conn.row_factory = sqlite3.Row
-                summary = ingest_pdfs(conn, [final_path])
+            with self._db_write_lock:
+                with sqlite3.connect(str(self._db_path), timeout=60.0) as conn:
+                    conn.row_factory = sqlite3.Row
+                    try:
+                        summary = ingest_pdfs(conn, [final_path], base_dir=self._pdf_dir)
+                    except TypeError:
+                        summary = ingest_pdfs(conn, [final_path])
 
             elapsed = time.time() - started
             with self._lock:
                 job.status = "success"
                 job.summary = {
                     **summary,
+                    "relative_path": relative_path,
                     "elapsed_s": round(elapsed, 3),
                 }
                 job.finished_at = time.time()
@@ -313,12 +346,15 @@ class ImportService:
           "file_deleted": bool,
         }
         """
-        safe_name = self._validate_and_normalize_filename(pdf_name)
+        safe_identifier = self._normalize_pdf_identifier(pdf_name)
+        safe_name = Path(safe_identifier).name
         with self._lock:
             for job_id in self._job_order:
                 job = self._jobs.get(job_id)
                 if not job:
                     continue
+                if job.relative_path() == safe_identifier and job.status in {"queued", "running"}:
+                    raise ValidationError("Document is being imported, please retry later")
                 if job.filename == safe_name and job.status in {"queued", "running"}:
                     raise ValidationError("Document is being imported, please retry later")
 
@@ -326,59 +362,68 @@ class ImportService:
         raw_pdf_path = ""
         deleted = False
 
-        with sqlite3.connect(str(self._db_path), timeout=60.0) as conn:
-            conn.row_factory = sqlite3.Row
-            conn.execute("PRAGMA foreign_keys=ON")
-            row = conn.execute(
-                "SELECT id, pdf_path FROM documents WHERE pdf_name = ?",
-                (safe_name,),
-            ).fetchone()
-            if row is None:
-                return {
-                    "deleted": False,
-                    "pdf_name": safe_name,
-                    "deleted_counts": deleted_counts,
-                    "file_deleted": False,
-                }
-
-            doc_id = int(row["id"])
-            raw_pdf_path = str(row["pdf_path"] or "")
-            deleted_counts["pages"] = int(
-                conn.execute("SELECT COUNT(1) FROM pages WHERE document_id = ?", (doc_id,)).fetchone()[0]
-            )
-            deleted_counts["parts"] = int(
-                conn.execute("SELECT COUNT(1) FROM parts WHERE document_id = ?", (doc_id,)).fetchone()[0]
-            )
-            deleted_counts["xrefs"] = int(
-                conn.execute(
+        with self._db_write_lock:
+            with sqlite3.connect(str(self._db_path), timeout=60.0) as conn:
+                conn.row_factory = sqlite3.Row
+                conn.execute("PRAGMA foreign_keys=ON")
+                row = conn.execute(
                     """
-                    SELECT COUNT(1)
-                    FROM xrefs x
-                    JOIN parts p ON p.id = x.part_id
-                    WHERE p.document_id = ?
+                    SELECT id, pdf_name, relative_path, pdf_path
+                    FROM documents
+                    WHERE relative_path = ? OR pdf_name = ?
+                    ORDER BY CASE WHEN relative_path = ? THEN 0 ELSE 1 END
+                    LIMIT 1
                     """,
-                    (doc_id,),
-                ).fetchone()[0]
-            )
-            deleted_counts["aliases"] = int(
-                conn.execute(
-                    """
-                    SELECT COUNT(1)
-                    FROM aliases a
-                    JOIN parts p ON p.id = a.part_id
-                    WHERE p.document_id = ?
-                    """,
-                    (doc_id,),
-                ).fetchone()[0]
-            )
+                    (safe_identifier, safe_name, safe_identifier),
+                ).fetchone()
+                if row is None:
+                    return {
+                        "deleted": False,
+                        "pdf_name": safe_name,
+                        "deleted_counts": deleted_counts,
+                        "file_deleted": False,
+                    }
 
-            cur = conn.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
-            conn.commit()
-            deleted = cur.rowcount > 0
+                doc_id = int(row["id"])
+                safe_name = str(row["pdf_name"] or safe_name)
+                raw_pdf_path = str(row["pdf_path"] or "")
+                deleted_counts["pages"] = int(
+                    conn.execute("SELECT COUNT(1) FROM pages WHERE document_id = ?", (doc_id,)).fetchone()[0]
+                )
+                deleted_counts["parts"] = int(
+                    conn.execute("SELECT COUNT(1) FROM parts WHERE document_id = ?", (doc_id,)).fetchone()[0]
+                )
+                deleted_counts["xrefs"] = int(
+                    conn.execute(
+                        """
+                        SELECT COUNT(1)
+                        FROM xrefs x
+                        JOIN parts p ON p.id = x.part_id
+                        WHERE p.document_id = ?
+                        """,
+                        (doc_id,),
+                    ).fetchone()[0]
+                )
+                deleted_counts["aliases"] = int(
+                    conn.execute(
+                        """
+                        SELECT COUNT(1)
+                        FROM aliases a
+                        JOIN parts p ON p.id = a.part_id
+                        WHERE p.document_id = ?
+                        """,
+                        (doc_id,),
+                    ).fetchone()[0]
+                )
+
+                cur = conn.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
+                conn.execute("DELETE FROM scan_state WHERE relative_path = ?", (safe_identifier,))
+                conn.commit()
+                deleted = cur.rowcount > 0
 
         file_deleted = False
         if deleted:
-            file_deleted = self._delete_pdf_file(safe_name, raw_pdf_path)
+            file_deleted = self._delete_pdf_file(safe_identifier, raw_pdf_path)
             if self._on_success:
                 try:
                     self._on_success()
@@ -396,9 +441,22 @@ class ImportService:
         return {
             "deleted": deleted,
             "pdf_name": safe_name,
+            "relative_path": safe_identifier,
             "deleted_counts": deleted_counts,
             "file_deleted": file_deleted,
         }
+
+    def _normalize_pdf_identifier(self, value: str) -> str:
+        raw = (value or "").replace("\\", "/").strip().strip("/")
+        if not raw:
+            raise ValidationError("Missing filename")
+        parts = [p for p in raw.split("/") if p]
+        if any(p in {".", ".."} for p in parts):
+            raise ValidationError("Invalid filename")
+        normalized = "/".join(parts)
+        if not normalized.lower().endswith(".pdf"):
+            raise ValidationError("Only .pdf files are supported")
+        return normalized
 
     def _delete_pdf_file(self, pdf_name: str, raw_pdf_path: str) -> bool:
         for path in self._candidate_pdf_paths(pdf_name, raw_pdf_path):

@@ -21,6 +21,7 @@ from ..exceptions import IpcQueryError, NotFoundError, PartNotFoundError
 from ..exceptions import ValidationError
 from ..services.importer import ImportService
 from ..services.render import RenderService
+from ..services.scanner import ScanService
 from ..services.search import SearchService
 from ..utils.logger import get_logger
 from ..utils.metrics import metrics
@@ -56,6 +57,7 @@ class ApiHandlers:
         db: Database,
         config: Config,
         import_service: ImportService | None = None,
+        scan_service: ScanService | None = None,
     ):
         self._search = search_service
         self._render = render_service
@@ -63,6 +65,7 @@ class ApiHandlers:
         self._db = db
         self._config = config
         self._import = import_service
+        self._scan = scan_service
 
     def import_enabled(self) -> bool:
         """导入服务是否可用。"""
@@ -83,6 +86,8 @@ class ApiHandlers:
         page = _safe_int(page_raw, 1)
         page_size = _safe_int(page_size_raw, 0)
         include_notes = (qs.get("include_notes") or ["0"])[0] == "1"
+        source_pdf = (qs.get("source_pdf") or [""])[0].strip()
+        source_dir = (qs.get("source_dir") or [""])[0].strip()
         if page <= 0:
             page = 1
 
@@ -97,6 +102,8 @@ class ApiHandlers:
             page=page,
             page_size=page_size,
             include_notes=include_notes,
+            source_pdf=source_pdf,
+            source_dir=source_dir,
         )
 
         return HTTPStatus.OK, _json_bytes(result), "application/json; charset=utf-8"
@@ -127,6 +134,48 @@ class ApiHandlers:
         docs = self._docs.get_all()
         result = [d.to_dict() for d in docs]
         return HTTPStatus.OK, _json_bytes(result), "application/json; charset=utf-8"
+
+    def handle_docs_tree(self, path: str = "") -> tuple[int, bytes, str]:
+        rel = self._normalize_relative_dir(path, allow_empty=True)
+        root = self._require_pdf_root()
+        target = root if not rel else root / rel
+        if not target.exists() or not target.is_dir():
+            raise NotFoundError(f"Folder not found: {rel or '/'}")
+
+        docs_by_rel: dict[str, dict[str, Any]] = {}
+        docs_by_name: dict[str, dict[str, Any]] = {}
+        for d in self._docs.get_all():
+            payload = d.to_dict()
+            rp = str(payload.get("relative_path") or payload.get("pdf_name") or "").replace("\\", "/").strip("/")
+            name = str(payload.get("pdf_name") or "").strip()
+            if rp:
+                docs_by_rel[rp] = payload
+            if name and name not in docs_by_name:
+                docs_by_name[name] = payload
+
+        dirs: list[dict[str, Any]] = []
+        files: list[dict[str, Any]] = []
+        for child in sorted(target.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower())):
+            if child.is_dir():
+                child_rel = child.resolve().relative_to(root.resolve()).as_posix()
+                dirs.append({"name": child.name, "path": child_rel})
+                continue
+
+            if not child.is_file() or child.suffix.lower() != ".pdf":
+                continue
+
+            rel_path = child.resolve().relative_to(root.resolve()).as_posix()
+            db_doc = docs_by_rel.get(rel_path) or docs_by_name.get(child.name)
+            files.append(
+                {
+                    "name": child.name,
+                    "relative_path": rel_path,
+                    "indexed": db_doc is not None,
+                    "document": db_doc,
+                }
+            )
+
+        return HTTPStatus.OK, _json_bytes({"path": rel, "directories": dirs, "files": files}), "application/json; charset=utf-8"
 
     def handle_doc_delete(self, pdf_name: str) -> tuple[int, bytes, str]:
         """
@@ -171,6 +220,7 @@ class ApiHandlers:
         filename: str,
         payload: bytes,
         content_type: str | None,
+        target_dir: str = "",
     ) -> tuple[int, bytes, str]:
         """
         处理导入请求
@@ -179,8 +229,39 @@ class ApiHandlers:
         """
         if self._import is None:
             raise ValidationError("Import service is not enabled")
-        job = self._import.submit_upload(filename=filename, payload=payload, content_type=content_type)
+        job = self._import.submit_upload(
+            filename=filename,
+            payload=payload,
+            content_type=content_type,
+            target_dir=target_dir,
+        )
         return HTTPStatus.ACCEPTED, _json_bytes(job), "application/json; charset=utf-8"
+
+    def handle_folder_create(self, path: str, name: str) -> tuple[int, bytes, str]:
+        root = self._require_pdf_root()
+        parent = self._normalize_relative_dir(path, allow_empty=True)
+        folder_name = self._normalize_folder_name(name)
+        base = root if not parent else root / parent
+        if not base.exists() or not base.is_dir():
+            raise NotFoundError(f"Folder not found: {parent or '/'}")
+        new_dir = base / folder_name
+        new_dir.mkdir(parents=False, exist_ok=True)
+        rel = new_dir.resolve().relative_to(root.resolve()).as_posix()
+        return HTTPStatus.CREATED, _json_bytes({"created": True, "path": rel}), "application/json; charset=utf-8"
+
+    def handle_scan_submit(self, path: str = "") -> tuple[int, bytes, str]:
+        if self._scan is None:
+            raise ValidationError("Scan service is not enabled")
+        job = self._scan.submit_scan(path=path)
+        return HTTPStatus.ACCEPTED, _json_bytes(job), "application/json; charset=utf-8"
+
+    def handle_scan_job(self, job_id: str) -> tuple[int, bytes, str]:
+        if self._scan is None:
+            raise ValidationError("Scan service is not enabled")
+        job = self._scan.get_job(job_id)
+        if not job:
+            raise NotFoundError(f"Scan job not found: {job_id}")
+        return HTTPStatus.OK, _json_bytes(job), "application/json; charset=utf-8"
 
     def handle_import_job(self, job_id: str) -> tuple[int, bytes, str]:
         """
@@ -290,6 +371,13 @@ class ApiHandlers:
 
         GET /static/{path} 或 GET /
         """
+        if path == "/search":
+            path = "/search.html"
+        elif path == "/db":
+            path = "/db.html"
+        elif re.fullmatch(r"/part/\d+", path):
+            path = "/part.html"
+
         if not path or path == "/":
             target = self._config.static_dir / "index.html"
         else:
@@ -333,3 +421,30 @@ class ApiHandlers:
             "error": "INTERNAL_ERROR",
             "message": "Internal server error",
         }), "application/json"
+
+    def _require_pdf_root(self) -> Path:
+        pdf_dir = self._config.pdf_dir
+        if pdf_dir is None:
+            raise ValidationError("PDF directory is not configured")
+        return pdf_dir
+
+    def _normalize_relative_dir(self, path: str, *, allow_empty: bool) -> str:
+        raw = (path or "").replace("\\", "/").strip().strip("/")
+        if not raw:
+            if allow_empty:
+                return ""
+            raise ValidationError("Missing path")
+        parts = [p for p in raw.split("/") if p]
+        if any(p in {".", ".."} for p in parts):
+            raise ValidationError("Invalid path")
+        return "/".join(parts)
+
+    def _normalize_folder_name(self, name: str) -> str:
+        raw = (name or "").replace("\\", "/").strip().strip("/")
+        if not raw:
+            raise ValidationError("Missing folder name")
+        if "/" in raw:
+            raise ValidationError("Folder name must not contain '/'")
+        if raw in {".", ".."}:
+            raise ValidationError("Invalid folder name")
+        return raw

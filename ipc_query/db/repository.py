@@ -48,8 +48,16 @@ def _fig_item_display(fig_raw: str | None, fig_no: str | None, not_illustrated: 
 
 
 def _safe_pdf_name(raw: str) -> str:
-    """安全的PDF文件名"""
-    return (raw or "").replace("\\", "/").split("/")[-1]
+    """安全的PDF相对路径（兼容仅文件名场景）"""
+    src = (raw or "").replace("\\", "/")
+    is_absolute = src.startswith("/") or bool(re.match(r"^[A-Za-z]:/", src))
+    norm = src.strip("/")
+    if not norm:
+        return ""
+    parts = [p for p in norm.split("/") if p not in {"", ".", ".."}]
+    if is_absolute:
+        return parts[-1] if parts else ""
+    return "/".join(parts)
 
 
 class DocumentRepository:
@@ -61,7 +69,7 @@ class DocumentRepository:
     def get_all(self) -> list[Document]:
         """获取所有文档"""
         rows = self._db.execute(
-            "SELECT id, pdf_name, pdf_path, miner_dir, created_at FROM documents ORDER BY pdf_name"
+            "SELECT id, pdf_name, relative_path, pdf_path, miner_dir, created_at FROM documents ORDER BY relative_path, pdf_name"
         )
         docs = [Document.from_row(dict(r)) for r in rows]
         return [d for d in docs if d is not None]
@@ -69,7 +77,7 @@ class DocumentRepository:
     def get_by_id(self, doc_id: int) -> Document | None:
         """根据ID获取文档"""
         row = self._db.execute_one(
-            "SELECT id, pdf_name, pdf_path, miner_dir, created_at FROM documents WHERE id = ?",
+            "SELECT id, pdf_name, relative_path, pdf_path, miner_dir, created_at FROM documents WHERE id = ?",
             (doc_id,),
         )
         return Document.from_row(dict(row) if row else None)
@@ -77,8 +85,8 @@ class DocumentRepository:
     def get_by_name(self, pdf_name: str) -> Document | None:
         """根据名称获取文档"""
         row = self._db.execute_one(
-            "SELECT id, pdf_name, pdf_path, miner_dir, created_at FROM documents WHERE pdf_name = ?",
-            (pdf_name,),
+            "SELECT id, pdf_name, relative_path, pdf_path, miner_dir, created_at FROM documents WHERE pdf_name = ? OR relative_path = ?",
+            (pdf_name, pdf_name),
         )
         return Document.from_row(dict(row) if row else None)
 
@@ -110,6 +118,8 @@ class PartRepository:
         offset: int = 0,
         include_notes: bool = False,
         enable_contains: bool = False,
+        source_pdf: str = "",
+        source_dir: str = "",
     ) -> tuple[list[dict[str, Any]], int]:
         """
         按件号搜索
@@ -129,6 +139,9 @@ class PartRepository:
             return [], 0
 
         include_notes_int = 1 if include_notes else 0
+        source_pdf_norm = (source_pdf or "").strip()
+        source_dir_norm = (source_dir or "").replace("\\", "/").strip().strip("/")
+        source_dir_prefix = f"{source_dir_norm}/%" if source_dir_norm else ""
         prefix = 1 if len(q) >= 4 else 0
         contains = 1 if (enable_contains and len(q) >= 3) else 0
         q_prefix = q + "%"
@@ -170,7 +183,10 @@ class PartRepository:
         SELECT count(1) AS n
         FROM best
         JOIN parts p ON p.id = best.id
+        JOIN documents d ON d.id = p.document_id
         WHERE (:include_notes = 1 OR p.row_kind = 'part')
+          AND (:source_pdf = '' OR d.pdf_name = :source_pdf OR d.relative_path = :source_pdf)
+          AND (:source_dir = '' OR d.relative_path = :source_dir OR d.relative_path LIKE :source_dir_prefix)
         """
 
         sql = f"""
@@ -178,6 +194,7 @@ class PartRepository:
         SELECT
           p.id,
           d.pdf_name AS source_pdf,
+          d.relative_path AS source_relative_path,
           p.page_num,
           p.page_end,
           p.extractor,
@@ -209,6 +226,8 @@ class PartRepository:
         JOIN documents d ON d.id = p.document_id
         LEFT JOIN pages pg ON pg.document_id = p.document_id AND pg.page_num = p.page_num
         WHERE (:include_notes = 1 OR p.row_kind = 'part')
+          AND (:source_pdf = '' OR d.pdf_name = :source_pdf OR d.relative_path = :source_pdf)
+          AND (:source_dir = '' OR d.relative_path = :source_dir OR d.relative_path LIKE :source_dir_prefix)
         ORDER BY
           best.rank,
           p.pn_needs_review DESC,
@@ -226,6 +245,9 @@ class PartRepository:
             "limit": limit,
             "offset": max(offset, 0),
             "include_notes": include_notes_int,
+            "source_pdf": source_pdf_norm,
+            "source_dir": source_dir_norm,
+            "source_dir_prefix": source_dir_prefix,
         }
 
         with self._db.connection() as conn:
@@ -242,6 +264,8 @@ class PartRepository:
         limit: int = 20,
         offset: int = 0,
         include_notes: bool = False,
+        source_pdf: str = "",
+        source_dir: str = "",
     ) -> tuple[list[dict[str, Any]], int]:
         """
         按术语搜索
@@ -260,6 +284,9 @@ class PartRepository:
             return [], 0
 
         include_notes_int = 1 if include_notes else 0
+        source_pdf_norm = (source_pdf or "").strip()
+        source_dir_norm = (source_dir or "").replace("\\", "/").strip().strip("/")
+        source_dir_prefix = f"{source_dir_norm}/%" if source_dir_norm else ""
         dotprefix = 1 if q.startswith(".") else 0
         term_kw = len(q) >= 3 or (len(q) >= 2 and any(ch.isdigit() for ch in q))
 
@@ -301,7 +328,10 @@ class PartRepository:
         SELECT count(1) AS n
         FROM best
         JOIN parts p ON p.id = best.id
+        JOIN documents d ON d.id = p.document_id
         WHERE (:include_notes = 1 OR p.row_kind = 'part')
+          AND (:source_pdf = '' OR d.pdf_name = :source_pdf OR d.relative_path = :source_pdf)
+          AND (:source_dir = '' OR d.relative_path = :source_dir OR d.relative_path LIKE :source_dir_prefix)
         """
 
         sql = f"""
@@ -309,6 +339,7 @@ class PartRepository:
         SELECT
           p.id,
           d.pdf_name AS source_pdf,
+          d.relative_path AS source_relative_path,
           p.page_num,
           p.page_end,
           p.extractor,
@@ -340,6 +371,8 @@ class PartRepository:
         JOIN documents d ON d.id = p.document_id
         LEFT JOIN pages pg ON pg.document_id = p.document_id AND pg.page_num = p.page_num
         WHERE (:include_notes = 1 OR p.row_kind = 'part')
+          AND (:source_pdf = '' OR d.pdf_name = :source_pdf OR d.relative_path = :source_pdf)
+          AND (:source_dir = '' OR d.relative_path = :source_dir OR d.relative_path LIKE :source_dir_prefix)
         ORDER BY
           best.rank,
           d.pdf_name,
@@ -354,6 +387,9 @@ class PartRepository:
             "limit": limit,
             "offset": max(offset, 0),
             "include_notes": include_notes_int,
+            "source_pdf": source_pdf_norm,
+            "source_dir": source_dir_norm,
+            "source_dir_prefix": source_dir_prefix,
         }
 
         with self._db.connection() as conn:
@@ -370,6 +406,8 @@ class PartRepository:
         limit: int = 20,
         offset: int = 0,
         include_notes: bool = False,
+        source_pdf: str = "",
+        source_dir: str = "",
     ) -> tuple[list[dict[str, Any]], int]:
         """
         综合搜索（件号+术语）
@@ -388,6 +426,9 @@ class PartRepository:
             return [], 0
 
         include_notes_int = 1 if include_notes else 0
+        source_pdf_norm = (source_pdf or "").strip()
+        source_dir_norm = (source_dir or "").replace("\\", "/").strip().strip("/")
+        source_dir_prefix = f"{source_dir_norm}/%" if source_dir_norm else ""
         pn_like = _looks_like_pn_query(q)
         term_kw = len(q) >= 3 or (len(q) >= 2 and any(ch.isdigit() for ch in q))
 
@@ -445,7 +486,10 @@ class PartRepository:
         SELECT count(1) AS n
         FROM best
         JOIN parts p ON p.id = best.id
+        JOIN documents d ON d.id = p.document_id
         WHERE (:include_notes = 1 OR p.row_kind = 'part')
+          AND (:source_pdf = '' OR d.pdf_name = :source_pdf OR d.relative_path = :source_pdf)
+          AND (:source_dir = '' OR d.relative_path = :source_dir OR d.relative_path LIKE :source_dir_prefix)
         """
 
         order_by = (
@@ -459,6 +503,7 @@ class PartRepository:
         SELECT
           p.id,
           d.pdf_name AS source_pdf,
+          d.relative_path AS source_relative_path,
           p.page_num,
           p.page_end,
           p.extractor,
@@ -490,6 +535,8 @@ class PartRepository:
         JOIN documents d ON d.id = p.document_id
         LEFT JOIN pages pg ON pg.document_id = p.document_id AND pg.page_num = p.page_num
         WHERE (:include_notes = 1 OR p.row_kind = 'part')
+          AND (:source_pdf = '' OR d.pdf_name = :source_pdf OR d.relative_path = :source_pdf)
+          AND (:source_dir = '' OR d.relative_path = :source_dir OR d.relative_path LIKE :source_dir_prefix)
         ORDER BY {order_by}
         LIMIT :limit OFFSET :offset
         """
@@ -510,6 +557,9 @@ class PartRepository:
             "limit": limit,
             "offset": max(offset, 0),
             "include_notes": include_notes_int,
+            "source_pdf": source_pdf_norm,
+            "source_dir": source_dir_norm,
+            "source_dir_prefix": source_dir_prefix,
         }
 
         with self._db.connection() as conn:
@@ -612,20 +662,21 @@ class PartRepository:
 
         # 从数据库获取路径
         row = self._db.execute_one(
-            "SELECT pdf_path FROM documents WHERE pdf_name = ?",
-            (pdf_name,),
+            "SELECT pdf_path, relative_path FROM documents WHERE relative_path = ? OR pdf_name = ?",
+            (pdf_name, pdf_name),
         )
         if not row:
             return None
 
         raw_path = str(row["pdf_path"] or "")
+        rel_path = str(row["relative_path"] or "")
         p = Path(raw_path)
         if p.exists():
             return p
 
         # 尝试相对路径
         if self._pdf_dir:
-            normalized = raw_path.replace("\\", "/").lstrip("/")
+            normalized = rel_path.replace("\\", "/").lstrip("/") or raw_path.replace("\\", "/").lstrip("/")
             if normalized and ":" not in normalized:
                 joined = self._pdf_dir / normalized
                 if joined.exists():
@@ -708,6 +759,7 @@ class PartRepository:
         return {
             "id": r["id"],
             "source_pdf": r["source_pdf"],
+            "source_relative_path": r["source_relative_path"] if "source_relative_path" in r.keys() else r["source_pdf"],
             "page_num": r["page_num"],
             "page_end": r["page_end"],
             "figure_code": r["figure_code"],

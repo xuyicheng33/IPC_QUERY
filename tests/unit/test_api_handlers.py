@@ -138,6 +138,8 @@ def test_handle_search_normalizes_non_positive_page(tmp_path: Path) -> None:
         page=1,
         page_size=10,
         include_notes=False,
+        source_pdf="",
+        source_dir="",
     )
     payload = json.loads(body.decode("utf-8"))
     assert payload["match"] == "pn"
@@ -165,6 +167,8 @@ def test_handle_search_page_size_falls_back_to_default_limit(tmp_path: Path) -> 
         page=1,
         page_size=60,
         include_notes=False,
+        source_pdf="",
+        source_dir="",
     )
 
 
@@ -206,3 +210,64 @@ def test_handle_health_propagates_unhealthy_status(tmp_path: Path) -> None:
     assert payload["status"] == "unhealthy"
     assert payload["database"]["status"] == "unhealthy"
     assert payload["database"]["error"] == "database_error"
+
+
+def test_handle_docs_tree_lists_directories_and_files(tmp_path: Path) -> None:
+    pdf_root = tmp_path / "pdfs"
+    (pdf_root / "sub").mkdir(parents=True)
+    (pdf_root / "sub" / "a.pdf").write_bytes(b"%PDF-1.4\n%%EOF\n")
+    (pdf_root / "b.pdf").write_bytes(b"%PDF-1.4\n%%EOF\n")
+
+    handlers = _make_handlers(tmp_path / "sample.pdf")
+    handlers._config = Config(pdf_dir=pdf_root)
+    handlers._docs.get_all.return_value = [
+        MagicMock(to_dict=lambda: {"id": 1, "pdf_name": "b.pdf", "relative_path": "b.pdf", "relative_dir": ""}),
+    ]
+
+    status, body, _ = handlers.handle_docs_tree("")
+
+    assert status == HTTPStatus.OK
+    payload = json.loads(body.decode("utf-8"))
+    assert payload["path"] == ""
+    assert any(d["name"] == "sub" for d in payload["directories"])
+    row = next(f for f in payload["files"] if f["name"] == "b.pdf")
+    assert row["indexed"] is True
+
+
+def test_handle_folder_create_creates_dir(tmp_path: Path) -> None:
+    pdf_root = tmp_path / "pdfs"
+    pdf_root.mkdir(parents=True)
+    handlers = _make_handlers(tmp_path / "sample.pdf")
+    handlers._config = Config(pdf_dir=pdf_root)
+
+    status, body, _ = handlers.handle_folder_create(path="", name="engine")
+
+    assert status == HTTPStatus.CREATED
+    payload = json.loads(body.decode("utf-8"))
+    assert payload["created"] is True
+    assert (pdf_root / "engine").exists()
+
+
+def test_handle_scan_submit_calls_scan_service(tmp_path: Path) -> None:
+    pdf_root = tmp_path / "pdfs"
+    pdf_root.mkdir(parents=True)
+    handlers = _make_handlers(tmp_path / "sample.pdf")
+    handlers._config = Config(pdf_dir=pdf_root)
+    handlers._scan = MagicMock()
+    handlers._scan.submit_scan.return_value = {"job_id": "scan-1", "status": "queued"}
+
+    status, body, _ = handlers.handle_scan_submit("sub")
+
+    assert status == HTTPStatus.ACCEPTED
+    payload = json.loads(body.decode("utf-8"))
+    assert payload["job_id"] == "scan-1"
+    handlers._scan.submit_scan.assert_called_once_with(path="sub")
+
+
+def test_handle_scan_job_not_found_raises(tmp_path: Path) -> None:
+    handlers = _make_handlers(tmp_path / "sample.pdf")
+    handlers._scan = MagicMock()
+    handlers._scan.get_job.return_value = None
+
+    with pytest.raises(NotFoundError):
+        handlers.handle_scan_job("missing")

@@ -43,6 +43,8 @@ class SearchService:
         page: int = 1,
         page_size: int | None = None,
         include_notes: bool = False,
+        source_pdf: str = "",
+        source_dir: str = "",
     ) -> dict[str, Any]:
         """
         搜索零件
@@ -84,7 +86,7 @@ class SearchService:
         offset = (page - 1) * page_size
 
         # 检查缓存
-        cache_key = f"{query}:{match}:{page}:{page_size}:{include_notes}"
+        cache_key = f"{query}:{match}:{page}:{page_size}:{include_notes}:{source_pdf}:{source_dir}"
         cached = self._cache.get(cache_key)
         if cached is not None:
             metrics.record_search(0, cache_hit=True)
@@ -103,6 +105,8 @@ class SearchService:
                 offset=offset,
                 limit=page_size,
                 include_notes=include_notes,
+                source_pdf=source_pdf,
+                source_dir=source_dir,
             )
         except Exception as e:
             logger.error(
@@ -122,6 +126,8 @@ class SearchService:
             "page_size": page_size,
             "has_more": total > page * page_size,
             "match": match,
+            "source_pdf": source_pdf,
+            "source_dir": source_dir,
         }
 
         # 存入缓存
@@ -159,6 +165,8 @@ class SearchService:
         offset: int,
         limit: int,
         include_notes: bool,
+        source_pdf: str,
+        source_dir: str,
     ) -> tuple[list[dict[str, Any]], int]:
         """执行搜索"""
         if match == "pn":
@@ -169,6 +177,8 @@ class SearchService:
                 offset=offset,
                 include_notes=include_notes,
                 enable_contains=False,
+                source_pdf=source_pdf,
+                source_dir=source_dir,
             )
             # 如果没有结果，尝试包含匹配
             if total == 0 and len(query) >= 3:
@@ -178,6 +188,8 @@ class SearchService:
                     offset=offset,
                     include_notes=include_notes,
                     enable_contains=True,
+                    source_pdf=source_pdf,
+                    source_dir=source_dir,
                 )
         elif match == "term":
             # 术语搜索
@@ -186,6 +198,8 @@ class SearchService:
                 limit=limit,
                 offset=offset,
                 include_notes=include_notes,
+                source_pdf=source_pdf,
+                source_dir=source_dir,
             )
         else:
             # 综合搜索
@@ -194,6 +208,8 @@ class SearchService:
                 limit=limit,
                 offset=offset,
                 include_notes=include_notes,
+                source_pdf=source_pdf,
+                source_dir=source_dir,
             )
 
         return results, total

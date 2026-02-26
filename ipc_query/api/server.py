@@ -10,6 +10,8 @@ import mimetypes
 import re
 import sqlite3
 import uuid
+import json
+import threading
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -23,6 +25,7 @@ from ..db.repository import DocumentRepository, PartRepository
 from ..exceptions import IpcQueryError, NotFoundError, ValidationError
 from ..services.importer import ImportService
 from ..services.render import RenderService, create_render_service
+from ..services.scanner import ScanService
 from ..services.search import SearchService, create_search_service
 from ..utils.logger import get_logger
 from .handlers import ApiHandlers
@@ -131,6 +134,25 @@ class RequestHandler(BaseHTTPRequestHandler):
         except Exception:
             pass
 
+    def _read_json_body(self, *, max_bytes: int = 64 * 1024) -> dict[str, Any]:
+        content_length_raw = (self.headers.get("Content-Length") or "").strip()
+        try:
+            content_length = int(content_length_raw or "0")
+        except ValueError as e:
+            raise ValidationError("Invalid Content-Length header") from e
+        if content_length <= 0:
+            raise ValidationError("Empty request body")
+        if content_length > max_bytes:
+            raise ValidationError("JSON body too large")
+        payload = self.rfile.read(content_length)
+        try:
+            parsed = json.loads(payload.decode("utf-8"))
+        except Exception as e:
+            raise ValidationError("Invalid JSON body") from e
+        if not isinstance(parsed, dict):
+            raise ValidationError("JSON body must be an object")
+        return parsed
+
     def do_GET(self) -> None:
         """处理GET请求"""
         try:
@@ -150,6 +172,12 @@ class RequestHandler(BaseHTTPRequestHandler):
             elif path == "/api/docs":
                 status, docs_body, ct = self.handlers.handle_docs()
                 self._send(status, docs_body, ct)
+
+            elif path == "/api/docs/tree":
+                qs = parse_qs(query_string) if query_string else {}
+                rel_path = (qs.get("path") or [""])[0]
+                status, body, ct = self.handlers.handle_docs_tree(path=rel_path)
+                self._send(status, body, ct)
 
             elif path == "/api/health":
                 status, health_body, ct = self.handlers.handle_health()
@@ -174,6 +202,13 @@ class RequestHandler(BaseHTTPRequestHandler):
                 if not job_id:
                     raise NotFoundError("Missing import job id")
                 status, job_body, ct = self.handlers.handle_import_job(job_id)
+                self._send(status, job_body, ct)
+
+            elif path.startswith("/api/scan/"):
+                job_id = path[len("/api/scan/") :]
+                if not job_id:
+                    raise NotFoundError("Missing scan job id")
+                status, job_body, ct = self.handlers.handle_scan_job(job_id)
                 self._send(status, job_body, ct)
 
             elif path.startswith("/render/"):
@@ -266,6 +301,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                     raise ValidationError("Import service is not enabled")
                 qs = parse_qs(query_string) if query_string else {}
                 filename = (self.headers.get("X-File-Name") or (qs.get("filename") or [""])[0]).strip()
+                target_dir = (self.headers.get("X-Target-Dir") or (qs.get("target_dir") or [""])[0]).strip()
                 content_type = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
                 content_length = _validated_content_length(
                     self.headers.get("Content-Length"),
@@ -278,7 +314,26 @@ class RequestHandler(BaseHTTPRequestHandler):
                     filename=filename,
                     payload=payload,
                     content_type=content_type,
+                    target_dir=target_dir,
                 )
+                self._send(status, body, ct)
+                return
+
+            if path == "/api/folders":
+                json_payload = self._read_json_body()
+                parent_path = str(json_payload.get("path") or "")
+                folder_name = str(json_payload.get("name") or "")
+                status, body, ct = self.handlers.handle_folder_create(path=parent_path, name=folder_name)
+                self._send(status, body, ct)
+                return
+
+            if path == "/api/scan":
+                qs = parse_qs(query_string) if query_string else {}
+                path_arg = (qs.get("path") or [""])[0]
+                if not path_arg and (self.headers.get("Content-Length") or "").strip():
+                    json_payload = self._read_json_body()
+                    path_arg = str(json_payload.get("path") or "")
+                status, body, ct = self.handlers.handle_scan_submit(path=path_arg)
                 self._send(status, body, ct)
                 return
 
@@ -356,12 +411,14 @@ class Server:
         search_service: SearchService,
         render_service: RenderService,
         import_service: ImportService | None,
+        scan_service: ScanService | None,
     ):
         self._config = config
         self._db = db
         self._search = search_service
         self._render = render_service
         self._import = import_service
+        self._scan = scan_service
         self._server: ThreadingHTTPServer | None = None
 
     def start(self) -> None:
@@ -378,6 +435,7 @@ class Server:
             db=self._db,
             config=self._config,
             import_service=self._import,
+            scan_service=self._scan,
         )
 
         # 创建服务器
@@ -417,6 +475,8 @@ class Server:
             self._server = None
         if self._import is not None:
             self._import.stop()
+        if self._scan is not None:
+            self._scan.stop()
         self._db.close_all()
         logger.info("Server stopped")
 
@@ -462,7 +522,7 @@ def create_server(config: Config) -> Server:
         config.pdf_dir = config.upload_dir
         config.pdf_dir.mkdir(parents=True, exist_ok=True)
 
-    required_tables = {"documents", "pages", "parts", "xrefs", "aliases"}
+    required_tables = {"documents", "pages", "parts", "xrefs", "aliases", "scan_state"}
     needs_schema_init = not config.database_path.exists()
     if not needs_schema_init:
         probe_db = Database(config.database_path, readonly=True)
@@ -491,7 +551,9 @@ def create_server(config: Config) -> Server:
     search_service = create_search_service(part_repo, config)
     render_service = create_render_service(config.pdf_dir, config.cache_dir, config)
     import_service: ImportService | None
+    scan_service: ScanService | None
     if _is_database_writable(config.database_path):
+        db_write_lock = threading.Lock()
         import_service = ImportService(
             db_path=config.database_path,
             pdf_dir=config.pdf_dir,
@@ -501,9 +563,18 @@ def create_server(config: Config) -> Server:
             job_timeout_s=config.import_job_timeout_s,
             max_jobs_retained=config.import_jobs_retained,
             on_success=search_service.clear_cache,
+            db_write_lock=db_write_lock,
+        )
+        scan_service = ScanService(
+            db_path=config.database_path,
+            pdf_dir=config.pdf_dir,
+            max_jobs_retained=config.import_jobs_retained,
+            on_success=search_service.clear_cache,
+            db_write_lock=db_write_lock,
         )
     else:
         import_service = None
+        scan_service = None
         logger.warning(
             "Import service disabled because database is readonly",
             extra_fields={"db_path": str(config.database_path)},
@@ -512,4 +583,10 @@ def create_server(config: Config) -> Server:
     # 预热
     search_service.warmup()
 
-    return Server(config, db, search_service, render_service, import_service)
+    if scan_service is not None:
+        try:
+            scan_service.submit_scan("")
+        except Exception:
+            logger.exception("Failed to enqueue startup scan job")
+
+    return Server(config, db, search_service, render_service, import_service, scan_service)

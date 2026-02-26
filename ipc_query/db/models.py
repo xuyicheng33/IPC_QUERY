@@ -17,6 +17,7 @@ class Document:
 
     id: int | None = None
     pdf_name: str = ""
+    relative_path: str = ""
     pdf_path: str = ""
     miner_dir: str = ""
     created_at: str = ""
@@ -28,15 +29,22 @@ class Document:
         return cls(
             id=row.get("id"),
             pdf_name=row.get("pdf_name", ""),
+            relative_path=row.get("relative_path", ""),
             pdf_path=row.get("pdf_path", ""),
             miner_dir=row.get("miner_dir", ""),
             created_at=row.get("created_at", ""),
         )
 
     def to_dict(self) -> dict[str, Any]:
+        rel = (self.relative_path or "").replace("\\", "/").strip("/")
+        rel_dir = ""
+        if "/" in rel:
+            rel_dir = rel.rsplit("/", 1)[0]
         return {
             "id": self.id,
             "pdf_name": self.pdf_name,
+            "relative_path": rel or self.pdf_name,
+            "relative_dir": rel_dir,
             "pdf_path": self.pdf_path,
             "miner_dir": self.miner_dir,
             "created_at": self.created_at,

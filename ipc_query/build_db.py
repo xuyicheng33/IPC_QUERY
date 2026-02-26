@@ -609,11 +609,13 @@ def _init_db(conn: sqlite3.Connection) -> None:
         DROP TABLE IF EXISTS xrefs;
         DROP TABLE IF EXISTS parts;
         DROP TABLE IF EXISTS pages;
+        DROP TABLE IF EXISTS scan_state;
         DROP TABLE IF EXISTS documents;
 
         CREATE TABLE documents (
           id INTEGER PRIMARY KEY,
           pdf_name TEXT NOT NULL UNIQUE,
+          relative_path TEXT NOT NULL UNIQUE,
           pdf_path TEXT NOT NULL,
           miner_dir TEXT NOT NULL,
           created_at TEXT NOT NULL
@@ -675,6 +677,14 @@ def _init_db(conn: sqlite3.Connection) -> None:
           alias_value TEXT NOT NULL
         );
 
+        CREATE TABLE scan_state (
+          relative_path TEXT PRIMARY KEY,
+          size INTEGER NOT NULL,
+          mtime REAL NOT NULL,
+          content_hash TEXT,
+          updated_at TEXT NOT NULL
+        );
+
         CREATE INDEX idx_parts_pn ON parts(part_number_canonical);
         CREATE INDEX idx_parts_pn_extracted ON parts(part_number_extracted);
         CREATE INDEX idx_parts_pn_cell ON parts(part_number_cell);
@@ -720,6 +730,7 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
         CREATE TABLE IF NOT EXISTS documents (
           id INTEGER PRIMARY KEY,
           pdf_name TEXT NOT NULL UNIQUE,
+          relative_path TEXT NOT NULL DEFAULT '',
           pdf_path TEXT NOT NULL,
           miner_dir TEXT NOT NULL,
           created_at TEXT NOT NULL
@@ -781,6 +792,14 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
           alias_value TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS scan_state (
+          relative_path TEXT PRIMARY KEY,
+          size INTEGER NOT NULL,
+          mtime REAL NOT NULL,
+          content_hash TEXT,
+          updated_at TEXT NOT NULL
+        );
+
         CREATE INDEX IF NOT EXISTS idx_parts_pn ON parts(part_number_canonical);
         CREATE INDEX IF NOT EXISTS idx_parts_pn_extracted ON parts(part_number_extracted);
         CREATE INDEX IF NOT EXISTS idx_parts_pn_cell ON parts(part_number_cell);
@@ -810,10 +829,22 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
         );
         """
     )
+    table_info = conn.execute("PRAGMA table_info(documents)").fetchall()
+    cols = {str(r[1]) for r in table_info}
+    if "relative_path" not in cols:
+        conn.execute("ALTER TABLE documents ADD COLUMN relative_path TEXT NOT NULL DEFAULT ''")
+
+    conn.execute(
+        """
+        UPDATE documents
+        SET relative_path = pdf_name
+        WHERE COALESCE(TRIM(relative_path), '') = ''
+        """
+    )
     conn.commit()
 
 
-def ingest_pdfs(conn: sqlite3.Connection, pdf_paths: list[Path]) -> dict[str, int]:
+def ingest_pdfs(conn: sqlite3.Connection, pdf_paths: list[Path], base_dir: Path | None = None) -> dict[str, int]:
     """
     Ingest PDFs into an existing SQLite database without dropping prior documents.
 
@@ -842,19 +873,19 @@ def ingest_pdfs(conn: sqlite3.Connection, pdf_paths: list[Path]) -> dict[str, in
     }
 
     try:
-        build_db(output_path=tmp_db_path, pdf_paths=pdf_paths)
+        build_db(output_path=tmp_db_path, pdf_paths=pdf_paths, base_dir=base_dir)
 
         src = sqlite3.connect(str(tmp_db_path))
         src.row_factory = sqlite3.Row
         try:
             src_docs = src.execute(
-                "SELECT id, pdf_name, pdf_path, miner_dir, created_at FROM documents ORDER BY id"
+                "SELECT id, pdf_name, relative_path, pdf_path, miner_dir, created_at FROM documents ORDER BY id"
             ).fetchall()
 
             for src_doc in src_docs:
                 existing = conn.execute(
-                    "SELECT id FROM documents WHERE pdf_name = ?",
-                    (src_doc["pdf_name"],),
+                    "SELECT id FROM documents WHERE relative_path = ? OR pdf_name = ?",
+                    (src_doc["relative_path"], src_doc["pdf_name"]),
                 ).fetchone()
                 if existing is not None:
                     conn.execute("DELETE FROM documents WHERE id = ?", (existing[0],))
@@ -862,11 +893,12 @@ def ingest_pdfs(conn: sqlite3.Connection, pdf_paths: list[Path]) -> dict[str, in
 
                 dst_doc_cur = conn.execute(
                     """
-                    INSERT INTO documents(pdf_name, pdf_path, miner_dir, created_at)
-                    VALUES (?, ?, ?, ?)
+                    INSERT INTO documents(pdf_name, relative_path, pdf_path, miner_dir, created_at)
+                    VALUES (?, ?, ?, ?, ?)
                     """,
                     (
                         src_doc["pdf_name"],
+                        src_doc["relative_path"],
                         src_doc["pdf_path"],
                         src_doc["miner_dir"],
                         src_doc["created_at"],
@@ -1047,13 +1079,30 @@ def _db_pdf_path(pdf_path: Path) -> str:
     return s
 
 
+def _db_relative_path(pdf_path: Path, base_dir: Path | None = None) -> str:
+    """Build a normalized relative path for document identity."""
+    if base_dir is not None:
+        try:
+            rel = pdf_path.resolve().relative_to(base_dir.resolve())
+            return rel.as_posix().lstrip("/")
+        except Exception:
+            pass
+
+    s = _db_pdf_path(pdf_path).replace("\\", "/").lstrip("/")
+    if not s:
+        return pdf_path.name
+    if re.match(r"^[A-Za-z]:/", s):
+        return pdf_path.name
+    return s
+
+
 def _pick_20_default_pdfs() -> list[Path]:
     candidates = sorted(Path("IPC/7NG").glob("*___083.pdf"))
     candidates = [p for p in candidates if not p.name.endswith("-fm___083.pdf")]
     return candidates[:20]
 
 
-def build_db(output_path: Path, pdf_paths: list[Path]) -> None:
+def build_db(output_path: Path, pdf_paths: list[Path], base_dir: Path | None = None) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     if output_path.exists():
         output_path.unlink()
@@ -1071,12 +1120,14 @@ def build_db(output_path: Path, pdf_paths: list[Path]) -> None:
 
         for pdf_path in pdf_paths:
             pdf_name = pdf_path.name
+            relative_path = _db_relative_path(pdf_path, base_dir=base_dir)
             db_pdf_path = _db_pdf_path(pdf_path)
             created_at = dt.datetime.now(dt.timezone.utc).isoformat()
             cur = conn.execute(
-                "INSERT INTO documents(pdf_name,pdf_path,miner_dir,created_at) VALUES (?,?,?,?)",
+                "INSERT INTO documents(pdf_name,relative_path,pdf_path,miner_dir,created_at) VALUES (?,?,?,?,?)",
                 (
                     pdf_name,
+                    relative_path,
                     db_pdf_path,
                     json.dumps({"kind": "pdf_coords", "units": "cm", "pt_per_cm": PT_PER_CM}, ensure_ascii=False),
                     created_at,

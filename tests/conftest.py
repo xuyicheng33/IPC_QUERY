@@ -46,6 +46,7 @@ def sample_db(temp_db_path: Path) -> Generator[sqlite3.Connection, None, None]:
         CREATE TABLE documents (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             pdf_name TEXT NOT NULL,
+            relative_path TEXT NOT NULL DEFAULT '',
             pdf_path TEXT,
             miner_dir TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -117,7 +118,10 @@ def sample_db(temp_db_path: Path) -> Generator[sqlite3.Connection, None, None]:
 
     # 插入测试数据
     conn.execute(
-        "INSERT INTO documents (id, pdf_name, pdf_path) VALUES (1, 'test_doc.pdf', '/path/to/test_doc.pdf')"
+        """
+        INSERT INTO documents (id, pdf_name, relative_path, pdf_path)
+        VALUES (1, 'test_doc.pdf', 'test_doc.pdf', '/path/to/test_doc.pdf')
+        """
     )
     conn.execute(
         "INSERT INTO pages (document_id, page_num, figure_label, date_text) VALUES (1, 1, 'FIG 1', '2024-01-01')"
