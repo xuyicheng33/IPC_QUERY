@@ -22,7 +22,7 @@ def _database_path_from_env() -> Path:
 
     优先级：
     1. DATABASE_PATH
-    2. DATABASE_URL (仅支持 sqlite:///...)
+    2. DATABASE_URL (仅支持 sqlite:...)
     3. 默认值 data/ipc.sqlite
     """
     db_path_raw = os.getenv("DATABASE_PATH", "").strip()
@@ -138,6 +138,9 @@ class Config:
             config.port = args.port
         if hasattr(args, "pdf_dir") and args.pdf_dir:
             config.pdf_dir = Path(args.pdf_dir)
+            # CLI 显式指定了 PDF 目录且未指定上传目录时，默认跟随 PDF 目录。
+            if not (hasattr(args, "upload_dir") and args.upload_dir):
+                config.upload_dir = config.pdf_dir
         if hasattr(args, "upload_dir") and args.upload_dir:
             config.upload_dir = Path(args.upload_dir)
         if hasattr(args, "static_dir") and args.static_dir:

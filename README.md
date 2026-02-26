@@ -161,7 +161,7 @@ web/                    # 前端
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
 | `DATABASE_PATH` | 数据库文件路径（优先） | `data/ipc.sqlite` |
-| `DATABASE_URL` | 数据库URL（仅 `sqlite://`，在未设置 `DATABASE_PATH` 时生效） | - |
+| `DATABASE_URL` | 数据库URL（仅 `sqlite:`，在未设置 `DATABASE_PATH` 时生效；如 `sqlite:./data/ipc.sqlite`） | - |
 | `HOST` | 监听地址 | `127.0.0.1` |
 | `PORT` | 监听端口 | `8791` |
 | `PDF_DIR` | PDF文件目录（用于 `/pdf`/`/render`） | 跟随 `UPLOAD_DIR`（最终默认为 `data/pdfs`） |

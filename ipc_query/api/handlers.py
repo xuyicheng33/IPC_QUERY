@@ -64,6 +64,10 @@ class ApiHandlers:
         self._config = config
         self._import = import_service
 
+    def import_enabled(self) -> bool:
+        """导入服务是否可用。"""
+        return self._import is not None
+
     def handle_search(self, query_string: str) -> tuple[int, bytes, str]:
         """
         处理搜索请求
@@ -228,6 +232,8 @@ class ApiHandlers:
                         raise ValueError("empty range")
                     if start_raw == "":
                         length = int(end_raw)
+                        if length <= 0:
+                            raise ValueError("invalid suffix length")
                         start = max(size - length, 0)
                         end = size - 1
                     else:
@@ -237,14 +243,20 @@ class ApiHandlers:
                             raise ValueError("start out of range")
                         end = min(max(end, start), size - 1)
 
-                    # 返回部分内容（这里简化处理，返回完整文件）
-                    # 实际实现需要读取文件片段
-                    return HTTPStatus.PARTIAL_CONTENT, pdf_path, content_type, {
+                    chunk_len = (end - start) + 1
+                    with pdf_path.open("rb") as f:
+                        f.seek(start)
+                        payload = f.read(chunk_len)
+
+                    return HTTPStatus.PARTIAL_CONTENT, payload, content_type, {
                         **extra_headers,
                         "Content-Range": f"bytes {start}-{end}/{size}",
                     }
                 except Exception:
-                    pass
+                    return HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE, b"", content_type, {
+                        **extra_headers,
+                        "Content-Range": f"bytes */{size}",
+                    }
 
         return HTTPStatus.OK, pdf_path, content_type, extra_headers
 

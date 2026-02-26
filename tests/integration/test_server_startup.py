@@ -39,6 +39,7 @@ def test_create_server_with_readonly_db_does_not_write(tmp_path: Path) -> None:
     server = create_server(cfg)
     try:
         assert server is not None
+        assert server._import is None
     finally:
         server.stop()
         db_path.chmod(0o644)
@@ -52,5 +53,6 @@ def test_create_server_can_bootstrap_missing_db(tmp_path: Path) -> None:
     server = create_server(cfg)
     try:
         assert db_path.exists()
+        assert server._import is not None
     finally:
         server.stop()

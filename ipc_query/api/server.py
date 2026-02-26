@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import mimetypes
 import re
+import sqlite3
+import uuid
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -32,6 +34,24 @@ def _json_bytes(obj: Any) -> bytes:
     """将对象转换为JSON字节"""
     import json
     return json.dumps(obj, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+
+
+def _validated_content_length(content_length_raw: str | None, max_file_size_mb: int) -> int:
+    """解析并校验上传请求体长度。"""
+    raw = (content_length_raw or "").strip()
+    try:
+        content_length = int(raw or "0")
+    except ValueError as e:
+        raise ValidationError("Invalid Content-Length header") from e
+
+    if content_length <= 0:
+        raise ValidationError("Empty request body")
+
+    max_body_bytes = max(1, int(max_file_size_mb)) * 1024 * 1024
+    if content_length > max_body_bytes:
+        raise ValidationError(f"File too large (max {max_file_size_mb}MB)")
+
+    return content_length
 
 
 class RequestHandler(BaseHTTPRequestHandler):
@@ -217,13 +237,18 @@ class RequestHandler(BaseHTTPRequestHandler):
             path = path or "/"
 
             if path == "/api/import":
+                if not self.handlers.import_enabled():
+                    raise ValidationError("Import service is not enabled")
                 qs = parse_qs(query_string) if query_string else {}
                 filename = (self.headers.get("X-File-Name") or (qs.get("filename") or [""])[0]).strip()
                 content_type = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
-                content_length = int(self.headers.get("Content-Length") or "0")
-                if content_length <= 0:
-                    raise ValidationError("Empty request body")
+                content_length = _validated_content_length(
+                    self.headers.get("Content-Length"),
+                    self.config.import_max_file_size_mb,
+                )
                 payload = self.rfile.read(content_length)
+                if len(payload) != content_length:
+                    raise ValidationError("Incomplete request body")
                 status, body, ct = self.handlers.handle_import_submit(
                     filename=filename,
                     payload=payload,
@@ -272,7 +297,7 @@ class Server:
         db: Database,
         search_service: SearchService,
         render_service: RenderService,
-        import_service: ImportService,
+        import_service: ImportService | None,
     ):
         self._config = config
         self._db = db
@@ -325,9 +350,37 @@ class Server:
         if self._server:
             self._server.shutdown()
             self._server = None
-        self._import.stop()
+        if self._import is not None:
+            self._import.stop()
         self._db.close_all()
         logger.info("Server stopped")
+
+
+def _is_database_writable(db_path: Path) -> bool:
+    """检测数据库是否可写。"""
+    if not db_path.exists():
+        return True
+
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?mode=rw", uri=True, timeout=1.0)
+    except sqlite3.Error:
+        return False
+
+    probe_name = f"__ipc_write_probe_{uuid.uuid4().hex}"
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute(f"CREATE TABLE {probe_name}(id INTEGER)")
+        conn.execute(f"DROP TABLE {probe_name}")
+        conn.execute("ROLLBACK")
+        return True
+    except sqlite3.Error:
+        try:
+            conn.execute("ROLLBACK")
+        except sqlite3.Error:
+            pass
+        return False
+    finally:
+        conn.close()
 
 
 def create_server(config: Config) -> Server:
@@ -372,16 +425,24 @@ def create_server(config: Config) -> Server:
     # 创建服务
     search_service = create_search_service(part_repo, config)
     render_service = create_render_service(config.pdf_dir, config.cache_dir, config)
-    import_service = ImportService(
-        db_path=config.database_path,
-        pdf_dir=config.pdf_dir,
-        upload_dir=config.upload_dir,
-        max_file_size_mb=config.import_max_file_size_mb,
-        queue_size=config.import_queue_size,
-        job_timeout_s=config.import_job_timeout_s,
-        max_jobs_retained=config.import_jobs_retained,
-        on_success=search_service.clear_cache,
-    )
+    import_service: ImportService | None
+    if _is_database_writable(config.database_path):
+        import_service = ImportService(
+            db_path=config.database_path,
+            pdf_dir=config.pdf_dir,
+            upload_dir=config.upload_dir,
+            max_file_size_mb=config.import_max_file_size_mb,
+            queue_size=config.import_queue_size,
+            job_timeout_s=config.import_job_timeout_s,
+            max_jobs_retained=config.import_jobs_retained,
+            on_success=search_service.clear_cache,
+        )
+    else:
+        import_service = None
+        logger.warning(
+            "Import service disabled because database is readonly",
+            extra_fields={"db_path": str(config.database_path)},
+        )
 
     # 预热
     search_service.warmup()
