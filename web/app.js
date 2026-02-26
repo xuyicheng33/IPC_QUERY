@@ -324,13 +324,27 @@ function renderDocsList(docs) {
   for (const d of items) {
     const name = (d?.pdf_name || "").toString();
     if (!name) continue;
+    const row = document.createElement("div");
+    row.className = "docRow";
+
     const a = document.createElement("a");
     a.className = "docItem";
     a.href = `/pdf/${encodeURIComponent(name)}`;
     a.target = "_blank";
     a.rel = "noreferrer";
     a.innerHTML = `<span class="name">${escapeHtml(name)}</span><span class="meta">打开</span>`;
-    list.appendChild(a);
+
+    const btnDelete = document.createElement("button");
+    btnDelete.type = "button";
+    btnDelete.className = "docDelete";
+    btnDelete.textContent = "删除";
+    btnDelete.addEventListener("click", async () => {
+      await deleteDocByName(name, btnDelete);
+    });
+
+    row.appendChild(a);
+    row.appendChild(btnDelete);
+    list.appendChild(row);
   }
   if (!list.childElementCount) {
     list.innerHTML = `<div class="hint">没有可用的 PDF</div>`;
@@ -432,6 +446,53 @@ async function submitImportFile(file) {
   }
   setImportStatus(`任务 ${jobId.slice(0, 8)} 已提交`, "running");
   startImportPolling(jobId);
+}
+
+async function deleteDocByName(pdfName, triggerBtn = null) {
+  const name = (pdfName || "").toString().trim();
+  if (!name) {
+    setImportStatus("缺少要删除的 PDF 名称", "bad");
+    return;
+  }
+
+  const confirmed = window.confirm(`确认删除 ${name} 吗？\n将同时删除数据库中的关联记录。`);
+  if (!confirmed) return;
+
+  try {
+    if (triggerBtn) triggerBtn.disabled = true;
+    setImportStatus(`正在删除：${name}`, "running");
+
+    const res = await fetch(`/api/docs?name=${encodeURIComponent(name)}`, {
+      method: "DELETE",
+      headers: { Accept: "application/json" },
+    });
+    let data = {};
+    try {
+      data = await res.json();
+    } catch {
+      data = {};
+    }
+    if (!res.ok) {
+      throw new Error(data?.message || `${res.status} ${res.statusText}`);
+    }
+
+    const parts = Number(data?.deleted_counts?.parts || 0);
+    setImportStatus(`删除完成：${name}（零件 ${parts}）`, "ok");
+    await refreshDocsCache();
+
+    const currentPdf = ($("#srcPdf")?.textContent || "").toString().trim();
+    if (currentPdf && currentPdf === name) {
+      closeDetail({ updateUrl: true });
+    }
+
+    if (hasSearched && lastQuery) {
+      await doSearch(lastQuery, { page: currentPage, match: currentMatch });
+    }
+  } catch (e) {
+    setImportStatus(`删除失败：${e?.message || e}`, "bad");
+  } finally {
+    if (triggerBtn) triggerBtn.disabled = false;
+  }
 }
 
 async function init() {

@@ -95,6 +95,7 @@ python -m ipc_query query "113A4200-2" --db ./data/ipc.sqlite
 | `/api/search` | GET | 搜索零件 |
 | `/api/part/{id}` | GET | 获取零件详情 |
 | `/api/docs` | GET | 获取文档列表 |
+| `/api/docs?name={pdf_name}` | DELETE | 删除指定 PDF 及关联数据（级联删除） |
 | `/api/health` | GET | 健康检查 |
 | `/api/metrics` | GET | 性能指标 |
 | `/api/import` | POST | 上传单个 PDF 并创建导入任务 |
@@ -188,6 +189,9 @@ curl -X POST "http://127.0.0.1:8791/api/import?filename=sample.pdf" \
 
 # 查询任务状态
 curl "http://127.0.0.1:8791/api/import/jobs"
+
+# 删除指定文档（同时删除数据库关联数据，且尝试删除 PDF 文件）
+curl -X DELETE "http://127.0.0.1:8791/api/docs?name=sample.pdf"
 ```
 
 ---
