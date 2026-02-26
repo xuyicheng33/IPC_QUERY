@@ -4,6 +4,7 @@ __pycache__/
 
 # Test / coverage artifacts
 .pytest_cache/
+.mypy_cache/
 .coverage
 .coverage*
 
