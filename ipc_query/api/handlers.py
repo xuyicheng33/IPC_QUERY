@@ -146,10 +146,12 @@ class ApiHandlers:
 
         GET /api/health
         """
+        database = self._db.check_health()
+        status = "healthy" if database.get("status") == "healthy" else "unhealthy"
         result = {
-            "status": "healthy",
+            "status": status,
             "version": "2.0.0",
-            "database": self._db.check_health(),
+            "database": database,
         }
         return HTTPStatus.OK, _json_bytes(result), "application/json; charset=utf-8"
 

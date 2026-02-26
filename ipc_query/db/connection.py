@@ -226,9 +226,13 @@ class Database:
                     "documents_count": docs_count,
                 }
         except Exception as e:
+            logger.warning(
+                "Database health check failed",
+                extra_fields={"error": str(e)},
+            )
             return {
                 "status": "unhealthy",
-                "error": str(e),
+                "error": "database_error",
             }
 
     def execute(
