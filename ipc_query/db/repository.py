@@ -534,7 +534,7 @@ class PartRepository:
                 """
                 SELECT
                   p.id,
-                  d.pdf_name AS source_pdf,
+                  d.pdf_name,
                   p.document_id,
                   p.page_num,
                   p.page_end,
