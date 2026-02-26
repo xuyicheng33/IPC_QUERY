@@ -1069,7 +1069,37 @@ class Handler(BaseHTTPRequestHandler):
     def _handle_api_docs(self) -> None:
         with _open_db(self.config.db_path) as conn:
             docs = _fetch_documents(conn)
-        self._send_json(HTTPStatus.OK, {"documents": docs})
+        self._send_json(HTTPStatus.OK, docs)
+
+    def _handle_api_health(self) -> None:
+        database: dict[str, Any]
+        try:
+            with _open_db(self.config.db_path) as conn:
+                conn.execute("SELECT 1")
+                tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+                table_names = [str(t["name"]) for t in tables]
+                parts_count = int(conn.execute("SELECT COUNT(*) AS cnt FROM parts").fetchone()["cnt"])
+                docs_count = int(conn.execute("SELECT COUNT(*) AS cnt FROM documents").fetchone()["cnt"])
+                database = {
+                    "status": "healthy",
+                    "tables": table_names,
+                    "parts_count": parts_count,
+                    "documents_count": docs_count,
+                }
+        except Exception as e:
+            database = {
+                "status": "unhealthy",
+                "error": str(e),
+            }
+
+        self._send_json(
+            HTTPStatus.OK,
+            {
+                "status": "healthy",
+                "version": "2.0.0",
+                "database": database,
+            },
+        )
 
     def _handle_pdf(self, pdf_name: str) -> None:
         with _open_db(self.config.db_path) as conn:
@@ -1145,6 +1175,9 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/search":
             self._handle_api_search(qs)
+            return
+        if path == "/api/health":
+            self._handle_api_health()
             return
         if path == "/api/docs":
             self._handle_api_docs()
@@ -1236,9 +1269,15 @@ def main() -> int:
     httpd = ThreadingHTTPServer((args.host, args.port), Handler)
     print(f"[OK] IPC demo server: http://{args.host}:{args.port}")
     print("     - Search API: /api/search?q=113A4200-1")
+    print("     - Health API: /api/health")
     print("     - Docs API:   /api/docs")
     print("     - PDF:        /pdf/24-21___083.pdf#page=3")
-    httpd.serve_forever()
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\n[OK] server stopped")
+    finally:
+        httpd.server_close()
     return 0
 
 
