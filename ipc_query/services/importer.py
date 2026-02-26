@@ -198,8 +198,11 @@ class ImportService:
 
         started = time.time()
         final_path = self._pdf_dir / job.filename
+        backup_path: Path | None = None
+        final_promoted = False
         try:
-            self._promote_uploaded_file(job.path, final_path)
+            backup_path = self._promote_uploaded_file(job.path, final_path)
+            final_promoted = True
 
             with sqlite3.connect(str(self._db_path), timeout=60.0) as conn:
                 conn.row_factory = sqlite3.Row
@@ -227,6 +230,9 @@ class ImportService:
                 except Exception:
                     logger.exception("Import success callback failed")
 
+            if backup_path is not None:
+                self._safe_unlink(backup_path)
+
             logger.info(
                 "Import job completed",
                 extra_fields={"job_id": job_id, "elapsed_s": round(elapsed, 3)},
@@ -238,19 +244,53 @@ class ImportService:
                 job.finished_at = time.time()
                 self._prune_jobs_locked()
             self._safe_unlink(job.path)
+            if final_promoted:
+                self._safe_unlink(final_path)
+            self._restore_backup_file(backup_path, final_path)
             logger.exception(
                 "Import job failed",
                 extra_fields={"job_id": job_id},
             )
 
-    def _promote_uploaded_file(self, staged_path: Path, final_path: Path) -> None:
+    def _promote_uploaded_file(self, staged_path: Path, final_path: Path) -> Path | None:
         """将上传暂存文件移动到最终PDF目录。"""
         final_path.parent.mkdir(parents=True, exist_ok=True)
+        backup_path: Path | None = None
+        if final_path.exists():
+            backup_path = self._make_backup_path(final_path)
+            try:
+                final_path.replace(backup_path)
+            except OSError:
+                shutil.move(str(final_path), str(backup_path))
         try:
             staged_path.replace(final_path)
         except OSError:
             # 跨设备移动时 replace 会失败，降级为 move。
-            shutil.move(str(staged_path), str(final_path))
+            try:
+                shutil.move(str(staged_path), str(final_path))
+            except Exception:
+                self._restore_backup_file(backup_path, final_path)
+                raise
+        except Exception:
+            self._restore_backup_file(backup_path, final_path)
+            raise
+        return backup_path
+
+    def _make_backup_path(self, final_path: Path) -> Path:
+        return self._upload_dir / f".{final_path.name}.{uuid.uuid4().hex}.bak"
+
+    def _restore_backup_file(self, backup_path: Path | None, final_path: Path) -> None:
+        if backup_path is None or not backup_path.exists():
+            return
+        try:
+            backup_path.replace(final_path)
+        except OSError:
+            shutil.move(str(backup_path), str(final_path))
+        except Exception:
+            logger.warning(
+                "Failed to restore previous PDF file",
+                extra_fields={"backup_path": str(backup_path), "final_path": str(final_path)},
+            )
 
     def _safe_unlink(self, path: Path) -> None:
         try:
@@ -260,6 +300,152 @@ class ImportService:
                 "Failed to cleanup temp upload file",
                 extra_fields={"path": str(path)},
             )
+
+    def delete_document(self, pdf_name: str) -> dict[str, Any]:
+        """
+        删除文档及其关联数据，并尝试删除对应 PDF 文件。
+
+        返回结构:
+        {
+          "deleted": bool,
+          "pdf_name": str,
+          "deleted_counts": {"pages": int, "parts": int, "xrefs": int, "aliases": int},
+          "file_deleted": bool,
+        }
+        """
+        safe_name = self._validate_and_normalize_filename(pdf_name)
+        with self._lock:
+            for job_id in self._job_order:
+                job = self._jobs.get(job_id)
+                if not job:
+                    continue
+                if job.filename == safe_name and job.status in {"queued", "running"}:
+                    raise ValidationError("Document is being imported, please retry later")
+
+        deleted_counts = {"pages": 0, "parts": 0, "xrefs": 0, "aliases": 0}
+        raw_pdf_path = ""
+        deleted = False
+
+        with sqlite3.connect(str(self._db_path), timeout=60.0) as conn:
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA foreign_keys=ON")
+            row = conn.execute(
+                "SELECT id, pdf_path FROM documents WHERE pdf_name = ?",
+                (safe_name,),
+            ).fetchone()
+            if row is None:
+                return {
+                    "deleted": False,
+                    "pdf_name": safe_name,
+                    "deleted_counts": deleted_counts,
+                    "file_deleted": False,
+                }
+
+            doc_id = int(row["id"])
+            raw_pdf_path = str(row["pdf_path"] or "")
+            deleted_counts["pages"] = int(
+                conn.execute("SELECT COUNT(1) FROM pages WHERE document_id = ?", (doc_id,)).fetchone()[0]
+            )
+            deleted_counts["parts"] = int(
+                conn.execute("SELECT COUNT(1) FROM parts WHERE document_id = ?", (doc_id,)).fetchone()[0]
+            )
+            deleted_counts["xrefs"] = int(
+                conn.execute(
+                    """
+                    SELECT COUNT(1)
+                    FROM xrefs x
+                    JOIN parts p ON p.id = x.part_id
+                    WHERE p.document_id = ?
+                    """,
+                    (doc_id,),
+                ).fetchone()[0]
+            )
+            deleted_counts["aliases"] = int(
+                conn.execute(
+                    """
+                    SELECT COUNT(1)
+                    FROM aliases a
+                    JOIN parts p ON p.id = a.part_id
+                    WHERE p.document_id = ?
+                    """,
+                    (doc_id,),
+                ).fetchone()[0]
+            )
+
+            cur = conn.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
+            conn.commit()
+            deleted = cur.rowcount > 0
+
+        file_deleted = False
+        if deleted:
+            file_deleted = self._delete_pdf_file(safe_name, raw_pdf_path)
+            if self._on_success:
+                try:
+                    self._on_success()
+                except Exception:
+                    logger.exception("Delete success callback failed")
+            logger.info(
+                "Document deleted",
+                extra_fields={
+                    "pdf_name": safe_name,
+                    "deleted_counts": deleted_counts,
+                    "file_deleted": file_deleted,
+                },
+            )
+
+        return {
+            "deleted": deleted,
+            "pdf_name": safe_name,
+            "deleted_counts": deleted_counts,
+            "file_deleted": file_deleted,
+        }
+
+    def _delete_pdf_file(self, pdf_name: str, raw_pdf_path: str) -> bool:
+        for path in self._candidate_pdf_paths(pdf_name, raw_pdf_path):
+            if not path.exists() or not path.is_file():
+                continue
+            try:
+                path.unlink()
+                return True
+            except Exception:
+                logger.warning(
+                    "Failed to delete PDF file",
+                    extra_fields={"pdf_name": pdf_name, "path": str(path)},
+                )
+        return False
+
+    def _candidate_pdf_paths(self, pdf_name: str, raw_pdf_path: str) -> list[Path]:
+        out: list[Path] = []
+        seen: set[str] = set()
+
+        def add(path: Path) -> None:
+            if not self._is_within_dir(path, self._pdf_dir):
+                return
+            key = str(path)
+            if key in seen:
+                return
+            seen.add(key)
+            out.append(path)
+
+        add(self._pdf_dir / pdf_name)
+        raw = (raw_pdf_path or "").strip()
+        if raw:
+            raw_path = Path(raw)
+            if raw_path.is_absolute():
+                add(raw_path)
+            else:
+                add(self._pdf_dir / raw.replace("\\", "/"))
+
+        return out
+
+    @staticmethod
+    def _is_within_dir(path: Path, base: Path) -> bool:
+        try:
+            path_resolved = path.resolve()
+            base_resolved = base.resolve()
+            return path_resolved == base_resolved or base_resolved in path_resolved.parents
+        except Exception:
+            return False
 
     def _prune_jobs_locked(self) -> None:
         if len(self._job_order) <= self._max_jobs_retained:

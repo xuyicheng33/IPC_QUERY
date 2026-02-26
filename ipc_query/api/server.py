@@ -14,7 +14,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, unquote
 
 from build_db import ensure_schema
 from ..config import Config
@@ -158,7 +158,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                 # /render/{pdf}/{page}.png
                 match = re.match(r"^/render/([^/]+)/(\d+)\.png$", path)
                 if match:
-                    pdf_name, page = match.groups()
+                    pdf_name_raw, page = match.groups()
+                    pdf_name = unquote(pdf_name_raw)
                     status, body, ct = self.handlers.handle_render(pdf_name, page)
                     if isinstance(body, Path):
                         # 发送图片文件
@@ -179,7 +180,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                     raise NotFoundError("Invalid render path")
 
             elif path.startswith("/pdf/"):
-                pdf_name = path[len("/pdf/"):]
+                pdf_name = unquote(path[len("/pdf/"):])
                 range_header = self.headers.get("Range")
                 status, body, ct, extra = self.handlers.handle_pdf(pdf_name, range_header)
                 if isinstance(body, Path):
@@ -265,6 +266,33 @@ class RequestHandler(BaseHTTPRequestHandler):
         except Exception as e:
             self._handle_error(e)
 
+    def do_DELETE(self) -> None:
+        """处理DELETE请求"""
+        try:
+            path, _, query_string = self.path.partition("?")
+            path = path or "/"
+
+            if path == "/api/docs":
+                qs = parse_qs(query_string) if query_string else {}
+                pdf_name = (qs.get("name") or [""])[0].strip()
+                status, body, ct = self.handlers.handle_doc_delete(pdf_name)
+                self._send(status, body, ct)
+                return
+
+            if path.startswith("/api/docs/"):
+                pdf_name = unquote(path[len("/api/docs/"):]).strip()
+                status, body, ct = self.handlers.handle_doc_delete(pdf_name)
+                self._send(status, body, ct)
+                return
+
+            raise NotFoundError(f"Unsupported DELETE path: {path}")
+        except IpcQueryError as e:
+            self._handle_error(e)
+        except BrokenPipeError:
+            pass
+        except Exception as e:
+            self._handle_error(e)
+
     def do_HEAD(self) -> None:
         """处理HEAD请求"""
         try:
@@ -327,16 +355,17 @@ class Server:
             (self._config.host, self._config.port),
             RequestHandler,
         )
+        host, port = self._server.server_address
 
         logger.info(
             "Server started",
             extra_fields={
-                "host": self._config.host,
-                "port": self._config.port,
+                "host": host,
+                "port": int(port),
             },
         )
 
-        print(f"Server running at http://{self._config.host}:{self._config.port}/")
+        print(f"Server running at http://{host}:{int(port)}/")
 
         try:
             self._server.serve_forever()
