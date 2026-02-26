@@ -16,11 +16,11 @@ from ipc_query.config import Config
 from ipc_query.exceptions import NotFoundError
 
 
-def _make_handlers(pdf_path: Path) -> ApiHandlers:
+def _make_handlers(pdf_path: Path, search_service: MagicMock | None = None) -> ApiHandlers:
     render_service = MagicMock()
     render_service._find_pdf.return_value = pdf_path
     return ApiHandlers(
-        search_service=MagicMock(),
+        search_service=search_service or MagicMock(),
         render_service=render_service,
         doc_repo=MagicMock(),
         db=MagicMock(),
@@ -108,3 +108,57 @@ def test_handle_doc_delete_not_found_raises(tmp_path: Path) -> None:
 
     with pytest.raises(NotFoundError):
         handlers.handle_doc_delete("missing.pdf")
+
+
+def test_handle_search_normalizes_non_positive_page(tmp_path: Path) -> None:
+    pdf_path = tmp_path / "sample.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4\n%%EOF\n")
+    search_service = MagicMock()
+    search_service.search.return_value = {
+        "results": [],
+        "total": 0,
+        "page": 1,
+        "page_size": 10,
+        "has_more": False,
+        "match": "pn",
+    }
+    handlers = _make_handlers(pdf_path, search_service=search_service)
+
+    status, body, content_type = handlers.handle_search("q=abc&page=0&page_size=10&match=pn")
+
+    assert status == HTTPStatus.OK
+    assert content_type == "application/json; charset=utf-8"
+    search_service.search.assert_called_once_with(
+        query="abc",
+        match="pn",
+        page=1,
+        page_size=10,
+        include_notes=False,
+    )
+    payload = json.loads(body.decode("utf-8"))
+    assert payload["match"] == "pn"
+
+
+def test_handle_search_page_size_falls_back_to_default_limit(tmp_path: Path) -> None:
+    pdf_path = tmp_path / "sample.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4\n%%EOF\n")
+    search_service = MagicMock()
+    search_service.search.return_value = {
+        "results": [],
+        "total": 0,
+        "page": 1,
+        "page_size": 60,
+        "has_more": False,
+        "match": "all",
+    }
+    handlers = _make_handlers(pdf_path, search_service=search_service)
+
+    handlers.handle_search("q=abc&page=-9&page_size=-1&limit=-5")
+
+    search_service.search.assert_called_once_with(
+        query="abc",
+        match="all",
+        page=1,
+        page_size=60,
+        include_notes=False,
+    )

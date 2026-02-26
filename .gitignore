@@ -1,0 +1,25 @@
+# Python bytecode / cache
+__pycache__/
+*.py[cod]
+
+# Test / coverage artifacts
+.pytest_cache/
+.coverage
+.coverage*
+
+# Local runtime temp files
+tmp/
+
+# SQLite runtime sidecar files
+*.sqlite-wal
+*.sqlite-shm
+
+# Local project runtime data
+data/ipc.sqlite
+data/ipc.sqlite-wal
+data/ipc.sqlite-shm
+data/pdfs/
+data/uploads/
+
+# macOS
+.DS_Store

@@ -81,9 +81,13 @@ class ApiHandlers:
         page = _safe_int((qs.get("page") or [None])[0], 1)
         page_size = _safe_int((qs.get("page_size") or [None])[0], 0)
         include_notes = (qs.get("include_notes") or ["0"])[0] == "1"
+        if page <= 0:
+            page = 1
 
         if page_size <= 0:
             page_size = _safe_int((qs.get("limit") or [None])[0], 60)
+        if page_size <= 0:
+            page_size = 60
 
         result = self._search.search(
             query=q,

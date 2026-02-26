@@ -117,6 +117,23 @@ curl "http://localhost:8791/api/search?q=replace&match=term"
 curl "http://localhost:8791/api/search?q=113A4200&match=all&page=1&page_size=20"
 ```
 
+搜索响应（关键字段）：
+
+```json
+{
+  "results": [],
+  "total": 0,
+  "page": 1,
+  "page_size": 20,
+  "has_more": false,
+  "match": "pn"
+}
+```
+
+- `match` 始终返回标准化后的匹配模式：`pn` / `term` / `all`
+- `page <= 0` 会自动按 `1` 处理
+- 空查询也返回完整分页结构（含 `has_more` 与 `match`）
+
 ## 项目结构
 
 ```
@@ -271,6 +288,15 @@ pytest --cov=ipc_query tests/
 # 类型检查
 mypy ipc_query
 ```
+
+### 开发环境产物与提交规范
+
+仓库已通过 `.gitignore` 屏蔽常见本地产物，请勿提交以下运行态文件：
+
+- Python 缓存与测试产物：`__pycache__/`、`.pytest_cache/`、`.coverage*`
+- SQLite 运行态文件：`*.sqlite-wal`、`*.sqlite-shm`
+- 本地临时目录：`tmp/`
+- 本地运行数据：`data/ipc.sqlite`、`data/pdfs/`、`data/uploads/`
 
 ## 许可证
 

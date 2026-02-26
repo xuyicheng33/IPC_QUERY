@@ -693,7 +693,7 @@ async function selectPart(id, cardEl, opts = {}) {
     const detail = await fetchJson(`/api/part/${id}`);
     const p = detail.part;
 
-    const pnMain = (p.part_number_canonical || p.part_number_extracted || p.part_number_cell || "—").toString();
+    const pnMain = (p.pn || p.part_number_canonical || p.part_number_extracted || p.part_number_cell || "—").toString();
     $("#pnMain").textContent = pnMain;
 
     const badgesEl = $("#badges");
@@ -707,17 +707,17 @@ async function selectPart(id, cardEl, opts = {}) {
       }
     }
 
-    $("#srcPdf").textContent = p.source_pdf || "—";
-    const p1 = Number(p.page_num);
-    const p2 = Number(p.page_end ?? p.page_num);
+    $("#srcPdf").textContent = p.pdf || p.source_pdf || "—";
+    const p1 = Number(p.page ?? p.page_num);
+    const p2 = Number(p.page_end ?? p.page ?? p.page_num);
     $("#srcPage").textContent = p2 && p2 !== p1 ? `${p1}~${p2}` : `${p1}`;
-    $("#srcFigure").textContent = p.figure_code || p.figure_label || "—";
+    $("#srcFigure").textContent = p.fig || p.figure_code || p.figure_label || "—";
     $("#srcFigItem").textContent = p.fig_item || "—";
-    $("#srcQty").textContent = fmtUnits(p.units_per_assy) || "—";
-    $("#srcEff").textContent = p.effectivity || "—";
+    $("#srcQty").textContent = fmtUnits(p.units ?? p.units_per_assy) || "—";
+    $("#srcEff").textContent = p.eff || p.effectivity || "—";
     const metaLine = (p.meta_data_raw || "").toString().replace(/\s+/g, " ").trim();
     $("#srcMeta").textContent = metaLine || "—";
-    const descFull = (p.nomenclature_full || p.nomenclature_clean || p.nomenclature || "").toString().trim();
+    const descFull = (p.nom || p.nomenclature_full || p.nom_clean || p.nomenclature_clean || p.nomenclature || "").toString().trim();
     currentTermText = descFull || "";
     currentTermHas = detectTermKeywords(currentTermText);
     renderTermDesc();
@@ -744,7 +744,7 @@ async function selectPart(id, cardEl, opts = {}) {
         list.appendChild(empty);
       } else {
         for (const n of nodes) {
-          const pn = (n?.part_number || "").toString().trim() || "—";
+          const pn = (n?.pn || n?.part_number || "").toString().trim() || "—";
           const btn = document.createElement("button");
           btn.type = "button";
           btn.className = "hierBtn";
@@ -759,18 +759,18 @@ async function selectPart(id, cardEl, opts = {}) {
       return col;
     };
 
-    const anc = detail.hierarchy?.ancestors ?? [];
+    const anc = detail.parents ?? detail.hierarchy?.ancestors ?? [];
     const parent = anc.length ? anc[anc.length - 1] : null;
-    const siblings = detail.hierarchy?.siblings ?? [];
-    const children = detail.hierarchy?.children ?? [];
+    const siblings = detail.siblings ?? detail.hierarchy?.siblings ?? [];
+    const children = detail.children ?? detail.hierarchy?.children ?? [];
 
     hierRoot.appendChild(mkCol("父辈", parent ? [parent] : []));
     hierRoot.appendChild(mkCol("平辈", siblings.slice(0, 18)));
     hierRoot.appendChild(mkCol("子辈", children.slice(0, 24)));
 
     // Links + preview
-    const pdfName = encodeURIComponent(p.source_pdf);
-    const pageNum = Number(p.page_num);
+    const pdfName = encodeURIComponent(p.pdf || p.source_pdf);
+    const pageNum = Number(p.page ?? p.page_num);
     const pdfUrl = `/pdf/${pdfName}#page=${pageNum}`;
     const pageUrl = `/viewer.html?pdf=${pdfName}&page=${pageNum}`;
     const imgUrl = `/render/${pdfName}/${pageNum}.png?scale=2`;
@@ -783,8 +783,8 @@ async function selectPart(id, cardEl, opts = {}) {
     img.onload = () => {
       const hint =
         p2 && p2 !== p1
-          ? `预览：${p.source_pdf} 第 ${pageNum} 页（跨页至 ${p2}）`
-          : `预览：${p.source_pdf} 第 ${pageNum} 页`;
+          ? `预览：${p.pdf || p.source_pdf} 第 ${pageNum} 页（跨页至 ${p2}）`
+          : `预览：${p.pdf || p.source_pdf} 第 ${pageNum} 页`;
       $("#previewHint").textContent = hint;
     };
     img.onerror = () => {
@@ -829,15 +829,16 @@ async function doSearch(q, opts = {}) {
   setSearching(true);
   try {
     const data = await fetchJson(url);
-    const serverMatch = (data.match ?? "").toString();
+    const serverMatchRaw = (data.match ?? "").toString().trim().toLowerCase();
     const serverHasPaging =
       typeof data?.total === "number" && typeof data?.page === "number" && typeof data?.page_size === "number";
-    const serverHasMatch = typeof data?.match === "string" && data.match.trim().length > 0;
+    const serverHasMatch = Boolean(serverMatchRaw);
+    const serverMatchMismatch = serverHasMatch && serverMatchRaw !== currentMatch;
     let results = data.results ?? [];
     let total = Number(data.total ?? data.total_count ?? data.count ?? results.length) || 0;
 
-    // Backward-compatible guard: if server doesn't support match correctly, filter current page on client.
-    if (serverMatch !== currentMatch) {
+    // Backward-compatible guard: only fallback when server explicitly returns a mismatched match mode.
+    if (serverMatchMismatch) {
       if (currentMatch === "pn") results = results.filter((r) => matchesPn(r, lastQuery));
       if (currentMatch === "term") results = results.filter((r) => matchesTerm(r, lastQuery));
       total = results.length;
@@ -862,11 +863,11 @@ async function doSearch(q, opts = {}) {
     }
 
     setResultsWrapVisible(true);
-    setCount(results.length, serverHasPaging ? total : null);
+    setCount(results.length, serverHasPaging && !serverMatchMismatch ? total : null);
     renderResults(results);
 
     const elapsed = Number(data.elapsed_ms ?? 0) || 0;
-    if (!serverHasPaging || !serverHasMatch) {
+    if (!serverHasPaging || serverMatchMismatch) {
       setStatus(
         "\u63d0\u793a\uff1a\u670d\u52a1\u7aef\u4e0d\u652f\u6301\u201c\u5206\u9875/\u5339\u914d\u7b5b\u9009\u201d\u63a5\u53e3\uff08\u53ef\u80fd\u662f\u542f\u52a8\u4e86 demo/web_server.py\uff09\uff0c\u5f53\u524d\u53ea\u5c55\u793a\u8fd4\u56de\u7684\u524d\u51e0\u6761\u7ed3\u679c\u3002"
       );

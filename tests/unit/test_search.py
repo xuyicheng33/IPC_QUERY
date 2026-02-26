@@ -42,18 +42,25 @@ class TestSearchService:
         result = search_service.search("")
         assert result["results"] == []
         assert result["total"] == 0
+        assert result["has_more"] is False
+        assert result["match"] == "all"
+        assert result["page"] == 1
 
     def test_search_whitespace_query(self, search_service: SearchService) -> None:
         """纯空格查询返回空结果"""
         result = search_service.search("   ")
         assert result["results"] == []
         assert result["total"] == 0
+        assert result["has_more"] is False
+        assert result["match"] == "all"
 
     def test_search_none_query(self, search_service: SearchService) -> None:
         """None 查询返回空结果"""
         result = search_service.search(None)  # type: ignore
         assert result["results"] == []
         assert result["total"] == 0
+        assert result["has_more"] is False
+        assert result["match"] == "all"
 
     def test_search_by_pn(self, search_service: SearchService, mock_part_repo: MagicMock) -> None:
         """件号搜索调用正确的仓库方法"""
@@ -101,6 +108,7 @@ class TestSearchService:
         result = search_service.search("test", match="invalid")
 
         mock_part_repo.search_all.assert_called_once()
+        assert result["match"] == "all"
 
     def test_search_caching(self, search_service: SearchService, mock_part_repo: MagicMock) -> None:
         """相同查询命中缓存"""
@@ -127,6 +135,18 @@ class TestSearchService:
         call_args = mock_part_repo.search_all.call_args
         assert call_args.kwargs["limit"] == 50
         assert call_args.kwargs["offset"] == 50  # (page-1) * page_size
+
+    def test_search_normalizes_page_less_than_one(
+        self, search_service: SearchService, mock_part_repo: MagicMock
+    ) -> None:
+        """page<=0 时按第 1 页处理"""
+        mock_part_repo.search_all.return_value = ([], 0)
+
+        result = search_service.search("test", match="all", page=0, page_size=20)
+
+        call_args = mock_part_repo.search_all.call_args
+        assert call_args.kwargs["offset"] == 0
+        assert result["page"] == 1
 
     def test_search_respects_max_page_size(
         self, search_service: SearchService, mock_part_repo: MagicMock, mock_config: MagicMock

@@ -11,7 +11,7 @@ from typing import Any
 
 from ..config import Config
 from ..db.repository import PartRepository
-from ..exceptions import SearchError, ValidationError
+from ..exceptions import SearchError
 from ..utils.logger import get_logger
 from ..utils.metrics import metrics
 from .cache import get_cache
@@ -57,6 +57,17 @@ class SearchService:
         Returns:
             搜索结果字典
         """
+        match = self._normalize_match(match)
+        page = self._normalize_positive_int(page, default=1)
+
+        requested_page_size = self._normalize_positive_int(
+            page_size,
+            default=self._config.default_page_size,
+        )
+        if requested_page_size <= 0:
+            requested_page_size = self._config.default_page_size
+        page_size = max(1, min(requested_page_size, self._config.max_page_size))
+
         # 参数验证
         query = (query or "").strip()
         if not query:
@@ -64,18 +75,13 @@ class SearchService:
                 "results": [],
                 "total": 0,
                 "page": page,
-                "page_size": page_size or self._config.default_page_size,
+                "page_size": page_size,
+                "has_more": False,
+                "match": match,
             }
 
         # 参数处理
-        page_size = min(
-            page_size or self._config.default_page_size,
-            self._config.max_page_size,
-        )
         offset = (page - 1) * page_size
-        match = (match or "all").lower()
-        if match not in ("pn", "term", "all"):
-            match = "all"
 
         # 检查缓存
         cache_key = f"{query}:{match}:{page}:{page_size}:{include_notes}"
@@ -115,6 +121,7 @@ class SearchService:
             "page": page,
             "page_size": page_size,
             "has_more": total > page * page_size,
+            "match": match,
         }
 
         # 存入缓存
@@ -131,6 +138,19 @@ class SearchService:
         )
 
         return result
+
+    @staticmethod
+    def _normalize_match(match: str | None) -> str:
+        m = (match or "all").lower()
+        return m if m in ("pn", "term", "all") else "all"
+
+    @staticmethod
+    def _normalize_positive_int(value: Any, default: int) -> int:
+        try:
+            parsed = int(value)
+        except Exception:
+            return max(1, int(default))
+        return max(1, parsed)
 
     def _do_search(
         self,
