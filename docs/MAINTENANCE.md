@@ -14,30 +14,30 @@
 
 ## QA 样本维护流程
 
-1. 新增稳定样本放入 `data/fixtures/qa/baseline/`。
+1. 稳定样本放入 `data/fixtures/qa/baseline/`。
 2. 自动扫描或实验样本放入 `data/fixtures/qa/archive/`。
-3. 只有在样本被验证为长期回归基线时，才从 `archive` 提升到 `baseline`。
+3. 只有长期回归需要时，才从 `archive` 提升到 `baseline`。
 
-## 兼容脚本策略
+## 脚本维护策略
 
-- 根目录脚本保留用于兼容旧命令。
-- 实际逻辑放在 `scripts/` 下维护。
-- 新增脚本时优先放到 `scripts/`，若需要兼容再增加根目录薄包装。
+- 日常可执行脚本统一放在 `scripts/`。
+- 历史入口或弃用脚本放入 `legacy/`。
+- 根目录只保留必要入口（当前仅保留 `build_db.py` 兼容壳）。
 
 ## 每次整理后的最小检查清单
 
 ```bash
-# 1) 不应再有被跟踪的 pycache/pyc
+# 1) 不应有被跟踪的 pycache/pyc
 git ls-files | rg "__pycache__|\\.pyc$"
 
-# 2) 文档不应把历史 demo 路径当默认路径
-rg -n "legacy demo|历史 demo|默认路径" README.md docs
+# 2) 文档不应包含过时 demo 默认路径
+rg -n "demo_coords/" README.md docs scripts
 
-# 3) 兼容入口可运行
-python3 query_db.py --help
-python3 qa_check.py --help
-python3 web_server.py --help
+# 3) 主要入口可运行
+python3 build_db.py --help
 python3 -m ipc_query --help
+python3 scripts/tools/query_db.py --help
+python3 legacy/web_server.py --help
 
 # 4) 自动化测试
 pytest

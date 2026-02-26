@@ -1,15 +1,16 @@
 # IPC_QUERY
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://python.org)
-[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+[![License](https://img.shields.io/badge/License-MIT-green)](https://opensource.org/licenses/MIT)
 
-**IPC_QUERY** 是一个从 IPC (Illustrated Parts Catalog) PDF 文档中提取零件信息并提供查询服务的系统。
+IPC_QUERY 是一个从 IPC (Illustrated Parts Catalog) PDF 文档中提取零件信息并提供查询服务的系统。
 
-## 推荐入口与兼容入口
+## 推荐入口
 
-- 推荐：`python -m ipc_query ...`
-- 兼容：根目录历史脚本仍可使用（`build_db.py`、`web_server.py`、`query_db.py`、`qa_check.py`、`qa_generate.py`、`compare_with_ipc_db.py`）
-- 兼容脚本已转为薄包装，实际实现位于 `scripts/`
+- 应用入口：`python -m ipc_query ...`
+- 脚本入口：`scripts/` 下按类别组织
+- 兼容入口：仅保留 `build_db.py`（壳文件，实际实现位于 `ipc_query/build_db.py`）
+- 历史入口：已归档到 `legacy/`
 
 ## 快速开始
 
@@ -25,18 +26,14 @@ pip install -e .
 # 推荐
 python -m ipc_query build --pdf-dir ./pdfs --output ./data/ipc.sqlite
 
-# 兼容
+# 兼容（仅保留）
 python build_db.py --output ./data/ipc.sqlite
 ```
 
 ### 启动服务
 
 ```bash
-# 推荐
 python -m ipc_query serve --db ./data/ipc.sqlite --port 8791
-
-# 兼容
-python web_server.py --db ./data/ipc.sqlite --port 8791 --static-dir web
 ```
 
 访问：`http://127.0.0.1:8791`
@@ -57,46 +54,41 @@ python web_server.py --db ./data/ipc.sqlite --port 8791 --static-dir web
 | `/render/{pdf}/{page}.png` | GET | 渲染 PDF 页面 |
 | `/pdf/{name}` | GET | 获取 PDF 文件 |
 
-## 项目结构
+## 目录结构
 
 ```text
 /Users/xuyicheng/Desktop/Study/IPC_QUERY_BASELINE
-├── ipc_query/                  # 主应用代码
+├── ipc_query/                  # 主应用代码（含 build_db 实现）
 ├── cli/                        # CLI 入口
 ├── web/                        # 前端静态资源
 ├── tests/                      # 测试
 ├── scripts/
-│   ├── qa/                     # QA/比对相关脚本实现
-│   └── tools/                  # 其他工具脚本实现
+│   ├── qa/                     # QA/比对相关脚本
+│   └── tools/                  # 其他工具脚本
 ├── data/
 │   └── fixtures/
 │       └── qa/
 │           ├── baseline/       # 基线样本
 │           └── archive/        # 自动/历史样本
 ├── docs/
-│   ├── STRUCTURE.md            # 目录结构与职责说明
-│   └── MAINTENANCE.md          # 清理规则与维护流程
-├── build_db.py                 # 兼容入口（保留）
-├── web_server.py               # 兼容入口（保留）
-├── query_db.py                 # 兼容入口（薄包装）
+│   ├── STRUCTURE.md            # 目录结构说明
+│   └── MAINTENANCE.md          # 清理与维护流程
+├── legacy/                     # 历史入口与历史资料归档
+├── build_db.py                 # 兼容壳入口（转发到 ipc_query.build_db）
 └── README.md
 ```
 
-## QA 与工具脚本
+## 脚本说明
 
-### 推荐路径（实现）
+### QA 脚本
 
 - `python scripts/qa/qa_check.py --db data/ipc.sqlite --samples data/fixtures/qa/baseline/qa_samples.json`
 - `python scripts/qa/qa_generate.py --pdf /path/to/sample.pdf`
+
+### 工具脚本
+
 - `python scripts/tools/query_db.py 113A4200-2 --db data/ipc.sqlite`
 - `python scripts/tools/compare_with_ipc_db.py --coords-db data/ipc.sqlite --ipc-db ipc.db`
-
-### 兼容路径（薄包装）
-
-- `python qa_check.py ...`
-- `python qa_generate.py ...`
-- `python query_db.py ...`
-- `python compare_with_ipc_db.py ...`
 
 ## 配置
 
@@ -119,23 +111,12 @@ python web_server.py --db ./data/ipc.sqlite --port 8791 --static-dir web
 
 ## 开发
 
-### 测试
-
 ```bash
 pytest
-```
-
-### 类型检查
-
-```bash
 mypy ipc_query
 ```
 
-### 维护文档
+更多维护规范见：
 
-- 目录规范：`docs/STRUCTURE.md`
-- 清理规则：`docs/MAINTENANCE.md`
-
-## 许可证
-
-MIT License
+- `docs/STRUCTURE.md`
+- `docs/MAINTENANCE.md`
