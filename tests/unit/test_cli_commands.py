@@ -19,6 +19,16 @@ def test_build_parser_accepts_pdf_dir() -> None:
     assert args.output == "./data/ipc.sqlite"
 
 
+def test_serve_parser_accepts_upload_dir() -> None:
+    parser = create_parser()
+    args = parser.parse_args(
+        ["serve", "--db", "./data/ipc.sqlite", "--pdf-dir", "./pdfs", "--upload-dir", "./uploads"]
+    )
+    assert args.command == "serve"
+    assert args.pdf_dir == "./pdfs"
+    assert args.upload_dir == "./uploads"
+
+
 def test_cmd_build_collects_pdf_from_pdf_dir(tmp_path: Path) -> None:
     pdf_dir = tmp_path / "pdfs"
     pdf_dir.mkdir(parents=True, exist_ok=True)

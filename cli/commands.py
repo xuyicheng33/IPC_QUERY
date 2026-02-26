@@ -181,6 +181,7 @@ def create_parser() -> argparse.ArgumentParser:
     serve_parser.add_argument("--host", type=str, default="127.0.0.1", help="监听地址")
     serve_parser.add_argument("--port", type=int, default=8791, help="监听端口")
     serve_parser.add_argument("--pdf-dir", type=str, help="PDF文件目录")
+    serve_parser.add_argument("--upload-dir", type=str, help="上传临时目录")
     serve_parser.add_argument("--debug", action="store_true", help="调试模式")
 
     # build 命令

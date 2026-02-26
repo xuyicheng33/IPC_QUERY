@@ -82,6 +82,7 @@ class Config:
     import_max_file_size_mb: int = 100
     import_queue_size: int = 8
     import_job_timeout_s: int = 600
+    import_jobs_retained: int = 1000
 
     # 日志配置
     log_level: str = "INFO"
@@ -94,14 +95,19 @@ class Config:
     @classmethod
     def from_env(cls) -> "Config":
         """从环境变量加载配置"""
+        pdf_dir_raw = os.getenv("PDF_DIR", "").strip()
+        upload_dir_raw = os.getenv("UPLOAD_DIR", "").strip()
+        pdf_dir = Path(pdf_dir_raw) if pdf_dir_raw else None
+        upload_dir = Path(upload_dir_raw) if upload_dir_raw else (pdf_dir or Path("data/pdfs"))
+
         return cls(
             database_path=_database_path_from_env(),
             host=os.getenv("HOST", "127.0.0.1"),
             port=int(os.getenv("PORT", "8791")),
             debug=os.getenv("DEBUG", "false").lower() == "true",
             static_dir=Path(os.getenv("STATIC_DIR", "web")),
-            pdf_dir=Path(p) if (p := os.getenv("PDF_DIR")) else None,
-            upload_dir=Path(os.getenv("UPLOAD_DIR", "data/pdfs")),
+            pdf_dir=pdf_dir,
+            upload_dir=upload_dir,
             cache_dir=Path(os.getenv("CACHE_DIR", "tmp/cache")),
             cache_size=int(os.getenv("CACHE_SIZE", "1000")),
             cache_ttl=int(os.getenv("CACHE_TTL", "300")),
@@ -111,6 +117,7 @@ class Config:
             import_max_file_size_mb=int(os.getenv("IMPORT_MAX_FILE_SIZE_MB", "100")),
             import_queue_size=int(os.getenv("IMPORT_QUEUE_SIZE", "8")),
             import_job_timeout_s=int(os.getenv("IMPORT_JOB_TIMEOUT_S", "600")),
+            import_jobs_retained=int(os.getenv("IMPORT_JOBS_RETAINED", "1000")),
             log_level=os.getenv("LOG_LEVEL", "INFO"),
             log_format=os.getenv("LOG_FORMAT", "json"),
             default_page_size=int(os.getenv("DEFAULT_PAGE_SIZE", "20")),
@@ -131,6 +138,8 @@ class Config:
             config.port = args.port
         if hasattr(args, "pdf_dir") and args.pdf_dir:
             config.pdf_dir = Path(args.pdf_dir)
+        if hasattr(args, "upload_dir") and args.upload_dir:
+            config.upload_dir = Path(args.upload_dir)
         if hasattr(args, "static_dir") and args.static_dir:
             config.static_dir = Path(args.static_dir)
         if hasattr(args, "debug") and args.debug:
@@ -163,6 +172,7 @@ class Config:
             "import_max_file_size_mb": self.import_max_file_size_mb,
             "import_queue_size": self.import_queue_size,
             "import_job_timeout_s": self.import_job_timeout_s,
+            "import_jobs_retained": self.import_jobs_retained,
             "log_level": self.log_level,
             "log_format": self.log_format,
         }

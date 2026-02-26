@@ -47,6 +47,8 @@ python build_db.py
 ```bash
 # 使用新架构启动
 python -m ipc_query serve --db ./data/ipc.sqlite --port 8791
+# 指定上传暂存目录（可选）
+python -m ipc_query serve --db ./data/ipc.sqlite --pdf-dir ./data/pdfs --upload-dir ./data/uploads --port 8791
 
 # 使用原有脚本启动（兼容）
 python web_server.py --db ./data/ipc.sqlite --port 8791 --static-dir web
@@ -77,6 +79,7 @@ python -m ipc_query --help
 
 # 启动服务
 python -m ipc_query serve --db ./data/ipc.sqlite --host 0.0.0.0 --port 8791
+python -m ipc_query serve --db ./data/ipc.sqlite --pdf-dir ./data/pdfs --upload-dir ./data/uploads
 
 # 构建数据库
 python -m ipc_query build --output ./data/ipc.sqlite --limit 20
@@ -161,11 +164,12 @@ web/                    # 前端
 | `DATABASE_URL` | 数据库URL（仅 `sqlite://`，在未设置 `DATABASE_PATH` 时生效） | - |
 | `HOST` | 监听地址 | `127.0.0.1` |
 | `PORT` | 监听端口 | `8791` |
-| `PDF_DIR` | PDF文件目录（用于 `/pdf`/`/render`） | `data/pdfs` |
-| `UPLOAD_DIR` | 上传文件保存目录 | `data/pdfs` |
+| `PDF_DIR` | PDF文件目录（用于 `/pdf`/`/render`） | 跟随 `UPLOAD_DIR`（最终默认为 `data/pdfs`） |
+| `UPLOAD_DIR` | 上传暂存目录（后台任务先写入此目录，再移动到 `PDF_DIR`） | `PDF_DIR`（若未设置则 `data/pdfs`） |
 | `IMPORT_MAX_FILE_SIZE_MB` | 上传文件大小上限(MB) | `100` |
 | `IMPORT_QUEUE_SIZE` | 导入任务队列长度 | `8` |
 | `IMPORT_JOB_TIMEOUT_S` | 导入任务超时预算（秒） | `600` |
+| `IMPORT_JOBS_RETAINED` | 内存中保留的导入任务上限（仅清理已完成任务） | `1000` |
 | `CACHE_SIZE` | 缓存大小 | `1000` |
 | `CACHE_TTL` | 缓存过期时间(秒) | `300` |
 | `LOG_LEVEL` | 日志级别 | `INFO` |

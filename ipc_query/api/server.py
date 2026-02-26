@@ -375,9 +375,11 @@ def create_server(config: Config) -> Server:
     import_service = ImportService(
         db_path=config.database_path,
         pdf_dir=config.pdf_dir,
+        upload_dir=config.upload_dir,
         max_file_size_mb=config.import_max_file_size_mb,
         queue_size=config.import_queue_size,
         job_timeout_s=config.import_job_timeout_s,
+        max_jobs_retained=config.import_jobs_retained,
         on_success=search_service.clear_cache,
     )
 

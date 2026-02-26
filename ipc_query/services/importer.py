@@ -7,6 +7,7 @@ PDF导入服务模块
 from __future__ import annotations
 
 import queue
+import shutil
 import sqlite3
 import threading
 import time
@@ -62,18 +63,23 @@ class ImportService:
         self,
         db_path: Path,
         pdf_dir: Path,
+        upload_dir: Path | None = None,
         max_file_size_mb: int = 100,
         queue_size: int = 8,
         job_timeout_s: int = 600,
+        max_jobs_retained: int = 1000,
         on_success: Callable[[], None] | None = None,
     ):
         self._db_path = db_path
         self._pdf_dir = pdf_dir
+        self._upload_dir = upload_dir or pdf_dir
         self._max_file_size_bytes = max(1, int(max_file_size_mb)) * 1024 * 1024
         self._job_timeout_s = max(1, int(job_timeout_s))
+        self._max_jobs_retained = max(1, int(max_jobs_retained))
         self._on_success = on_success
 
         self._pdf_dir.mkdir(parents=True, exist_ok=True)
+        self._upload_dir.mkdir(parents=True, exist_ok=True)
 
         self._jobs: dict[str, ImportJob] = {}
         self._job_order: list[str] = []
@@ -88,14 +94,14 @@ class ImportService:
         safe_name = self._validate_and_normalize_filename(filename)
         self._validate_payload(payload, content_type)
 
-        target_path = self._pdf_dir / safe_name
-        target_path.write_bytes(payload)
-
         job_id = uuid.uuid4().hex
+        staged_path = self._upload_dir / f"{job_id}__{safe_name}"
+        staged_path.write_bytes(payload)
+
         job = ImportJob(
             id=job_id,
             filename=safe_name,
-            path=target_path,
+            path=staged_path,
             status="queued",
             created_at=time.time(),
         )
@@ -103,6 +109,7 @@ class ImportService:
         with self._lock:
             self._jobs[job_id] = job
             self._job_order.append(job_id)
+            self._prune_jobs_locked()
 
         try:
             self._queue.put_nowait(job_id)
@@ -111,6 +118,8 @@ class ImportService:
                 self._jobs[job_id].status = "failed"
                 self._jobs[job_id].error = "import queue is full"
                 self._jobs[job_id].finished_at = time.time()
+                self._prune_jobs_locked()
+            self._safe_unlink(staged_path)
             raise ValidationError("Import queue is full, please retry later") from e
 
         logger.info(
@@ -188,10 +197,13 @@ class ImportService:
             job.error = None
 
         started = time.time()
+        final_path = self._pdf_dir / job.filename
         try:
+            self._promote_uploaded_file(job.path, final_path)
+
             with sqlite3.connect(str(self._db_path), timeout=60.0) as conn:
                 conn.row_factory = sqlite3.Row
-                summary = ingest_pdfs(conn, [job.path])
+                summary = ingest_pdfs(conn, [final_path])
 
             elapsed = time.time() - started
             with self._lock:
@@ -201,6 +213,7 @@ class ImportService:
                     "elapsed_s": round(elapsed, 3),
                 }
                 job.finished_at = time.time()
+                self._prune_jobs_locked()
 
             if elapsed > self._job_timeout_s:
                 logger.warning(
@@ -223,7 +236,41 @@ class ImportService:
                 job.status = "failed"
                 job.error = str(e)
                 job.finished_at = time.time()
+                self._prune_jobs_locked()
+            self._safe_unlink(job.path)
             logger.exception(
                 "Import job failed",
                 extra_fields={"job_id": job_id},
             )
+
+    def _promote_uploaded_file(self, staged_path: Path, final_path: Path) -> None:
+        """将上传暂存文件移动到最终PDF目录。"""
+        final_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            staged_path.replace(final_path)
+        except OSError:
+            # 跨设备移动时 replace 会失败，降级为 move。
+            shutil.move(str(staged_path), str(final_path))
+
+    def _safe_unlink(self, path: Path) -> None:
+        try:
+            path.unlink(missing_ok=True)
+        except Exception:
+            logger.warning(
+                "Failed to cleanup temp upload file",
+                extra_fields={"path": str(path)},
+            )
+
+    def _prune_jobs_locked(self) -> None:
+        if len(self._job_order) <= self._max_jobs_retained:
+            return
+
+        idx = 0
+        while len(self._job_order) > self._max_jobs_retained and idx < len(self._job_order):
+            job_id = self._job_order[idx]
+            job = self._jobs.get(job_id)
+            if job and job.status in {"success", "failed"}:
+                self._job_order.pop(idx)
+                self._jobs.pop(job_id, None)
+                continue
+            idx += 1

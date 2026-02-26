@@ -34,3 +34,19 @@ def test_invalid_database_url_scheme_raises(monkeypatch: pytest.MonkeyPatch) -> 
 
     with pytest.raises(ConfigurationError):
         Config.from_env()
+
+
+def test_upload_dir_defaults_to_pdf_dir(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("UPLOAD_DIR", raising=False)
+    monkeypatch.setenv("PDF_DIR", "/tmp/ipc-pdfs")
+
+    config = Config.from_env()
+    assert config.pdf_dir == Path("/tmp/ipc-pdfs")
+    assert config.upload_dir == Path("/tmp/ipc-pdfs")
+
+
+def test_import_jobs_retained_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("IMPORT_JOBS_RETAINED", "321")
+
+    config = Config.from_env()
+    assert config.import_jobs_retained == 321
