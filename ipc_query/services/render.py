@@ -9,7 +9,7 @@ from __future__ import annotations
 import threading
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import fitz  # PyMuPDF
 
@@ -131,7 +131,7 @@ class RenderService:
 
         try:
             # 打开PDF
-            doc = fitz.open(str(pdf_path))
+            doc = cast(Any, fitz.open(str(pdf_path)))
 
             # 检查页码
             if page > doc.page_count:
@@ -211,8 +211,8 @@ class RenderService:
             return 0
 
         try:
-            doc = fitz.open(str(pdf_path))
-            count = doc.page_count
+            doc = cast(Any, fitz.open(str(pdf_path)))
+            count = int(doc.page_count)
             doc.close()
             return count
         except Exception:

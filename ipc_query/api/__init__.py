@@ -1,4 +1,4 @@
-"""接口层模块 - HTTP服务器、路由、处理器、中间件"""
+"""接口层模块 - HTTP服务器、路由与处理器"""
 
 from .server import create_server
 from .handlers import ApiHandlers

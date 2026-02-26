@@ -7,8 +7,10 @@ from textwrap import shorten
 
 
 def _force_utf8_stdout() -> None:
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
     try:
-        sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+        if callable(reconfigure):
+            reconfigure(encoding="utf-8")
     except Exception:
         pass
 

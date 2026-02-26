@@ -10,7 +10,8 @@ import threading
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Any, Callable, TypeVar
+from functools import wraps
+from typing import Any, Callable, ParamSpec, TypeVar, cast
 
 from ..constants import CACHE_STRATEGIES
 from ..utils.logger import get_logger
@@ -18,6 +19,7 @@ from ..utils.logger import get_logger
 logger = get_logger(__name__)
 
 T = TypeVar("T")
+P = ParamSpec("P")
 
 
 @dataclass
@@ -217,9 +219,9 @@ class CacheService:
     def cached(
         self,
         cache_name: str,
-        key_func: Callable[..., str] | None = None,
+        key_func: Callable[P, str] | None = None,
         ttl: int | None = None,
-    ) -> Callable[[Callable[..., T]], Callable[..., T]]:
+    ) -> Callable[[Callable[P, T]], Callable[P, T]]:
         """
         缓存装饰器
 
@@ -236,8 +238,9 @@ class CacheService:
             def search(query: str):
                 return do_search(query)
         """
-        def decorator(func: Callable[..., T]) -> Callable[..., T]:
-            def wrapper(*args, **kwargs) -> T:
+        def decorator(func: Callable[P, T]) -> Callable[P, T]:
+            @wraps(func)
+            def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
                 # 生成缓存键
                 if key_func:
                     cache_key = f"{cache_name}:{key_func(*args, **kwargs)}"
@@ -251,7 +254,7 @@ class CacheService:
                         "Cache hit",
                         extra_fields={"cache": cache_name, "key": cache_key},
                     )
-                    return cached_value
+                    return cast(T, cached_value)
 
                 # 执行函数
                 result = func(*args, **kwargs)
@@ -276,7 +279,7 @@ class MultiCache:
     管理多个独立的缓存实例，每个实例可以有不同的配置。
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._caches: dict[str, CacheService] = {}
         self._lock = threading.Lock()
 

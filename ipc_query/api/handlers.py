@@ -16,7 +16,7 @@ from urllib.parse import parse_qs
 
 from ..config import Config
 from ..db.connection import Database
-from ..db.repository import DocumentRepository, PartRepository
+from ..db.repository import DocumentRepository
 from ..exceptions import IpcQueryError, NotFoundError, PartNotFoundError
 from ..exceptions import ValidationError
 from ..services.importer import ImportService
@@ -78,14 +78,16 @@ class ApiHandlers:
 
         q = (qs.get("q") or [""])[0].strip()
         match = (qs.get("match") or ["all"])[0]
-        page = _safe_int((qs.get("page") or [None])[0], 1)
-        page_size = _safe_int((qs.get("page_size") or [None])[0], 0)
+        page_raw = (qs.get("page") or [""])[0]
+        page_size_raw = (qs.get("page_size") or [""])[0]
+        page = _safe_int(page_raw, 1)
+        page_size = _safe_int(page_size_raw, 0)
         include_notes = (qs.get("include_notes") or ["0"])[0] == "1"
         if page <= 0:
             page = 1
 
         if page_size <= 0:
-            page_size = _safe_int((qs.get("limit") or [None])[0], 60)
+            page_size = _safe_int((qs.get("limit") or [""])[0], 60)
         if page_size <= 0:
             page_size = 60
 

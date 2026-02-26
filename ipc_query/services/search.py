@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import Any, cast
 
 from ..config import Config
 from ..db.repository import PartRepository
@@ -92,7 +92,7 @@ class SearchService:
                 "Search cache hit",
                 extra_fields={"query": query, "match": match},
             )
-            return cached
+            return cast(dict[str, Any], cached)
 
         # 执行搜索
         start_time = time.perf_counter()
@@ -212,7 +212,7 @@ class SearchService:
         cache_key = f"detail:{part_id}"
         cached = self._cache.get(cache_key)
         if cached is not None:
-            return cached
+            return cast(dict[str, Any], cached)
 
         # 查询数据库
         start_time = time.perf_counter()

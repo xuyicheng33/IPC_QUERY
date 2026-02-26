@@ -113,7 +113,8 @@ python -m ipc_query serve --db ./data/ipc.sqlite --port 8791
 
 ```bash
 pytest
-mypy ipc_query
+mypy ipc_query cli
+mypy scripts
 ```
 
 更多维护规范见：

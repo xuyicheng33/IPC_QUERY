@@ -10,7 +10,7 @@ import json
 import logging
 import sys
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, MutableMapping, cast
 
 
 class JSONFormatter(logging.Formatter):
@@ -76,15 +76,18 @@ class ExtraLogAdapter(logging.LoggerAdapter):
     def process(
         self,
         msg: str,
-        kwargs: dict[str, Any],
-    ) -> tuple[str, dict[str, Any]]:
+        kwargs: MutableMapping[str, Any],
+    ) -> tuple[str, MutableMapping[str, Any]]:
         extra_fields = kwargs.pop("extra_fields", {})
         if self.extra:
             extra_fields.update(self.extra)
 
         if extra_fields:
-            kwargs["extra"] = kwargs.get("extra", {})
-            kwargs["extra"]["extra_fields"] = extra_fields
+            extra_value = kwargs.get("extra")
+            if not isinstance(extra_value, dict):
+                extra_value = {}
+                kwargs["extra"] = extra_value
+            extra_value["extra_fields"] = extra_fields
 
         return msg, kwargs
 
@@ -147,10 +150,13 @@ class LogContext:
     def __init__(self, logger: ExtraLogAdapter, **fields: Any):
         self.logger = logger
         self.fields = fields
-        self.original_extra = logger.extra.copy()
+        current_extra = logger.extra if isinstance(logger.extra, dict) else {}
+        self.original_extra = dict(current_extra)
 
     def __enter__(self) -> "LogContext":
-        self.logger.extra.update(self.fields)
+        if not isinstance(self.logger.extra, dict):
+            self.logger.extra = {}
+        cast(dict[str, Any], self.logger.extra).update(self.fields)
         return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:

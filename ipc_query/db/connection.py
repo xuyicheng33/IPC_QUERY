@@ -10,7 +10,7 @@ import sqlite3
 import threading
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Generator
+from typing import Any, Generator, cast
 
 from ..constants import DB_BUSY_TIMEOUT_MS, DB_CACHE_SIZE, DB_MMAP_SIZE
 from ..exceptions import DatabaseConnectionError, DatabaseError
@@ -38,6 +38,7 @@ class Database:
         self.readonly = readonly
         self._local = threading.local()
         self._lock = threading.Lock()
+        self._connections: dict[int, sqlite3.Connection] = {}
 
         if not db_path.exists():
             if readonly:
@@ -63,6 +64,8 @@ class Database:
 
         # 配置PRAGMA
         self._configure_pragma(conn)
+        with self._lock:
+            self._connections[id(conn)] = conn
 
         return conn
 
@@ -94,9 +97,11 @@ class Database:
         Returns:
             数据库连接对象
         """
-        if not hasattr(self._local, "conn") or self._local.conn is None:
-            self._local.conn = self._create_connection()
-        return self._local.conn
+        conn = cast(sqlite3.Connection | None, getattr(self._local, "conn", None))
+        if conn is None:
+            conn = self._create_connection()
+            self._local.conn = conn
+        return conn
 
     @contextmanager
     def connection(self) -> Generator[sqlite3.Connection, None, None]:
@@ -118,14 +123,28 @@ class Database:
 
     def close(self) -> None:
         """关闭当前线程的连接"""
-        if hasattr(self._local, "conn") and self._local.conn is not None:
-            self._local.conn.close()
+        conn = cast(sqlite3.Connection | None, getattr(self._local, "conn", None))
+        if conn is None:
+            return
+        with self._lock:
+            self._connections.pop(id(conn), None)
+        try:
+            conn.close()
+        finally:
             self._local.conn = None
-            logger.info("Database connection closed")
+        logger.info("Database connection closed")
 
     def close_all(self) -> None:
         """关闭所有连接（主要用于测试）"""
-        self.close()
+        with self._lock:
+            conns = list(self._connections.values())
+            self._connections.clear()
+        for conn in conns:
+            try:
+                conn.close()
+            except sqlite3.Error:
+                pass
+        self._local.conn = None
 
     def optimize(self) -> None:
         """

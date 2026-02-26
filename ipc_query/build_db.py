@@ -41,8 +41,10 @@ from ipc_query.constants import (
 
 
 def _force_utf8_stdout() -> None:
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
     try:
-        sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+        if callable(reconfigure):
+            reconfigure(encoding="utf-8")
     except Exception:
         pass
 
@@ -207,7 +209,7 @@ def _extract_page_token(page_text: str) -> str | None:
     matches = PAGE_TOKEN_RE.findall(page_text or "")
     if not matches:
         return None
-    return matches[-1].upper()
+    return str(matches[-1]).upper()
 
 
 def _parse_page_meta(page_text: str, base_prefix: str) -> dict[str, str | None]:
@@ -220,8 +222,10 @@ def _parse_page_meta(page_text: str, base_prefix: str) -> dict[str, str | None]:
     fig_label = None
     date_text = None
     for ln in reversed(lines[-30:]):
-        if not date_text and DATE_RE.search(ln):
-            date_text = DATE_RE.search(ln).group(0).upper()
+        if not date_text:
+            date_match = DATE_RE.search(ln)
+            if date_match:
+                date_text = date_match.group(0).upper()
         if not fig_label:
             m = FIG_LINE_RE.match(ln)
             if m:
@@ -288,10 +292,14 @@ def _parse_meta_clip_text(meta_text: str) -> dict[str, str | None]:
     page_token = None
 
     for ln in lines[1:12]:
-        if not page_token and PAGE_TOKEN_RE.search(ln):
-            page_token = PAGE_TOKEN_RE.search(ln).group(0).upper()
-        if not date_text and DATE_RE.search(ln):
-            date_text = DATE_RE.search(ln).group(0).upper()
+        if not page_token:
+            page_match = PAGE_TOKEN_RE.search(ln)
+            if page_match:
+                page_token = page_match.group(0).upper()
+        if not date_text:
+            date_match = DATE_RE.search(ln)
+            if date_match:
+                date_text = date_match.group(0).upper()
         if not fig_label:
             m = FIG_LINE_RE.match(ln)
             if m:
@@ -864,6 +872,8 @@ def ingest_pdfs(conn: sqlite3.Connection, pdf_paths: list[Path]) -> dict[str, in
                         src_doc["created_at"],
                     ),
                 )
+                if dst_doc_cur.lastrowid is None:
+                    raise RuntimeError("Failed to insert destination document row")
                 dst_doc_id = int(dst_doc_cur.lastrowid)
                 src_doc_id = int(src_doc["id"])
                 summary["docs_ingested"] += 1
@@ -1072,6 +1082,8 @@ def build_db(output_path: Path, pdf_paths: list[Path]) -> None:
                     created_at,
                 ),
             )
+            if cur.lastrowid is None:
+                raise RuntimeError(f"Failed to insert document row for {pdf_name}")
             document_id = int(cur.lastrowid)
             totals["docs"] += 1
 

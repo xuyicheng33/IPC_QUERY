@@ -12,8 +12,10 @@ except ImportError:
 
 
 def _force_utf8_stdout() -> None:
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
     try:
-        sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+        if callable(reconfigure):
+            reconfigure(encoding="utf-8")
     except Exception:
         pass
 
@@ -133,11 +135,11 @@ def check(db_path: Path, samples_path: Path) -> int:
             fig_item_set = s.get("fig_item_set")
             if fig_item_set is not None:
                 want = {_norm_fig_item_token(str(x)) for x in fig_item_set}
-                got = {
+                got_set = {
                     _fig_item_display(r["fig_item_raw"], r["fig_item_no"], int(r["not_illustrated"] or 0)).strip()
                     for r in rows
                 }
-                got2 = {_norm_fig_item_token(g) for g in got}
+                got2 = {_norm_fig_item_token(g) for g in got_set}
                 if not want.issubset(got2):
                     failures.append(f"{name}: fig_item_set mismatch, want={sorted(want)!r} got={sorted(got2)!r}")
 
@@ -179,11 +181,11 @@ def check(db_path: Path, samples_path: Path) -> int:
                         want_set = expected.get("fig_item_set")
                         if want_set is not None:
                             want = {_norm_fig_item_token(str(x)) for x in want_set}
-                            got = {str(r.get('fig_item') or '').strip() for r in truth_rows}
-                            got = {_norm_fig_item_token(g) for g in got}
-                            if not want.issubset(got):
+                            truth_fig_set = {str(r.get('fig_item') or '').strip() for r in truth_rows}
+                            truth_fig_set = {_norm_fig_item_token(g) for g in truth_fig_set}
+                            if not want.issubset(truth_fig_set):
                                 failures.append(
-                                    f"{name}: pdf truth fig_item_set mismatch, want={sorted(want)!r} got={sorted(got)!r}"
+                                    f"{name}: pdf truth fig_item_set mismatch, want={sorted(want)!r} got={sorted(truth_fig_set)!r}"
                                 )
 
                         want_min = expected.get("min_nom_level")
@@ -194,15 +196,15 @@ def check(db_path: Path, samples_path: Path) -> int:
                                     f"{name}: pdf truth nom_level too small, want>={int(want_min)} got={got_max}"
                                 )
 
-                        want_fig = expected.get("figure_code")
-                        if want_fig is not None:
+                        want_fig_truth = expected.get("figure_code")
+                        if want_fig_truth is not None:
                             import fitz  # PyMuPDF
 
                             with fitz.open(str(pdf_path)) as doc:
                                 meta = parse_footer_meta_from_page(doc[page_num - 1])
-                            if (meta.figure_code or "").strip().upper() != str(want_fig).strip().upper():
+                            if (meta.figure_code or "").strip().upper() != str(want_fig_truth).strip().upper():
                                 failures.append(
-                                    f"{name}: pdf truth footer figure_code mismatch, want={str(want_fig).strip().upper()} got={(meta.figure_code or '').strip().upper()}"
+                                    f"{name}: pdf truth footer figure_code mismatch, want={str(want_fig_truth).strip().upper()} got={(meta.figure_code or '').strip().upper()}"
                                 )
 
                         if expected.get("pdf_truth_parent") == 1:

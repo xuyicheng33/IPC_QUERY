@@ -13,7 +13,7 @@ import uuid
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 from urllib.parse import parse_qs, unquote
 
 from build_db import ensure_schema
@@ -54,6 +54,12 @@ def _validated_content_length(content_length_raw: str | None, max_file_size_mb: 
     return content_length
 
 
+def _display_host(value: Any) -> str:
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return str(value)
+
+
 class RequestHandler(BaseHTTPRequestHandler):
     """
     HTTP请求处理器
@@ -65,7 +71,7 @@ class RequestHandler(BaseHTTPRequestHandler):
     config: Config
     handlers: ApiHandlers
 
-    def log_message(self, format: str, *args) -> None:
+    def log_message(self, format: str, *args: object) -> None:
         """重写日志方法，使用自定义日志器"""
         logger.info(
             "HTTP request",
@@ -76,11 +82,20 @@ class RequestHandler(BaseHTTPRequestHandler):
             },
         )
 
-    def _send(self, status: int, body: bytes, content_type: str, extra_headers: dict | None = None) -> None:
+    def _send(
+        self,
+        status: int,
+        body: bytes | Path,
+        content_type: str,
+        extra_headers: Mapping[str, str] | None = None,
+    ) -> None:
         """发送响应"""
         self.send_response(status)
         self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(body)))
+        if isinstance(body, Path):
+            self.send_header("Content-Length", str(body.stat().st_size))
+        else:
+            self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
 
         if extra_headers:
@@ -109,6 +124,13 @@ class RequestHandler(BaseHTTPRequestHandler):
         status, body, ct = self.handlers.handle_error(error)
         self._send(status, body, ct)
 
+    def _cleanup_request_db(self) -> None:
+        """请求结束后清理当前线程数据库连接。"""
+        try:
+            self.handlers._db.close()
+        except Exception:
+            pass
+
     def do_GET(self) -> None:
         """处理GET请求"""
         try:
@@ -117,25 +139,25 @@ class RequestHandler(BaseHTTPRequestHandler):
 
             # 路由匹配
             if path == "/api/search":
-                status, body, ct = self.handlers.handle_search(query_string)
-                self._send(status, body, ct)
+                status, search_body, ct = self.handlers.handle_search(query_string)
+                self._send(status, search_body, ct)
 
             elif path.startswith("/api/part/"):
                 part_id = path[len("/api/part/"):]
-                status, body, ct = self.handlers.handle_part(part_id)
-                self._send(status, body, ct)
+                status, part_body, ct = self.handlers.handle_part(part_id)
+                self._send(status, part_body, ct)
 
             elif path == "/api/docs":
-                status, body, ct = self.handlers.handle_docs()
-                self._send(status, body, ct)
+                status, docs_body, ct = self.handlers.handle_docs()
+                self._send(status, docs_body, ct)
 
             elif path == "/api/health":
-                status, body, ct = self.handlers.handle_health()
-                self._send(status, body, ct)
+                status, health_body, ct = self.handlers.handle_health()
+                self._send(status, health_body, ct)
 
             elif path == "/api/metrics":
-                status, body, ct = self.handlers.handle_metrics()
-                self._send(status, body, ct)
+                status, metrics_body, ct = self.handlers.handle_metrics()
+                self._send(status, metrics_body, ct)
 
             elif path == "/api/import/jobs":
                 qs = parse_qs(query_string) if query_string else {}
@@ -144,15 +166,15 @@ class RequestHandler(BaseHTTPRequestHandler):
                     limit = max(1, min(200, int(limit_raw)))
                 except Exception:
                     limit = 20
-                status, body, ct = self.handlers.handle_import_jobs(limit=limit)
-                self._send(status, body, ct)
+                status, jobs_body, ct = self.handlers.handle_import_jobs(limit=limit)
+                self._send(status, jobs_body, ct)
 
             elif path.startswith("/api/import/"):
                 job_id = path[len("/api/import/") :]
                 if not job_id:
                     raise NotFoundError("Missing import job id")
-                status, body, ct = self.handlers.handle_import_job(job_id)
-                self._send(status, body, ct)
+                status, job_body, ct = self.handlers.handle_import_job(job_id)
+                self._send(status, job_body, ct)
 
             elif path.startswith("/render/"):
                 # /render/{pdf}/{page}.png
@@ -160,53 +182,53 @@ class RequestHandler(BaseHTTPRequestHandler):
                 if match:
                     pdf_name_raw, page = match.groups()
                     pdf_name = unquote(pdf_name_raw)
-                    status, body, ct = self.handlers.handle_render(pdf_name, page)
-                    if isinstance(body, Path):
+                    status, render_body, ct = self.handlers.handle_render(pdf_name, page)
+                    if isinstance(render_body, Path):
                         # 发送图片文件
                         self.send_response(status)
                         self.send_header("Content-Type", ct)
-                        self.send_header("Content-Length", str(body.stat().st_size))
+                        self.send_header("Content-Length", str(render_body.stat().st_size))
                         self.send_header("Cache-Control", "public, max-age=31536000, immutable")
                         self.end_headers()
-                        with body.open("rb") as f:
+                        with render_body.open("rb") as f:
                             while True:
                                 chunk = f.read(64 * 1024)
                                 if not chunk:
                                     break
                                 self.wfile.write(chunk)
                     else:
-                        self._send(status, body, ct)
+                        self._send(status, render_body, ct)
                 else:
                     raise NotFoundError("Invalid render path")
 
             elif path.startswith("/pdf/"):
                 pdf_name = unquote(path[len("/pdf/"):])
                 range_header = self.headers.get("Range")
-                status, body, ct, extra = self.handlers.handle_pdf(pdf_name, range_header)
-                if isinstance(body, Path):
+                status, pdf_body, ct, extra = self.handlers.handle_pdf(pdf_name, range_header)
+                if isinstance(pdf_body, Path):
                     # 发送PDF文件
-                    size = body.stat().st_size
+                    size = pdf_body.stat().st_size
                     self.send_response(status)
                     self.send_header("Content-Type", ct)
                     self.send_header("Content-Length", str(size))
                     for k, v in extra.items():
                         self.send_header(k, v)
                     self.end_headers()
-                    with body.open("rb") as f:
+                    with pdf_body.open("rb") as f:
                         while True:
                             chunk = f.read(64 * 1024)
                             if not chunk:
                                 break
                             self.wfile.write(chunk)
                 else:
-                    self._send(status, body, ct, extra)
+                    self._send(status, pdf_body, ct, extra)
 
             else:
                 # 静态文件
-                status, body, ct = self.handlers.handle_static(path)
-                if isinstance(body, Path):
-                    ct = mimetypes.guess_type(str(body))[0] or "application/octet-stream"
-                    size = body.stat().st_size
+                status, static_body, ct = self.handlers.handle_static(path)
+                if isinstance(static_body, Path):
+                    ct = mimetypes.guess_type(str(static_body))[0] or "application/octet-stream"
+                    size = static_body.stat().st_size
                     self.send_response(status)
                     self.send_header("Content-Type", ct)
                     self.send_header("Content-Length", str(size))
@@ -215,14 +237,14 @@ class RequestHandler(BaseHTTPRequestHandler):
                     else:
                         self.send_header("Cache-Control", "no-store")
                     self.end_headers()
-                    with body.open("rb") as f:
+                    with static_body.open("rb") as f:
                         while True:
                             chunk = f.read(64 * 1024)
                             if not chunk:
                                 break
                             self.wfile.write(chunk)
                 else:
-                    self._send(status, body, ct)
+                    self._send(status, static_body, ct)
 
         except IpcQueryError as e:
             self._handle_error(e)
@@ -230,6 +252,8 @@ class RequestHandler(BaseHTTPRequestHandler):
             pass  # 客户端断开连接
         except Exception as e:
             self._handle_error(e)
+        finally:
+            self._cleanup_request_db()
 
     def do_POST(self) -> None:
         """处理POST请求"""
@@ -265,6 +289,8 @@ class RequestHandler(BaseHTTPRequestHandler):
             pass
         except Exception as e:
             self._handle_error(e)
+        finally:
+            self._cleanup_request_db()
 
     def do_DELETE(self) -> None:
         """处理DELETE请求"""
@@ -292,6 +318,8 @@ class RequestHandler(BaseHTTPRequestHandler):
             pass
         except Exception as e:
             self._handle_error(e)
+        finally:
+            self._cleanup_request_db()
 
     def do_HEAD(self) -> None:
         """处理HEAD请求"""
@@ -310,6 +338,8 @@ class RequestHandler(BaseHTTPRequestHandler):
         except Exception:
             self.send_response(HTTPStatus.NOT_FOUND)
             self.end_headers()
+        finally:
+            self._cleanup_request_db()
 
 
 class Server:
@@ -355,7 +385,13 @@ class Server:
             (self._config.host, self._config.port),
             RequestHandler,
         )
-        host, port = self._server.server_address
+        server_address = self._server.server_address
+        if isinstance(server_address, tuple):
+            host = _display_host(server_address[0])
+            port = int(server_address[1])
+        else:
+            host = _display_host(server_address)
+            port = int(self._config.port)
 
         logger.info(
             "Server started",
@@ -365,7 +401,7 @@ class Server:
             },
         )
 
-        print(f"Server running at http://{host}:{int(port)}/")
+        print(f"Server running at http://{host}:{port}/")
 
         try:
             self._server.serve_forever()

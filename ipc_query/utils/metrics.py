@@ -8,9 +8,15 @@ from __future__ import annotations
 
 import threading
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from typing import Any
+
+from ..constants import METRICS_HISTOGRAM_WINDOW
+
+
+def _new_histogram_values() -> deque[float]:
+    return deque(maxlen=max(1, int(METRICS_HISTOGRAM_WINDOW)))
 
 
 @dataclass
@@ -37,7 +43,7 @@ class Counter:
 class Histogram:
     """直方图指标"""
 
-    values: list[float] = field(default_factory=list)
+    values: deque[float] = field(default_factory=_new_histogram_values)
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def observe(self, value: float) -> None:
@@ -49,7 +55,7 @@ class Histogram:
             if not self.values:
                 return {"count": 0, "sum": 0, "avg": 0, "min": 0, "max": 0, "p99": 0}
 
-            sorted_values = sorted(self.values)
+            sorted_values = sorted(list(self.values))
             count = len(sorted_values)
             total = sum(sorted_values)
             avg = total / count

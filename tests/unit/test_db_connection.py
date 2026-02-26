@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
 from pathlib import Path
 
 from ipc_query.db.connection import Database
@@ -56,3 +57,38 @@ def test_check_health_sanitizes_internal_error_details(tmp_path: Path) -> None:
 
     assert result["status"] == "unhealthy"
     assert result["error"] == "database_error"
+
+
+def test_close_all_closes_connections_from_multiple_threads(tmp_path: Path) -> None:
+    db_path = tmp_path / "threaded.sqlite"
+    with sqlite3.connect(str(db_path)) as conn:
+        conn.execute("CREATE TABLE t(id INTEGER PRIMARY KEY, v TEXT)")
+        conn.commit()
+
+    db = Database(db_path, readonly=False)
+    connections: list[sqlite3.Connection] = []
+    lock = threading.Lock()
+
+    def _worker() -> None:
+        conn = db.get_connection()
+        conn.execute("SELECT 1")
+        with lock:
+            connections.append(conn)
+
+    threads = [threading.Thread(target=_worker) for _ in range(4)]
+    for th in threads:
+        th.start()
+    for th in threads:
+        th.join()
+
+    assert len(connections) == 4
+    assert len({id(c) for c in connections}) == 4
+
+    db.close_all()
+
+    for conn in connections:
+        try:
+            conn.execute("SELECT 1")
+            assert False, "connection should be closed"
+        except sqlite3.ProgrammingError:
+            pass

@@ -63,7 +63,8 @@ class DocumentRepository:
         rows = self._db.execute(
             "SELECT id, pdf_name, pdf_path, miner_dir, created_at FROM documents ORDER BY pdf_name"
         )
-        return [Document.from_row(dict(r)) for r in rows]
+        docs = [Document.from_row(dict(r)) for r in rows]
+        return [d for d in docs if d is not None]
 
     def get_by_id(self, doc_id: int) -> Document | None:
         """根据ID获取文档"""
@@ -575,6 +576,8 @@ class PartRepository:
                 return None
 
             part = Part.from_row(dict(row))
+            if part is None:
+                return None
 
             # 获取层级信息
             hierarchy = self._get_hierarchy(conn, part_id)
@@ -585,12 +588,15 @@ class PartRepository:
                 (part_id,),
             ).fetchall()
             xrefs = [XRef(kind=r["kind"], target=r["target"]) for r in xrefs_rows]
+            parents = [p for p in (Part.from_row(p) for p in hierarchy["ancestors"]) if p is not None]
+            siblings = [p for p in (Part.from_row(s) for s in hierarchy["siblings"]) if p is not None]
+            children = [p for p in (Part.from_row(c) for c in hierarchy["children"]) if p is not None]
 
             return PartDetail(
                 part=part,
-                parents=[Part.from_row(p) for p in hierarchy["ancestors"]],
-                siblings=[Part.from_row(s) for s in hierarchy["siblings"]],
-                children=[Part.from_row(c) for c in hierarchy["children"]],
+                parents=parents,
+                siblings=siblings,
+                children=children,
                 xrefs=xrefs,
             )
 

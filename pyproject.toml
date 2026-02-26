@@ -48,6 +48,10 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
 
+[[tool.mypy.overrides]]
+module = ["fitz"]
+ignore_missing_imports = true
+
 [tool.coverage.run]
 source = ["ipc_query"]
 branch = true

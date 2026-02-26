@@ -34,7 +34,7 @@ class IpcQueryError(Exception):
 
     def to_dict(self) -> dict[str, Any]:
         """转换为字典格式（用于API响应）"""
-        result = {
+        result: dict[str, Any] = {
             "error": self.code,
             "message": self.message,
         }

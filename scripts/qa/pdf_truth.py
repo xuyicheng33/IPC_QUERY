@@ -92,10 +92,14 @@ def parse_footer_meta_from_page(page: fitz.Page) -> FooterMeta:
     date_text = None
     page_token = None
     for ln in lines[1:12]:
-        if not page_token and PAGE_TOKEN_RE.search(ln):
-            page_token = PAGE_TOKEN_RE.search(ln).group(0).upper()
-        if not date_text and DATE_RE.search(ln):
-            date_text = DATE_RE.search(ln).group(0).upper()
+        if not page_token:
+            page_match = PAGE_TOKEN_RE.search(ln)
+            if page_match:
+                page_token = page_match.group(0).upper()
+        if not date_text:
+            date_match = DATE_RE.search(ln)
+            if date_match:
+                date_text = date_match.group(0).upper()
         if not fig_label:
             m = FIG_LINE_RE.match(ln)
             if m:

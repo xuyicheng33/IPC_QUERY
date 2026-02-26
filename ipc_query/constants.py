@@ -96,6 +96,7 @@ PN_SIMILARITY_THRESHOLD = 0.92
 DB_BUSY_TIMEOUT_MS = 5000
 DB_CACHE_SIZE = -20000  # 负数表示KB
 DB_MMAP_SIZE = 268435456  # 256MB
+METRICS_HISTOGRAM_WINDOW = 5000
 
 # ============================================================
 # API 路由

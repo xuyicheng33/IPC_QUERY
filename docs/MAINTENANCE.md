@@ -41,4 +41,17 @@ python3 legacy/web_server.py --help
 
 # 4) 自动化测试
 pytest
+
+# 5) 核心类型门禁（阻断）
+mypy ipc_query cli
+
+# 6) 脚本类型门禁（扩展）
+mypy scripts
 ```
+
+## 类型问题常见修复规范
+
+- `reconfigure` 兼容调用：使用 `getattr(sys.stdout, "reconfigure", None)` 并在 `callable(...)` 后调用。
+- 正则匹配结果：先保存 `match = RE.search(...)`，再在 `if match:` 分支访问 `match.group(...)`。
+- 字典推断过窄：需要写入复杂值时，先标注 `result: dict[str, Any] = {...}`。
+- 连接关闭语义：`close_all()` 必须关闭所有登记连接，不应只关闭当前线程连接。

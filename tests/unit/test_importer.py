@@ -268,3 +268,169 @@ def test_failed_ingest_restores_previous_pdf_file(tmp_path: Path, monkeypatch: p
         assert [p for p in upload_dir.iterdir() if p.suffix == ".bak"] == []
     finally:
         service.stop()
+
+
+def test_submit_upload_validation_errors(tmp_path: Path) -> None:
+    service = ImportService(
+        db_path=tmp_path / "db.sqlite",
+        pdf_dir=tmp_path / "pdfs",
+        upload_dir=tmp_path / "uploads",
+        max_file_size_mb=1,
+    )
+    try:
+        with pytest.raises(ValidationError, match="Missing filename"):
+            service.submit_upload("", _PDF_PAYLOAD, "application/pdf")
+        with pytest.raises(ValidationError, match="Only .pdf files are supported"):
+            service.submit_upload("bad.txt", _PDF_PAYLOAD, "application/pdf")
+        with pytest.raises(ValidationError, match="Empty file payload"):
+            service.submit_upload("empty.pdf", b"", "application/pdf")
+        with pytest.raises(ValidationError, match="File too large"):
+            service.submit_upload("large.pdf", b"%PDF-" + b"a" * (2 * 1024 * 1024), "application/pdf")
+        with pytest.raises(ValidationError, match="Unsupported content type"):
+            service.submit_upload("ct.pdf", _PDF_PAYLOAD, "text/plain")
+        with pytest.raises(ValidationError, match="Invalid PDF file signature"):
+            service.submit_upload("sig.pdf", b"bad", "application/pdf")
+    finally:
+        service.stop()
+
+
+def test_run_one_missing_job_is_noop(tmp_path: Path) -> None:
+    service = ImportService(
+        db_path=tmp_path / "db.sqlite",
+        pdf_dir=tmp_path / "pdfs",
+        upload_dir=tmp_path / "uploads",
+    )
+    try:
+        service._run_one("missing-job")
+    finally:
+        service.stop()
+
+
+def test_on_success_callback_failure_keeps_success_status(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _fake_ingest(_conn: object, _pdf_paths: list[Path]) -> dict[str, int]:
+        return {
+            "docs_ingested": 1,
+            "docs_replaced": 0,
+            "parts_ingested": 0,
+            "xrefs_ingested": 0,
+            "aliases_ingested": 0,
+        }
+
+    monkeypatch.setattr(importer_module, "ingest_pdfs", _fake_ingest)
+
+    service = ImportService(
+        db_path=tmp_path / "db.sqlite",
+        pdf_dir=tmp_path / "pdfs",
+        upload_dir=tmp_path / "uploads",
+        on_success=lambda: (_ for _ in ()).throw(RuntimeError("callback failed")),
+    )
+    try:
+        created = service.submit_upload("ok.pdf", _PDF_PAYLOAD, "application/pdf")
+        job = _wait_for_terminal(service, str(created["job_id"]))
+        assert job is not None
+        assert job["status"] == "success"
+    finally:
+        service.stop()
+
+
+def test_delete_document_rejects_when_job_is_running(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _slow_ingest(_conn: object, _pdf_paths: list[Path]) -> dict[str, int]:
+        time.sleep(0.2)
+        return {
+            "docs_ingested": 1,
+            "docs_replaced": 0,
+            "parts_ingested": 0,
+            "xrefs_ingested": 0,
+            "aliases_ingested": 0,
+        }
+
+    monkeypatch.setattr(importer_module, "ingest_pdfs", _slow_ingest)
+    service = ImportService(
+        db_path=tmp_path / "db.sqlite",
+        pdf_dir=tmp_path / "pdfs",
+        upload_dir=tmp_path / "uploads",
+    )
+    try:
+        created = service.submit_upload("busy.pdf", _PDF_PAYLOAD, "application/pdf")
+        with pytest.raises(ValidationError, match="being imported"):
+            service.delete_document("busy.pdf")
+        _wait_for_terminal(service, str(created["job_id"]), timeout_s=3.0)
+    finally:
+        service.stop()
+
+
+def test_delete_document_callback_failure_does_not_break_delete(tmp_path: Path) -> None:
+    db_path = tmp_path / "db.sqlite"
+    pdf_dir = tmp_path / "pdfs"
+    upload_dir = tmp_path / "uploads"
+    pdf_dir.mkdir(parents=True, exist_ok=True)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    with sqlite3.connect(str(db_path)) as conn:
+        ensure_schema(conn)
+        conn.execute(
+            "INSERT INTO documents(pdf_name, pdf_path, miner_dir, created_at) VALUES (?, ?, ?, datetime('now'))",
+            ("cb-fail.pdf", "cb-fail.pdf", "{}",),
+        )
+        conn.commit()
+
+    (pdf_dir / "cb-fail.pdf").write_bytes(_PDF_PAYLOAD)
+    service = ImportService(
+        db_path=db_path,
+        pdf_dir=pdf_dir,
+        upload_dir=upload_dir,
+        on_success=lambda: (_ for _ in ()).throw(RuntimeError("callback failed")),
+    )
+    try:
+        result = service.delete_document("cb-fail.pdf")
+        assert result["deleted"] is True
+    finally:
+        service.stop()
+
+
+def test_candidate_pdf_paths_filters_outside_paths(tmp_path: Path) -> None:
+    service = ImportService(
+        db_path=tmp_path / "db.sqlite",
+        pdf_dir=tmp_path / "pdfs",
+        upload_dir=tmp_path / "uploads",
+    )
+    try:
+        outside = (tmp_path / "outside.pdf").resolve()
+        inside_abs = (service._pdf_dir / "inside.pdf").resolve()
+        paths = service._candidate_pdf_paths("inside.pdf", str(outside))
+        assert inside_abs in [p.resolve() for p in paths]
+        assert outside not in [p.resolve() for p in paths]
+    finally:
+        service.stop()
+
+
+def test_delete_pdf_file_returns_false_when_unlink_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = ImportService(
+        db_path=tmp_path / "db.sqlite",
+        pdf_dir=tmp_path / "pdfs",
+        upload_dir=tmp_path / "uploads",
+    )
+    target = service._pdf_dir / "bad-delete.pdf"
+    target.write_bytes(_PDF_PAYLOAD)
+
+    original_unlink = Path.unlink
+
+    def _broken_unlink(self: Path, *args: object, **kwargs: object) -> None:
+        if self.resolve() == target.resolve():
+            raise OSError("cannot delete")
+        original_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", _broken_unlink)
+    try:
+        assert service._delete_pdf_file("bad-delete.pdf", "") is False
+    finally:
+        service.stop()
