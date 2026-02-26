@@ -1,18 +1,7 @@
 /**
- * Application Entry (Legacy)
+ * Application Entry
  *
- * NOTE: This file is the legacy single-file version of the frontend code.
- * A modular version is available in web/js/ which provides better maintainability.
- *
- * This file is kept for reference and will be removed once the modular version
- * is verified to have feature parity.
- *
- * Migration path:
- * - web/js/main.js -> Main entry (ES6 modules)
- * - web/js/api.js -> API calls
- * - web/js/state.js -> State management
- * - web/js/components.js -> UI components
- * - web/js/utils.js -> Utility functions
+ * Single-file frontend implementation currently used by `web/index.html`.
  */
 
 const $ = (sel) => document.querySelector(sel);

@@ -7,7 +7,7 @@ IPC_QUERY 是一个从 IPC (Illustrated Parts Catalog) PDF 文档中提取零件
 
 ## 推荐入口
 
-- 应用入口：`python -m ipc_query ...`
+- 应用入口：`python3 -m ipc_query ...`
 - 脚本入口：`scripts/` 下按类别组织
 - 兼容入口：仅保留 `build_db.py`（壳文件，实际实现位于 `ipc_query/build_db.py`）
 - 历史入口：已归档到 `legacy/`
@@ -20,20 +20,22 @@ IPC_QUERY 是一个从 IPC (Illustrated Parts Catalog) PDF 文档中提取零件
 pip install -e .
 ```
 
+说明：在本项目的示例环境中请优先使用 `python3`（部分系统未提供 `python` 命令别名）。
+
 ### 构建数据库
 
 ```bash
 # 推荐
-python -m ipc_query build --pdf-dir ./pdfs --output ./data/ipc.sqlite
+python3 -m ipc_query build --pdf-dir ./pdfs --output ./data/ipc.sqlite
 
 # 兼容（仅保留）
-python build_db.py --output ./data/ipc.sqlite
+python3 build_db.py --output ./data/ipc.sqlite
 ```
 
 ### 启动服务
 
 ```bash
-python -m ipc_query serve --db ./data/ipc.sqlite --port 8791
+python3 -m ipc_query serve --db ./data/ipc.sqlite --port 8791
 ```
 
 访问：`http://127.0.0.1:8791`
@@ -82,13 +84,13 @@ python -m ipc_query serve --db ./data/ipc.sqlite --port 8791
 
 ### QA 脚本
 
-- `python scripts/qa/qa_check.py --db data/ipc.sqlite --samples data/fixtures/qa/baseline/qa_samples.json`
-- `python scripts/qa/qa_generate.py --pdf /path/to/sample.pdf`
+- `python3 scripts/qa/qa_check.py --db data/ipc.sqlite --samples data/fixtures/qa/baseline/qa_samples.json`
+- `python3 scripts/qa/qa_generate.py --pdf /path/to/sample.pdf`
 
 ### 工具脚本
 
-- `python scripts/tools/query_db.py 113A4200-2 --db data/ipc.sqlite`
-- `python scripts/tools/compare_with_ipc_db.py --coords-db data/ipc.sqlite --ipc-db ipc.db`
+- `python3 scripts/tools/query_db.py 113A4200-2 --db data/ipc.sqlite`
+- `python3 scripts/tools/compare_with_ipc_db.py --coords-db data/ipc.sqlite --ipc-db ipc.db`
 
 ## 配置
 
