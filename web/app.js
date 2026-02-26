@@ -210,6 +210,8 @@ let currentMatch = "pn";
 let totalResults = 0;
 let currentTermText = "";
 let currentTermHas = { replace: false, optional: false };
+let importPollTimer = null;
+let latestImportJobId = null;
 
 function updateKeywordCards(has) {
   const applyOne = (kw, cardId, valId, present) => {
@@ -303,10 +305,21 @@ function setDocsCount(n) {
   el.textContent = typeof n === "number" ? `共 ${n} 个 PDF` : "—";
 }
 
+function normalizeDocsPayload(docs) {
+  if (Array.isArray(docs)) {
+    return { documents: docs };
+  }
+  if (docs && Array.isArray(docs.documents)) {
+    return docs;
+  }
+  return { documents: [] };
+}
+
 function renderDocsList(docs) {
   const list = $("#docsList");
   if (!list) return;
-  const items = docs?.documents ?? [];
+  const normalized = normalizeDocsPayload(docs);
+  const items = normalized.documents;
   list.innerHTML = "";
   for (const d of items) {
     const name = (d?.pdf_name || "").toString();
@@ -324,13 +337,106 @@ function renderDocsList(docs) {
   }
 }
 
+function setImportStatus(text, kind = "neutral") {
+  const el = $("#importStatus");
+  if (!el) return;
+  el.textContent = text || "";
+  el.classList.remove("ok", "bad", "running");
+  if (kind === "ok") el.classList.add("ok");
+  if (kind === "bad") el.classList.add("bad");
+  if (kind === "running") el.classList.add("running");
+}
+
+async function refreshDocsCache() {
+  const docs = await fetchJson("/api/docs");
+  docsCache = normalizeDocsPayload(docs);
+  const n = docsCache.documents.length;
+  setDbChip(true, `DB:${n}`);
+  setDocsCount(n);
+  renderDocsList(docsCache);
+}
+
+function stopImportPolling() {
+  if (importPollTimer) {
+    clearInterval(importPollTimer);
+    importPollTimer = null;
+  }
+}
+
+function startImportPolling(jobId) {
+  stopImportPolling();
+  latestImportJobId = jobId;
+
+  let inFlight = false;
+  const tick = async () => {
+    if (inFlight) return;
+    inFlight = true;
+    try {
+      const job = await fetchJson(`/api/import/${encodeURIComponent(jobId)}`);
+      const status = (job?.status || "").toString();
+      if (status === "queued") {
+        setImportStatus(`任务 ${jobId.slice(0, 8)} 已排队`, "running");
+      } else if (status === "running") {
+        setImportStatus(`任务 ${jobId.slice(0, 8)} 正在解析…`, "running");
+      } else if (status === "success") {
+        stopImportPolling();
+        const docsIngested = Number(job?.summary?.docs_ingested || 0);
+        const partsIngested = Number(job?.summary?.parts_ingested || 0);
+        setImportStatus(`导入完成：文档 ${docsIngested}，零件 ${partsIngested}`, "ok");
+        await refreshDocsCache();
+      } else if (status === "failed") {
+        stopImportPolling();
+        setImportStatus(`导入失败：${job?.error || "unknown error"}`, "bad");
+      }
+    } catch (e) {
+      stopImportPolling();
+      setImportStatus(`任务查询失败：${e?.message || e}`, "bad");
+    } finally {
+      inFlight = false;
+    }
+  };
+
+  tick();
+  importPollTimer = setInterval(tick, 1500);
+}
+
+async function submitImportFile(file) {
+  if (!file) {
+    setImportStatus("请选择一个 PDF 文件", "bad");
+    return;
+  }
+
+  setImportStatus(`正在上传：${file.name}`, "running");
+  const res = await fetch(`/api/import?filename=${encodeURIComponent(file.name)}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": file.type || "application/pdf",
+      "X-File-Name": file.name,
+    },
+    body: file,
+  });
+
+  let data = {};
+  try {
+    data = await res.json();
+  } catch {
+    data = {};
+  }
+  if (!res.ok) {
+    throw new Error(data?.message || `${res.status} ${res.statusText}`);
+  }
+
+  const jobId = (data?.job_id || "").toString();
+  if (!jobId) {
+    throw new Error("导入任务创建失败");
+  }
+  setImportStatus(`任务 ${jobId.slice(0, 8)} 已提交`, "running");
+  startImportPolling(jobId);
+}
+
 async function init() {
   try {
-    docsCache = await fetchJson("/api/docs");
-    const n = docsCache?.documents?.length ?? 0;
-    setDbChip(true, `DB:${n}`);
-    setDocsCount(n);
-    renderDocsList(docsCache);
+    await refreshDocsCache();
   } catch {
     setDbChip(false, "DB:ERR");
     setDocsCount(null);
@@ -839,9 +945,7 @@ function wire() {
   $("#dbChip")?.addEventListener("click", async () => {
     try {
       if (!docsCache) {
-        docsCache = await fetchJson("/api/docs");
-        setDocsCount(docsCache?.documents?.length ?? 0);
-        renderDocsList(docsCache);
+        await refreshDocsCache();
       }
     } catch {
       // ignore
@@ -862,6 +966,26 @@ function wire() {
 
   window.addEventListener("popstate", () => {
     restoreFromUrl();
+  });
+
+  $("#importForm")?.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const fileInput = $("#importFile");
+    const submitBtn = $("#btnImport");
+    const file = fileInput?.files?.[0] ?? null;
+    if (!file) {
+      setImportStatus("请选择一个 PDF 文件", "bad");
+      return;
+    }
+    try {
+      if (submitBtn) submitBtn.disabled = true;
+      await submitImportFile(file);
+      if (fileInput) fileInput.value = "";
+    } catch (e) {
+      setImportStatus(`导入失败：${e?.message || e}`, "bad");
+    } finally {
+      if (submitBtn) submitBtn.disabled = false;
+    }
   });
 }
 

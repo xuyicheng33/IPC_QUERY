@@ -62,6 +62,15 @@
           </div>
         </form>
 
+        <form id="importForm" class="importBox" autocomplete="off">
+          <div class="importHead">上传 PDF 增量入库</div>
+          <div class="importRow">
+            <input id="importFile" class="importInput" type="file" accept=".pdf,application/pdf" />
+            <button id="btnImport" type="submit" class="btn ghost neutral">上传并解析</button>
+          </div>
+          <div class="importStatus" id="importStatus">支持空库启动后上传 PDF 并后台入库</div>
+        </form>
+
         <div class="resultsWrap" id="resultsWrap" hidden>
           <div class="resultsHead">
             <div class="resultsTitle">结果</div>

@@ -3,9 +3,11 @@
 from .cache import CacheService
 from .search import SearchService
 from .render import RenderService
+from .importer import ImportService
 
 __all__ = [
     "CacheService",
     "SearchService",
     "RenderService",
+    "ImportService",
 ]

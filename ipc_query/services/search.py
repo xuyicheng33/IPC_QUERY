@@ -237,6 +237,10 @@ class SearchService:
                 extra_fields={"error": str(e)},
             )
 
+    def clear_cache(self) -> None:
+        """清理搜索缓存"""
+        self._cache.clear()
+
 
 def create_search_service(
     part_repo: PartRepository,

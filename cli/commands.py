@@ -50,7 +50,6 @@ def cmd_build(args: argparse.Namespace) -> int:
     Returns:
         退出码
     """
-    from ipc_query.config import Config
     from ipc_query.utils.logger import setup_logging, get_logger
 
     # 设置日志
@@ -66,6 +65,14 @@ def cmd_build(args: argparse.Namespace) -> int:
     for pattern in args.pdf_glob or []:
         for hit in sorted(Path(".").glob(pattern)):
             pdf_paths.append(Path(hit))
+    for pdf_dir in args.pdf_dir or []:
+        root = Path(pdf_dir)
+        if not root.exists() or not root.is_dir():
+            logger.error(f"PDF directory not found: {root}")
+            return 2
+        for hit in sorted(root.rglob("*")):
+            if hit.is_file() and hit.suffix.lower() == ".pdf":
+                pdf_paths.append(hit)
 
     # 如果没有指定PDF，使用默认
     if not pdf_paths:
@@ -181,6 +188,7 @@ def create_parser() -> argparse.ArgumentParser:
     build_parser.add_argument("--output", type=str, default="data/ipc.sqlite", help="输出数据库路径")
     build_parser.add_argument("--pdf", action="append", default=[], help="PDF文件路径")
     build_parser.add_argument("--pdf-glob", action="append", default=[], help="PDF文件glob模式")
+    build_parser.add_argument("--pdf-dir", action="append", default=[], help="PDF目录（递归收集*.pdf）")
     build_parser.add_argument("--limit", type=int, default=20, help="默认处理的PDF数量")
 
     # query 命令

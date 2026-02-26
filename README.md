@@ -49,7 +49,7 @@ python build_db.py
 python -m ipc_query serve --db ./data/ipc.sqlite --port 8791
 
 # 使用原有脚本启动（兼容）
-python web_server.py --db ./data/ipc.sqlite --port 8791
+python web_server.py --db ./data/ipc.sqlite --port 8791 --static-dir web
 
 # 访问 http://127.0.0.1:8791
 ```
@@ -94,6 +94,9 @@ python -m ipc_query query "113A4200-2" --db ./data/ipc.sqlite
 | `/api/docs` | GET | 获取文档列表 |
 | `/api/health` | GET | 健康检查 |
 | `/api/metrics` | GET | 性能指标 |
+| `/api/import` | POST | 上传单个 PDF 并创建导入任务 |
+| `/api/import/jobs` | GET | 查询最近导入任务 |
+| `/api/import/{job_id}` | GET | 查询指定导入任务状态 |
 | `/render/{pdf}/{page}.png` | GET | 渲染PDF页面 |
 | `/pdf/{name}` | GET | 下载PDF文件 |
 
@@ -154,14 +157,34 @@ web/                    # 前端
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| `DATABASE_PATH` | 数据库文件路径 | `data/ipc.sqlite` |
+| `DATABASE_PATH` | 数据库文件路径（优先） | `data/ipc.sqlite` |
+| `DATABASE_URL` | 数据库URL（仅 `sqlite://`，在未设置 `DATABASE_PATH` 时生效） | - |
 | `HOST` | 监听地址 | `127.0.0.1` |
 | `PORT` | 监听端口 | `8791` |
-| `PDF_DIR` | PDF文件目录 | - |
+| `PDF_DIR` | PDF文件目录（用于 `/pdf`/`/render`） | `data/pdfs` |
+| `UPLOAD_DIR` | 上传文件保存目录 | `data/pdfs` |
+| `IMPORT_MAX_FILE_SIZE_MB` | 上传文件大小上限(MB) | `100` |
+| `IMPORT_QUEUE_SIZE` | 导入任务队列长度 | `8` |
+| `IMPORT_JOB_TIMEOUT_S` | 导入任务超时预算（秒） | `600` |
 | `CACHE_SIZE` | 缓存大小 | `1000` |
 | `CACHE_TTL` | 缓存过期时间(秒) | `300` |
 | `LOG_LEVEL` | 日志级别 | `INFO` |
 | `LOG_FORMAT` | 日志格式(json/text) | `json` |
+
+### 空库启动与上传入库
+
+```bash
+# 不预先构建DB也可启动（会自动初始化空库）
+python -m ipc_query serve --db ./data/ipc.sqlite --port 8791
+
+# 上传入库（示例）
+curl -X POST "http://127.0.0.1:8791/api/import?filename=sample.pdf" \
+  -H "Content-Type: application/pdf" \
+  --data-binary "@./sample.pdf"
+
+# 查询任务状态
+curl "http://127.0.0.1:8791/api/import/jobs"
+```
 
 ---
 
@@ -202,7 +225,7 @@ python query_db.py 113A4200-2 --db tmp/ipc_coords_demo.sqlite
 
 ```powershell
 $env:PYTHONIOENCODING='utf-8'
-python web_server.py --db tmp/ipc_coords_demo.sqlite --port 8791
+python web_server.py --db tmp/ipc_coords_demo.sqlite --port 8791 --static-dir web
 ```
 
 浏览器打开：`http://127.0.0.1:8791`

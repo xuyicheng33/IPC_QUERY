@@ -18,6 +18,8 @@ from ..config import Config
 from ..db.connection import Database
 from ..db.repository import DocumentRepository, PartRepository
 from ..exceptions import IpcQueryError, NotFoundError, PartNotFoundError
+from ..exceptions import ValidationError
+from ..services.importer import ImportService
 from ..services.render import RenderService
 from ..services.search import SearchService
 from ..utils.logger import get_logger
@@ -53,12 +55,14 @@ class ApiHandlers:
         doc_repo: DocumentRepository,
         db: Database,
         config: Config,
+        import_service: ImportService | None = None,
     ):
         self._search = search_service
         self._render = render_service
         self._docs = doc_repo
         self._db = db
         self._config = config
+        self._import = import_service
 
     def handle_search(self, query_string: str) -> tuple[int, bytes, str]:
         """
@@ -135,6 +139,46 @@ class ApiHandlers:
         """
         result = metrics.export()
         return HTTPStatus.OK, _json_bytes(result), "application/json; charset=utf-8"
+
+    def handle_import_submit(
+        self,
+        filename: str,
+        payload: bytes,
+        content_type: str | None,
+    ) -> tuple[int, bytes, str]:
+        """
+        处理导入请求
+
+        POST /api/import
+        """
+        if self._import is None:
+            raise ValidationError("Import service is not enabled")
+        job = self._import.submit_upload(filename=filename, payload=payload, content_type=content_type)
+        return HTTPStatus.ACCEPTED, _json_bytes(job), "application/json; charset=utf-8"
+
+    def handle_import_job(self, job_id: str) -> tuple[int, bytes, str]:
+        """
+        处理单个导入任务查询
+
+        GET /api/import/{job_id}
+        """
+        if self._import is None:
+            raise ValidationError("Import service is not enabled")
+        job = self._import.get_job(job_id)
+        if not job:
+            raise NotFoundError(f"Import job not found: {job_id}")
+        return HTTPStatus.OK, _json_bytes(job), "application/json; charset=utf-8"
+
+    def handle_import_jobs(self, limit: int = 20) -> tuple[int, bytes, str]:
+        """
+        处理导入任务列表查询
+
+        GET /api/import/jobs
+        """
+        if self._import is None:
+            raise ValidationError("Import service is not enabled")
+        jobs = self._import.list_jobs(limit=limit)
+        return HTTPStatus.OK, _json_bytes({"jobs": jobs}), "application/json; charset=utf-8"
 
     def handle_render(
         self,

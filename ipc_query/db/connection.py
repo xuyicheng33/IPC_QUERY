@@ -134,14 +134,18 @@ class Database:
         - 创建缺失的索引
         - 执行ANALYZE更新统计信息
         """
+        if self.readonly:
+            logger.info("Skip database optimize in readonly mode")
+            return
+
         with self.connection() as conn:
             # 检查并创建FTS5索引（如果不存在）
             try:
-                conn.execute("""
+                cursor = conn.execute("""
                     SELECT name FROM sqlite_master
                     WHERE type='table' AND name='parts_fts'
                 """)
-                fts_exists = conn.fetchone() is not None
+                fts_exists = cursor.fetchone() is not None
             except Exception:
                 fts_exists = False
 

@@ -11,6 +11,48 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
+
+from .exceptions import ConfigurationError
+
+
+def _database_path_from_env() -> Path:
+    """
+    从环境变量解析数据库路径。
+
+    优先级：
+    1. DATABASE_PATH
+    2. DATABASE_URL (仅支持 sqlite:///...)
+    3. 默认值 data/ipc.sqlite
+    """
+    db_path_raw = os.getenv("DATABASE_PATH", "").strip()
+    if db_path_raw:
+        return Path(db_path_raw)
+
+    db_url_raw = os.getenv("DATABASE_URL", "").strip()
+    if not db_url_raw:
+        return Path("data/ipc.sqlite")
+
+    parsed = urlparse(db_url_raw)
+    if parsed.scheme != "sqlite":
+        raise ConfigurationError(
+            "DATABASE_URL must use sqlite scheme or set DATABASE_PATH",
+            details={"database_url": db_url_raw},
+        )
+
+    if parsed.netloc in ("", "localhost"):
+        if parsed.path:
+            return Path(parsed.path)
+        return Path("data/ipc.sqlite")
+
+    if parsed.netloc and parsed.path:
+        # sqlite://host/path 在这里被视为绝对路径 /path
+        return Path(parsed.path)
+
+    raise ConfigurationError(
+        "Invalid DATABASE_URL format",
+        details={"database_url": db_url_raw},
+    )
 
 
 @dataclass
@@ -28,6 +70,7 @@ class Config:
     # 静态文件配置
     static_dir: Path = field(default_factory=lambda: Path("web"))
     pdf_dir: Path | None = None
+    upload_dir: Path = field(default_factory=lambda: Path("data/pdfs"))
     cache_dir: Path = field(default_factory=lambda: Path("tmp/cache"))
 
     # 性能配置
@@ -36,6 +79,9 @@ class Config:
     render_workers: int = 4
     render_timeout: float = 30.0
     render_semaphore: int = 4
+    import_max_file_size_mb: int = 100
+    import_queue_size: int = 8
+    import_job_timeout_s: int = 600
 
     # 日志配置
     log_level: str = "INFO"
@@ -49,18 +95,22 @@ class Config:
     def from_env(cls) -> "Config":
         """从环境变量加载配置"""
         return cls(
-            database_path=Path(os.getenv("DATABASE_PATH", "data/ipc.sqlite")),
+            database_path=_database_path_from_env(),
             host=os.getenv("HOST", "127.0.0.1"),
             port=int(os.getenv("PORT", "8791")),
             debug=os.getenv("DEBUG", "false").lower() == "true",
             static_dir=Path(os.getenv("STATIC_DIR", "web")),
             pdf_dir=Path(p) if (p := os.getenv("PDF_DIR")) else None,
+            upload_dir=Path(os.getenv("UPLOAD_DIR", "data/pdfs")),
             cache_dir=Path(os.getenv("CACHE_DIR", "tmp/cache")),
             cache_size=int(os.getenv("CACHE_SIZE", "1000")),
             cache_ttl=int(os.getenv("CACHE_TTL", "300")),
             render_workers=int(os.getenv("RENDER_WORKERS", "4")),
             render_timeout=float(os.getenv("RENDER_TIMEOUT", "30.0")),
             render_semaphore=int(os.getenv("RENDER_SEMAPHORE", "4")),
+            import_max_file_size_mb=int(os.getenv("IMPORT_MAX_FILE_SIZE_MB", "100")),
+            import_queue_size=int(os.getenv("IMPORT_QUEUE_SIZE", "8")),
+            import_job_timeout_s=int(os.getenv("IMPORT_JOB_TIMEOUT_S", "600")),
             log_level=os.getenv("LOG_LEVEL", "INFO"),
             log_format=os.getenv("LOG_FORMAT", "json"),
             default_page_size=int(os.getenv("DEFAULT_PAGE_SIZE", "20")),
@@ -91,6 +141,7 @@ class Config:
     def ensure_directories(self) -> None:
         """确保必要的目录存在"""
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self.upload_dir.mkdir(parents=True, exist_ok=True)
         if self.pdf_dir:
             self.pdf_dir.mkdir(parents=True, exist_ok=True)
 
@@ -103,11 +154,15 @@ class Config:
             "debug": self.debug,
             "static_dir": str(self.static_dir),
             "pdf_dir": str(self.pdf_dir) if self.pdf_dir else None,
+            "upload_dir": str(self.upload_dir),
             "cache_dir": str(self.cache_dir),
             "cache_size": self.cache_size,
             "cache_ttl": self.cache_ttl,
             "render_workers": self.render_workers,
             "render_timeout": self.render_timeout,
+            "import_max_file_size_mb": self.import_max_file_size_mb,
+            "import_queue_size": self.import_queue_size,
+            "import_job_timeout_s": self.import_job_timeout_s,
             "log_level": self.log_level,
             "log_format": self.log_format,
         }

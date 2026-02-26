@@ -304,6 +304,55 @@ body.detailOpen .layout {
   border-bottom: 0.5px solid var(--hairline);
 }
 
+.importBox {
+  padding: 14px 16px;
+  border-bottom: 0.5px solid var(--hairline);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.importHead {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.importRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.importInput {
+  flex: 1;
+  min-width: 0;
+  border: 0.5px solid var(--hairline);
+  border-radius: 10px;
+  min-height: 42px;
+  padding: 8px 10px;
+  background: #fff;
+  color: var(--text);
+  font-family: var(--font);
+}
+
+.importStatus {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  min-height: 18px;
+}
+
+.importStatus.running {
+  color: var(--warn);
+}
+
+.importStatus.ok {
+  color: var(--success);
+}
+
+.importStatus.bad {
+  color: var(--accent);
+}
+
 .label {
   display: block;
   font-size: 12px;
@@ -1250,6 +1299,15 @@ body.detailOpen .panel.right {
     padding: 14px 16px 18px;
     justify-content: stretch;
     gap: 14px;
+  }
+
+  .importRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #btnImport {
+    width: 100%;
   }
 
   .actions {

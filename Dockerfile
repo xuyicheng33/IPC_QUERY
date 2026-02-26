@@ -11,6 +11,7 @@ RUN pip install --no-cache-dir build wheel setuptools
 
 # Copy project files
 COPY pyproject.toml ./
+COPY build_db.py ./
 COPY ipc_query/ ./ipc_query/
 COPY cli/ ./cli/
 
@@ -36,7 +37,7 @@ COPY web/ ./web/
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
-    DATABASE_URL=sqlite:///app/data/ipc.sqlite \
+    DATABASE_PATH=/app/data/ipc.sqlite \
     LOG_LEVEL=INFO \
     LOG_FORMAT=json
 
@@ -45,7 +46,7 @@ EXPOSE 8791
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
-    CMD curl -f http://localhost:8791/api/health || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8791/api/health', timeout=2).read()" || exit 1
 
 # Switch to non-root user
 USER appuser
