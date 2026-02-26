@@ -203,6 +203,21 @@ a {
   background: #f8fafc;
 }
 
+.starBtn {
+  min-width: 30px;
+  min-height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+  cursor: pointer;
+}
+
+.starBtn.on {
+  border-color: #f59e0b;
+  color: #b45309;
+  background: #fff7ed;
+}
+
 .empty {
   margin: 12px 0;
   color: var(--muted);
@@ -288,6 +303,22 @@ a {
   gap: 16px;
 }
 
+.historyFavGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.quickItem {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 9px;
+  margin-top: 8px;
+  background: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+
 .fileRow,
 .dirRow,
 .jobRow {
@@ -330,6 +361,10 @@ a {
   }
 
   .dbGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .historyFavGrid {
     grid-template-columns: 1fr;
   }
 

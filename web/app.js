@@ -90,6 +90,24 @@ async function fetchJson(url, options = {}) {
   return data;
 }
 
+function loadStoredJson(key, fallback) {
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+}
+
+function saveStoredJson(key, value) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // ignore local storage errors
+  }
+}
+
 function initHomePage() {
   const form = $("#homeSearchForm");
   const input = $("#homeQ");
@@ -124,17 +142,25 @@ async function initSearchPage() {
   const prevBtn = $("#btnPrev");
   const nextBtn = $("#btnNext");
   const pagerInfo = $("#pagerInfo");
+  const historyList = $("#historyList");
+  const favoritesList = $("#favoritesList");
 
   if (!form || !qInput || !matchSelect || !includeNotes || !dirSelect || !docSelect || !tbody || !empty) return;
 
   let state = searchStateFromUrl();
   let docs = [];
   let total = 0;
+  let historyItems = loadStoredJson("ipc_search_history", []);
+  let favoriteItems = loadStoredJson("ipc_favorites", []);
+  if (!Array.isArray(historyItems)) historyItems = [];
+  if (!Array.isArray(favoriteItems)) favoriteItems = [];
 
   function applyStateToControls() {
     qInput.value = state.q;
     matchSelect.value = state.match;
     includeNotes.checked = Boolean(state.include_notes);
+    dirSelect.value = state.source_dir || "";
+    docSelect.value = state.source_pdf || "";
   }
 
   function populateDirOptions() {
@@ -190,6 +216,97 @@ async function initSearchPage() {
     history.replaceState({ ...state }, "", url);
   }
 
+  function isFavorite(id) {
+    return favoriteItems.some((x) => Number(x.id) === Number(id));
+  }
+
+  function saveFavorites() {
+    saveStoredJson("ipc_favorites", favoriteItems.slice(0, 200));
+  }
+
+  function toggleFavorite(item) {
+    const idx = favoriteItems.findIndex((x) => Number(x.id) === Number(item.id));
+    if (idx >= 0) {
+      favoriteItems.splice(idx, 1);
+    } else {
+      favoriteItems.unshift({
+        id: Number(item.id),
+        pn: item.part_number_canonical || item.part_number_cell || "-",
+        source: item.source_relative_path || item.source_pdf || "-",
+        page: Number(item.page_num || 0),
+      });
+      if (favoriteItems.length > 200) {
+        favoriteItems = favoriteItems.slice(0, 200);
+      }
+    }
+    saveFavorites();
+    renderFavorites();
+  }
+
+  function pushHistory() {
+    if (!state.q) return;
+    const entry = {
+      q: state.q,
+      match: state.match,
+      include_notes: Boolean(state.include_notes),
+      source_dir: state.source_dir || "",
+      source_pdf: state.source_pdf || "",
+      ts: Date.now(),
+    };
+    const key = `${entry.q}|${entry.match}|${entry.include_notes ? 1 : 0}|${entry.source_dir}|${entry.source_pdf}`;
+    historyItems = [entry, ...historyItems.filter((x) => `${x.q}|${x.match}|${x.include_notes ? 1 : 0}|${x.source_dir || ""}|${x.source_pdf || ""}` !== key)];
+    if (historyItems.length > 30) historyItems = historyItems.slice(0, 30);
+    saveStoredJson("ipc_search_history", historyItems);
+    renderHistory();
+  }
+
+  function renderHistory() {
+    if (!historyList) return;
+    historyList.innerHTML = "";
+    if (!historyItems.length) {
+      historyList.innerHTML = '<div class="muted">暂无历史</div>';
+      return;
+    }
+    for (const item of historyItems.slice(0, 12)) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "quickItem";
+      const suffix = [item.match || "pn", item.source_dir || "", item.source_pdf || ""].filter(Boolean).join(" · ");
+      btn.textContent = suffix ? `${item.q} (${suffix})` : item.q;
+      btn.addEventListener("click", async () => {
+        state = {
+          q: (item.q || "").toString(),
+          match: ["pn", "term", "all"].includes(item.match) ? item.match : "pn",
+          page: 1,
+          include_notes: Boolean(item.include_notes),
+          source_dir: normalizeDir(item.source_dir || ""),
+          source_pdf: (item.source_pdf || "").toString(),
+        };
+        applyStateToControls();
+        populateDocOptions();
+        await runSearch();
+      });
+      historyList.appendChild(btn);
+    }
+  }
+
+  function renderFavorites() {
+    if (!favoritesList) return;
+    favoritesList.innerHTML = "";
+    if (!favoriteItems.length) {
+      favoritesList.innerHTML = '<div class="muted">暂无收藏</div>';
+      return;
+    }
+    for (const item of favoriteItems.slice(0, 20)) {
+      const a = document.createElement("a");
+      a.className = "quickItem";
+      const ctx = contextParamsFromState(state).toString();
+      a.href = `/part/${encodeURIComponent(String(item.id))}${ctx ? `?${ctx}` : ""}`;
+      a.textContent = `${item.pn} · ${item.source} p.${item.page || "-"}`;
+      favoritesList.appendChild(a);
+    }
+  }
+
   function renderResults(results) {
     tbody.innerHTML = "";
     if (!results.length) {
@@ -202,12 +319,19 @@ async function initSearchPage() {
     for (const r of results) {
       const tr = document.createElement("tr");
       tr.className = "resultRow";
+      const favored = isFavorite(r.id);
       tr.innerHTML = `
+        <td><button class="starBtn ${favored ? "on" : ""}" type="button">${favored ? "★" : "☆"}</button></td>
         <td class="mono">${escapeHtml(r.part_number_canonical || r.part_number_cell || "-")}</td>
         <td>${escapeHtml(r.source_relative_path || r.source_pdf || "-")}</td>
         <td class="mono">${escapeHtml(String(r.page_num ?? "-"))}</td>
         <td>${escapeHtml(r.nomenclature_preview || "")}</td>
       `;
+      tr.querySelector(".starBtn")?.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        toggleFavorite(r);
+        renderResults(results);
+      });
       tr.addEventListener("click", () => {
         const target = `/part/${encodeURIComponent(String(r.id))}${ctx ? `?${ctx}` : ""}`;
         window.location.href = target;
@@ -237,6 +361,7 @@ async function initSearchPage() {
       state.page = Math.min(state.page, pages);
 
       renderResults(results);
+      pushHistory();
       if (summary) summary.textContent = `总计 ${total} 条`;
       if (pagerInfo) pagerInfo.textContent = `第 ${state.page} / ${pages} 页`;
       if (statusEl) statusEl.textContent = `match=${data?.match || state.match}`;
@@ -286,6 +411,8 @@ async function initSearchPage() {
 
   applyStateToControls();
   await loadFilters();
+  renderHistory();
+  renderFavorites();
   await runSearch();
 }
 
