@@ -16,14 +16,18 @@ from ipc_query.config import Config
 from ipc_query.exceptions import NotFoundError
 
 
-def _make_handlers(pdf_path: Path, search_service: MagicMock | None = None) -> ApiHandlers:
+def _make_handlers(
+    pdf_path: Path,
+    search_service: MagicMock | None = None,
+    db: MagicMock | None = None,
+) -> ApiHandlers:
     render_service = MagicMock()
     render_service._find_pdf.return_value = pdf_path
     return ApiHandlers(
         search_service=search_service or MagicMock(),
         render_service=render_service,
         doc_repo=MagicMock(),
-        db=MagicMock(),
+        db=db or MagicMock(),
         config=Config(),
     )
 
@@ -162,3 +166,43 @@ def test_handle_search_page_size_falls_back_to_default_limit(tmp_path: Path) -> 
         page_size=60,
         include_notes=False,
     )
+
+
+def test_handle_health_propagates_healthy_status(tmp_path: Path) -> None:
+    pdf_path = tmp_path / "sample.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4\n%%EOF\n")
+    db = MagicMock()
+    db.check_health.return_value = {
+        "status": "healthy",
+        "parts_count": 10,
+        "documents_count": 2,
+    }
+    handlers = _make_handlers(pdf_path, db=db)
+
+    status, body, content_type = handlers.handle_health()
+
+    assert status == HTTPStatus.OK
+    assert content_type == "application/json; charset=utf-8"
+    payload = json.loads(body.decode("utf-8"))
+    assert payload["status"] == "healthy"
+    assert payload["database"]["status"] == "healthy"
+
+
+def test_handle_health_propagates_unhealthy_status(tmp_path: Path) -> None:
+    pdf_path = tmp_path / "sample.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4\n%%EOF\n")
+    db = MagicMock()
+    db.check_health.return_value = {
+        "status": "unhealthy",
+        "error": "database_error",
+    }
+    handlers = _make_handlers(pdf_path, db=db)
+
+    status, body, content_type = handlers.handle_health()
+
+    assert status == HTTPStatus.OK
+    assert content_type == "application/json; charset=utf-8"
+    payload = json.loads(body.decode("utf-8"))
+    assert payload["status"] == "unhealthy"
+    assert payload["database"]["status"] == "unhealthy"
+    assert payload["database"]["error"] == "database_error"
