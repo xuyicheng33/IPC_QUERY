@@ -36,6 +36,24 @@ export type DocumentItem = {
   relative_dir?: string;
 };
 
+export type DocsTreeDirectory = {
+  name: string;
+  path: string;
+};
+
+export type DocsTreeFile = {
+  name: string;
+  relative_path: string;
+  indexed: boolean;
+  document?: DocumentItem;
+};
+
+export type DocsTreeResponse = {
+  path: string;
+  directories: DocsTreeDirectory[];
+  files: DocsTreeFile[];
+};
+
 export type PartPayload = {
   id?: number;
   pn?: string;
@@ -70,6 +88,23 @@ export type PartDetailResponse = {
   parents?: HierarchyItem[];
   siblings?: HierarchyItem[];
   children?: HierarchyItem[];
+};
+
+export type JobStatus = "queued" | "running" | "success" | "failed";
+
+export type ImportJob = {
+  job_id: string;
+  filename?: string;
+  relative_path?: string;
+  status?: JobStatus;
+  error?: string;
+};
+
+export type ScanJob = {
+  job_id: string;
+  path?: string;
+  status?: JobStatus;
+  error?: string;
 };
 
 export type LegacyHistoryItem = {

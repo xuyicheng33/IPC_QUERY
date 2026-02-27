@@ -66,3 +66,14 @@ export function contextParamsFromState(state: SearchState): URLSearchParams {
   if (state.source_pdf) params.set("source_pdf", state.source_pdf);
   return params;
 }
+
+export function dbPathFromUrl(search: string): string {
+  const params = new URLSearchParams(search || "");
+  return normalizeDir(params.get("path") || "");
+}
+
+export function buildDbUrl(path: string): string {
+  const normalized = normalizeDir(path || "");
+  if (!normalized) return "/db";
+  return `/db?path=${encodeURIComponent(normalized)}`;
+}
