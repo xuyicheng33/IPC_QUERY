@@ -20,10 +20,41 @@ async function initSearchPage() {
   let state = searchStateFromUrl();
   let docs = [];
   let total = 0;
+  let effectivePageSize = PAGE_SIZE;
   let historyItems = loadStoredJson("ipc_search_history", []);
   let favoriteItems = loadStoredJson("ipc_favorites", []);
   if (!Array.isArray(historyItems)) historyItems = [];
   if (!Array.isArray(favoriteItems)) favoriteItems = [];
+  const paginationUtils = (typeof window !== "undefined" && window.IpcSearchPaginationUtils)
+    ? window.IpcSearchPaginationUtils
+    : {
+      toPositiveInt(value, fallback) {
+        const parsed = Number.parseInt(String(value ?? ""), 10);
+        if (Number.isFinite(parsed) && parsed > 0) {
+          return parsed;
+        }
+        return Math.max(1, Number.parseInt(String(fallback ?? 1), 10) || 1);
+      },
+      resolvePageSize(value, fallbackPageSize) {
+        return this.toPositiveInt(value, fallbackPageSize);
+      },
+      computeTotalPages(totalValue, pageSizeValue) {
+        const totalSafe = Math.max(0, Number(totalValue) || 0);
+        const sizeSafe = Math.max(1, this.toPositiveInt(pageSizeValue, 1));
+        return Math.max(1, Math.ceil(totalSafe / sizeSafe));
+      },
+      clampPage(pageValue, totalPagesValue) {
+        const pageSafe = this.toPositiveInt(pageValue, 1);
+        const pagesSafe = Math.max(1, this.toPositiveInt(totalPagesValue, 1));
+        return Math.min(pageSafe, pagesSafe);
+      },
+      shouldRefetchForClampedPage(requestedPage, clampedPage, totalValue) {
+        const requested = this.toPositiveInt(requestedPage, 1);
+        const clamped = this.toPositiveInt(clampedPage, 1);
+        const totalSafe = Math.max(0, Number(totalValue) || 0);
+        return totalSafe > 0 && requested !== clamped;
+      },
+    };
 
   function applyStateToControls() {
     qInput.value = state.q;
@@ -141,7 +172,8 @@ async function initSearchPage() {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "quickItem";
-      const suffix = [item.match || "pn", item.source_dir || "", item.source_pdf || ""].filter(Boolean).join(" · ");
+      const notesTag = item.include_notes ? "含备注" : "不含备注";
+      const suffix = [item.match || "pn", notesTag, item.source_dir || "", item.source_pdf || ""].filter(Boolean).join(" · ");
       btn.textContent = suffix ? `${item.q} (${suffix})` : item.q;
       btn.addEventListener("click", async () => {
         state = {
@@ -221,14 +253,28 @@ async function initSearchPage() {
 
     updateUrl();
     if (statusEl) statusEl.textContent = "查询中...";
-    const params = buildSearchQuery(state);
     try {
-      const data = await fetchJson(`/api/search?${params.toString()}`);
-      const results = Array.isArray(data?.results) ? data.results : [];
-      total = Number(data?.total || 0);
-      const pageSize = Number(data?.page_size || PAGE_SIZE) || PAGE_SIZE;
-      const pages = Math.max(1, Math.ceil(total / pageSize));
-      state.page = Math.min(state.page, pages);
+      const requestedPage = state.page;
+      let params = buildSearchQuery(state);
+      let data = await fetchJson(`/api/search?${params.toString()}`);
+      let results = Array.isArray(data?.results) ? data.results : [];
+      total = Math.max(0, Number(data?.total || 0));
+      effectivePageSize = paginationUtils.resolvePageSize(data?.page_size, PAGE_SIZE);
+      let pages = paginationUtils.computeTotalPages(total, effectivePageSize);
+      const clampedPage = paginationUtils.clampPage(requestedPage, pages);
+
+      if (paginationUtils.shouldRefetchForClampedPage(requestedPage, clampedPage, total)) {
+        state.page = clampedPage;
+        updateUrl();
+        params = buildSearchQuery(state);
+        data = await fetchJson(`/api/search?${params.toString()}`);
+        results = Array.isArray(data?.results) ? data.results : [];
+        total = Math.max(0, Number(data?.total || 0));
+        effectivePageSize = paginationUtils.resolvePageSize(data?.page_size, PAGE_SIZE);
+        pages = paginationUtils.computeTotalPages(total, effectivePageSize);
+      }
+
+      state.page = paginationUtils.clampPage(state.page, pages);
 
       renderResults(results);
       pushHistory();
@@ -273,7 +319,7 @@ async function initSearchPage() {
   });
 
   nextBtn?.addEventListener("click", async () => {
-    const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    const pages = paginationUtils.computeTotalPages(total, effectivePageSize);
     if (state.page >= pages) return;
     state.page += 1;
     await runSearch();

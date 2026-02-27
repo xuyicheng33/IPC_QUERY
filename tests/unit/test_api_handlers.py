@@ -334,6 +334,37 @@ def test_handle_docs_tree_lists_directories_and_files(tmp_path: Path) -> None:
     assert row["indexed"] is True
 
 
+def test_handle_docs_tree_does_not_match_indexed_file_by_name_only(tmp_path: Path) -> None:
+    pdf_root = tmp_path / "pdfs"
+    (pdf_root / "1").mkdir(parents=True)
+    (pdf_root / "1" / "review-folder").mkdir(parents=True)
+    (pdf_root / "1" / "dup.pdf").write_bytes(b"%PDF-1.4\n%%EOF\n")
+    (pdf_root / "1" / "review-folder" / "dup.pdf").write_bytes(b"%PDF-1.4\n%%EOF\n")
+
+    handlers = _make_handlers(tmp_path / "sample.pdf")
+    handlers._config = Config(pdf_dir=pdf_root)
+    handlers._docs.get_lookup_for_dir.return_value = (
+        {
+            "1/review-folder/dup.pdf": {
+                "id": 2,
+                "pdf_name": "dup.pdf",
+                "relative_path": "1/review-folder/dup.pdf",
+                "relative_dir": "1/review-folder",
+            },
+        },
+        {"dup.pdf": {"id": 2, "pdf_name": "dup.pdf", "relative_path": "1/review-folder/dup.pdf"}},
+    )
+
+    status, body, _ = handlers.handle_docs_tree("1")
+
+    assert status == HTTPStatus.OK
+    payload = json.loads(body.decode("utf-8"))
+    row = next(f for f in payload["files"] if f["name"] == "dup.pdf")
+    assert row["relative_path"] == "1/dup.pdf"
+    assert row["indexed"] is False
+    assert row["document"] is None
+
+
 def test_handle_render_propagates_scale(tmp_path: Path) -> None:
     pdf_path = tmp_path / "sample.pdf"
     pdf_path.write_bytes(b"%PDF-1.4\n%%EOF\n")

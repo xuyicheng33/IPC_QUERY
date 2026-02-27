@@ -141,6 +141,7 @@
 
       const params = new URLSearchParams(window.location.search || "");
       const pdf = (params.get("pdf") || "").toString();
+      const hasPdf = Boolean(pdf.trim());
       const pdfEnc = encodeURIComponent(pdf);
 
       let page = toInt(params.get("page"), 1);
@@ -154,6 +155,20 @@
       const rawLink = $("#rawLink");
       const img = $("#img");
       const statusEl = $("#status");
+
+      function setControlsDisabled(disabled) {
+        const controls = [btnPrev, btnNext, pageInput, scaleSelect];
+        for (const control of controls) {
+          control.disabled = Boolean(disabled);
+        }
+        if (!rawLink) return;
+        if (disabled) {
+          rawLink.removeAttribute("href");
+          rawLink.setAttribute("aria-disabled", "true");
+        } else {
+          rawLink.removeAttribute("aria-disabled");
+        }
+      }
 
       function updateUrl(replace) {
         const p = new URLSearchParams();
@@ -170,7 +185,16 @@
 
       function refresh() {
         pageInput.value = String(page);
-        if (titleEl) titleEl.textContent = pdf ? `页预览：${pdf}（第 ${page} 页）` : `页预览（第 ${page} 页）`;
+        if (!hasPdf) {
+          setControlsDisabled(true);
+          if (titleEl) titleEl.textContent = "页预览（缺少 pdf 参数）";
+          img.removeAttribute("src");
+          setStatus("缺少 pdf 参数，请从零件详情页进入预览");
+          return;
+        }
+
+        setControlsDisabled(false);
+        if (titleEl) titleEl.textContent = `页预览：${pdf}（第 ${page} 页）`;
 
         const rawUrl = `/pdf/${pdfEnc}?p=${page}#page=${page}`;
         rawLink.href = rawUrl;
@@ -184,18 +208,21 @@
       img.onerror = () => setStatus("预览加载失败：可能页码超出范围，或 PDF 未在服务器上找到");
 
       btnPrev.addEventListener("click", () => {
+        if (!hasPdf) return;
         page = Math.max(1, page - 1);
         updateUrl(true);
         refresh();
       });
 
       btnNext.addEventListener("click", () => {
+        if (!hasPdf) return;
         page = Math.max(1, page + 1);
         updateUrl(true);
         refresh();
       });
 
       pageInput.addEventListener("change", () => {
+        if (!hasPdf) return;
         page = Math.max(1, toInt(pageInput.value, page));
         updateUrl(true);
         refresh();
@@ -206,12 +233,14 @@
       });
 
       scaleSelect.addEventListener("change", () => {
+        if (!hasPdf) return;
         scale = toFloat(scaleSelect.value, 2);
         updateUrl(true);
         refresh();
       });
 
       window.addEventListener("keydown", (e) => {
+        if (!hasPdf) return;
         if (e.key === "ArrowLeft") btnPrev.click();
         if (e.key === "ArrowRight") btnNext.click();
       });

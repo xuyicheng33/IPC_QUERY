@@ -143,21 +143,16 @@ class ApiHandlers:
             raise NotFoundError(f"Folder not found: {rel or '/'}")
 
         docs_by_rel: dict[str, dict[str, Any]]
-        docs_by_name: dict[str, dict[str, Any]]
         lookup_fn = getattr(self._docs, "get_lookup_for_dir", None)
         if callable(lookup_fn):
-            docs_by_rel, docs_by_name = lookup_fn(rel)
+            docs_by_rel, _ = lookup_fn(rel)
         else:
             docs_by_rel = {}
-            docs_by_name = {}
             for d in self._docs.get_all():
                 payload = d.to_dict()
                 rp = str(payload.get("relative_path") or payload.get("pdf_name") or "").replace("\\", "/").strip("/")
-                name = str(payload.get("pdf_name") or "").strip()
                 if rp:
                     docs_by_rel[rp] = payload
-                if name and name not in docs_by_name:
-                    docs_by_name[name] = payload
 
         dirs: list[dict[str, Any]] = []
         files: list[dict[str, Any]] = []
@@ -171,7 +166,7 @@ class ApiHandlers:
                 continue
 
             rel_path = child.resolve().relative_to(root.resolve()).as_posix()
-            db_doc = docs_by_rel.get(rel_path) or docs_by_name.get(child.name)
+            db_doc = docs_by_rel.get(rel_path)
             files.append(
                 {
                     "name": child.name,

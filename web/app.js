@@ -24,7 +24,7 @@
     const page = (document.body?.dataset?.page || "").toString();
     const chain = ["/js/common.js"];
     if (page === "home") chain.push("/js/home_page.js");
-    else if (page === "search") chain.push("/js/search_page.js");
+    else if (page === "search") chain.push("/js/search_pagination_utils.js", "/js/search_page.js");
     else if (page === "detail") {
       chain.push("/keyword_utils.js", "/js/detail_page.js");
     } else if (page === "db") chain.push("/js/db_page.js");
