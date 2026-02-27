@@ -1,93 +1,21 @@
 <!doctype html>
 <html lang="zh-CN">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Search - ipc_query_system</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <script type="module" crossorigin src="/assets/search.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/chunks/Card.js">
+    <link rel="modulepreload" crossorigin href="/assets/chunks/urlState.js">
+    <link rel="modulepreload" crossorigin href="/assets/chunks/api.js">
+    <link rel="modulepreload" crossorigin href="/assets/chunks/ErrorState.js">
+    <link rel="modulepreload" crossorigin href="/assets/chunks/Input.js">
+    <link rel="modulepreload" crossorigin href="/assets/chunks/Select.js">
+    <link rel="modulepreload" crossorigin href="/assets/chunks/Table.js">
+    <link rel="modulepreload" crossorigin href="/assets/chunks/storageCompat.js">
+    <link rel="stylesheet" crossorigin href="/assets/Card.css">
   </head>
-  <body data-page="search">
-    <header class="topbar">
-      <a class="linkTitle" href="/">ipc_query_system</a>
-      <a class="btn ghost" href="/db">数据库</a>
-    </header>
-
-    <main class="page">
-      <section class="card">
-        <form id="searchForm" class="stack gap" autocomplete="off">
-          <div class="row gap">
-            <input id="searchQ" class="input flex" type="text" placeholder="输入件号或术语关键字" />
-            <button id="btnSearch" class="btn primary" type="submit">搜索</button>
-          </div>
-          <div class="filters">
-            <label class="field">
-              <span>匹配模式</span>
-              <select id="matchSelect" class="input select">
-                <option value="pn">件号</option>
-                <option value="term">术语</option>
-                <option value="all">全部</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>来源目录</span>
-              <select id="dirSelect" class="input select"></select>
-            </label>
-            <label class="field">
-              <span>来源文档</span>
-              <select id="docSelect" class="input select"></select>
-            </label>
-            <label class="check">
-              <input id="includeNotes" type="checkbox" />
-              <span>包含备注行</span>
-            </label>
-          </div>
-        </form>
-      </section>
-
-      <section class="card">
-        <div class="row between">
-          <div id="resultSummary" class="muted">等待查询</div>
-          <div id="queryStatus" class="muted"></div>
-        </div>
-        <div class="tableWrap">
-          <table class="table">
-            <thead>
-              <tr>
-                <th>收藏</th>
-                <th>件号</th>
-                <th>来源PDF</th>
-                <th>页码</th>
-                <th>术语摘要</th>
-              </tr>
-            </thead>
-            <tbody id="resultsBody"></tbody>
-          </table>
-        </div>
-        <div id="emptyState" class="empty" hidden>暂无结果</div>
-        <div class="row between pager">
-          <button id="btnPrev" class="btn ghost" type="button">上一页</button>
-          <div id="pagerInfo" class="muted">第 1 页</div>
-          <button id="btnNext" class="btn ghost" type="button">下一页</button>
-        </div>
-      </section>
-
-      <section class="card">
-        <div class="historyFavGrid">
-          <div>
-            <div class="k">搜索历史</div>
-            <div id="historyList" class="stack"></div>
-          </div>
-          <div>
-            <div class="k">收藏结果</div>
-            <div id="favoritesList" class="stack"></div>
-          </div>
-        </div>
-      </section>
-    </main>
-
-    <script src="/js/common.js" defer></script>
-    <script src="/js/search_pagination_utils.js" defer></script>
-    <script src="/js/search_page.js" defer></script>
-    <script src="/js/bootstrap.js" defer></script>
+  <body>
+    <div id="root"></div>
   </body>
 </html>

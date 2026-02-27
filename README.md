@@ -142,6 +142,23 @@ mypy ipc_query cli
 mypy scripts
 ```
 
+### 前端（React + Vite，多入口）
+
+```bash
+cd frontend
+npm install
+npm run typecheck
+npm run build
+```
+
+说明：
+
+- 构建产物输出到 `web/`，由 Python 服务继续静态托管。
+- 多入口页面映射见 `docs/FRONTEND_BUILD_MAPPING.md`。
+- 为保持现有 Node 测试兼容，保留：
+  - `web/keyword_utils.js`
+  - `web/js/search_pagination_utils.js`
+
 更多维护规范见：
 
 - `docs/STRUCTURE.md`

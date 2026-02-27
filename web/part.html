@@ -1,86 +1,18 @@
 <!doctype html>
 <html lang="zh-CN">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Part Detail - ipc_query_system</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <script type="module" crossorigin src="/assets/part.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/chunks/Card.js">
+    <link rel="modulepreload" crossorigin href="/assets/chunks/urlState.js">
+    <link rel="modulepreload" crossorigin href="/assets/chunks/api.js">
+    <link rel="modulepreload" crossorigin href="/assets/chunks/ErrorState.js">
+    <link rel="modulepreload" crossorigin href="/assets/chunks/refresh-cw.js">
+    <link rel="stylesheet" crossorigin href="/assets/Card.css">
   </head>
-  <body data-page="detail">
-    <header class="topbar">
-      <a class="linkTitle" href="/">ipc_query_system</a>
-      <a class="btn ghost" href="/db">数据库</a>
-    </header>
-
-    <main class="page">
-      <section class="card stack gap">
-        <div class="row between">
-          <a id="backToResults" class="btn ghost" href="/search">返回结果页</a>
-          <div class="row gap">
-            <a id="openPage" class="btn ghost" target="_blank" rel="noreferrer">打开页面</a>
-            <a id="openPdf" class="btn ghost" target="_blank" rel="noreferrer">原 PDF</a>
-          </div>
-        </div>
-
-        <div class="detailHeader">
-          <div id="partPn" class="partPn">—</div>
-          <div id="partMeta" class="muted">—</div>
-        </div>
-
-        <div class="kvGrid">
-          <div><span class="k">来源</span><span id="srcPath" class="v mono">—</span></div>
-          <div><span class="k">页码</span><span id="srcPage" class="v mono">—</span></div>
-          <div><span class="k">图号</span><span id="srcFigure" class="v mono">—</span></div>
-          <div><span class="k">项号</span><span id="srcItem" class="v mono">—</span></div>
-          <div><span class="k">数量</span><span id="srcQty" class="v mono">—</span></div>
-          <div><span class="k">适用号段</span><span id="srcEff" class="v mono">—</span></div>
-        </div>
-
-        <div class="flagCards">
-          <div class="flagCard">
-            <div class="k">是否包含 optional</div>
-            <div id="optionalFlag" class="flagValue">否</div>
-          </div>
-          <div class="flagCard">
-            <div class="k">是否包含 replace</div>
-            <div id="replaceFlag" class="flagValue">否</div>
-          </div>
-        </div>
-
-        <div>
-          <div class="k">术语</div>
-          <pre id="partDesc" class="desc">加载中...</pre>
-        </div>
-      </section>
-
-      <section class="card stack gap">
-        <div class="k">层级关系</div>
-        <div class="hierCols">
-          <div>
-            <div class="muted">父辈</div>
-            <div id="parents" class="stack"></div>
-          </div>
-          <div>
-            <div class="muted">平辈</div>
-            <div id="siblings" class="stack"></div>
-          </div>
-          <div>
-            <div class="muted">子辈</div>
-            <div id="children" class="stack"></div>
-          </div>
-        </div>
-      </section>
-
-      <section class="card stack gap">
-        <div class="k">整页预览</div>
-        <div id="previewHint" class="muted">—</div>
-        <img id="previewImg" class="previewImg" alt="PDF page preview" />
-      </section>
-    </main>
-
-    <script src="/keyword_utils.js" defer></script>
-    <script src="/js/common.js" defer></script>
-    <script src="/js/detail_page.js" defer></script>
-    <script src="/js/bootstrap.js" defer></script>
+  <body>
+    <div id="root"></div>
   </body>
 </html>

@@ -1,29 +1,17 @@
 <!doctype html>
 <html lang="zh-CN">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ipc_query_system</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <script type="module" crossorigin src="/assets/index.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/chunks/Card.js">
+    <link rel="modulepreload" crossorigin href="/assets/chunks/urlState.js">
+    <link rel="modulepreload" crossorigin href="/assets/chunks/Input.js">
+    <link rel="modulepreload" crossorigin href="/assets/chunks/storageCompat.js">
+    <link rel="stylesheet" crossorigin href="/assets/Card.css">
   </head>
-  <body data-page="home">
-    <header class="topbar">
-      <div class="title">ipc_query_system</div>
-      <a class="btn ghost" href="/db">数据库</a>
-    </header>
-
-    <main class="homeMain">
-      <form id="homeSearchForm" class="card homeCard" autocomplete="off">
-        <label for="homeQ" class="label">Search</label>
-        <div class="row gap">
-          <input id="homeQ" class="input flex" type="text" placeholder="输入件号或术语关键字" />
-          <button class="btn primary" type="submit">搜索</button>
-        </div>
-      </form>
-    </main>
-
-    <script src="/js/common.js" defer></script>
-    <script src="/js/home_page.js" defer></script>
-    <script src="/js/bootstrap.js" defer></script>
+  <body>
+    <div id="root"></div>
   </body>
 </html>

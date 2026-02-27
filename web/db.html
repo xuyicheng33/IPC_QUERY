@@ -1,66 +1,20 @@
 <!doctype html>
 <html lang="zh-CN">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>数据库 - ipc_query_system</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <script type="module" crossorigin src="/assets/db.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/chunks/Card.js">
+    <link rel="modulepreload" crossorigin href="/assets/chunks/urlState.js">
+    <link rel="modulepreload" crossorigin href="/assets/chunks/api.js">
+    <link rel="modulepreload" crossorigin href="/assets/chunks/Input.js">
+    <link rel="modulepreload" crossorigin href="/assets/chunks/Table.js">
+    <link rel="modulepreload" crossorigin href="/assets/chunks/refresh-cw.js">
+    <link rel="modulepreload" crossorigin href="/assets/chunks/chevron-right.js">
+    <link rel="stylesheet" crossorigin href="/assets/Card.css">
   </head>
-  <body data-page="db">
-    <header class="topbar">
-      <a class="linkTitle" href="/">ipc_query_system</a>
-      <a class="btn ghost" href="/search">搜索</a>
-    </header>
-
-    <main class="page dbManager">
-      <section class="card dbTreePane stack gap">
-        <div class="row between">
-          <div class="k">目录树</div>
-          <button id="btnRefreshTree" class="btn ghost" type="button">刷新树</button>
-        </div>
-        <div id="treeRoot" class="treeRoot stack"></div>
-      </section>
-
-      <section class="card dbFilePane stack gap">
-        <div class="row between wrap">
-          <div id="pathCrumb" class="mono">/</div>
-          <div id="dbStatus" class="muted">加载中...</div>
-        </div>
-        <div class="row gap wrap">
-          <button id="btnUpload" class="btn primary" type="button">上传 PDF</button>
-          <input id="uploadFiles" class="hidden" type="file" accept=".pdf,application/pdf" multiple />
-          <button id="btnDeleteSelected" class="btn danger" type="button" disabled>删除所选</button>
-          <button id="btnRescan" class="btn ghost" type="button">重扫当前目录</button>
-          <button id="btnRefresh" class="btn ghost" type="button">刷新</button>
-        </div>
-        <form id="folderForm" class="row gap wrap">
-          <label class="k" for="folderName">创建子目录</label>
-          <input id="folderName" class="input flex folderInput" type="text" placeholder="例如：engine" />
-          <button class="btn ghost" type="submit">创建</button>
-        </form>
-        <div id="dbActionResult" class="muted"></div>
-        <div class="tableWrap">
-          <table class="table dbTable">
-            <thead>
-              <tr>
-                <th><input id="selectAllFiles" type="checkbox" aria-label="全选文件" /></th>
-                <th>文件名</th>
-                <th>入库状态</th>
-                <th>任务状态</th>
-                <th>单文件操作</th>
-              </tr>
-            </thead>
-            <tbody id="dbFilesBody"></tbody>
-          </table>
-        </div>
-        <div id="dbEmpty" class="muted" hidden>无 PDF 文件</div>
-        <div class="k">任务状态</div>
-        <div id="jobsList" class="stack"></div>
-      </section>
-    </main>
-
-    <script src="/js/common.js" defer></script>
-    <script src="/js/db_page.js" defer></script>
-    <script src="/js/bootstrap.js" defer></script>
+  <body>
+    <div id="root"></div>
   </body>
 </html>

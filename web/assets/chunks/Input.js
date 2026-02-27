@@ -1,0 +1,1 @@
+import{j as r,b as s}from"./Card.js";function i({className:e,...t}){return r.jsx("input",{className:s("h-10 rounded-md border border-border bg-surface px-3 text-sm text-text transition-colors duration-fast ease-premium placeholder:text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",e),...t})}export{i as I};
