@@ -1,1 +1,1 @@
-import{j as o}from"./AppProviders.js";import{T as i}from"./Input.js";function a({className:t,children:e,...r}){return o.jsx(i,{className:t,variant:"outlined",select:!0,SelectProps:{native:!0},...r,children:e})}export{a as S};
+import{j as n}from"./AppProviders.js";import{T as p}from"./Input.js";function u({className:r,children:o,SelectProps:e,"aria-label":t,...i}){const s={native:!0,...e||{},inputProps:{...e?.inputProps||{},...t?{"aria-label":t}:{}}};return n.jsx(p,{className:r,variant:"outlined",select:!0,SelectProps:s,...i,children:o})}export{u as S};
