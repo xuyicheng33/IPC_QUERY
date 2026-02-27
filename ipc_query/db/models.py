@@ -127,6 +127,7 @@ class Part:
 
     # 关联数据（非数据库字段）
     pdf_name: str | None = None
+    source_relative_path: str | None = None
 
     @classmethod
     def from_row(cls, row: dict[str, Any] | None) -> "Part | None":
@@ -162,6 +163,7 @@ class Part:
             units_per_assy=row.get("units_per_assy"),
             miner_table_img_path=row.get("miner_table_img_path"),
             pdf_name=row.get("pdf_name"),
+            source_relative_path=row.get("source_relative_path") or row.get("relative_path"),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -183,6 +185,7 @@ class Part:
             "effectivity": self.effectivity,
             "units_per_assy": self.units_per_assy,
             "pdf_name": self.pdf_name,
+            "source_relative_path": self.source_relative_path,
         }
 
     def to_api_dict(self) -> dict[str, Any]:
@@ -201,6 +204,7 @@ class Part:
             "units": self.units_per_assy,
             "page": self.page_num,
             "pdf": self.pdf_name,
+            "source_relative_path": self.source_relative_path or self.pdf_name,
         }
 
 

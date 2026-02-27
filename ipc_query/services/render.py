@@ -9,6 +9,7 @@ from __future__ import annotations
 import threading
 import time
 from pathlib import Path
+import re
 from typing import Any, cast
 
 import fitz  # PyMuPDF
@@ -90,7 +91,10 @@ class RenderService:
         scale = max(0.5, min(scale, 4.0))
 
         # 构建缓存文件路径
-        cache_filename = f"{pdf_name}_{page}_{scale:.1f}.png"
+        cache_key = re.sub(r"[^A-Za-z0-9._-]+", "_", pdf_name).strip("._")
+        if not cache_key:
+            cache_key = "pdf"
+        cache_filename = f"{cache_key}_{page}_{scale:.1f}.png"
         cache_path = self._cache_dir / cache_filename
 
         # 检查缓存文件
@@ -180,21 +184,49 @@ class RenderService:
 
     def _find_pdf(self, pdf_name: str) -> Path | None:
         """查找PDF文件"""
-        # 安全处理文件名
-        safe_name = pdf_name.replace("\\", "/").split("/")[-1]
+        normalized = self._normalize_pdf_path(pdf_name)
+        if normalized is None:
+            return None
 
-        # 在 pdf_dir 中查找
         if self._pdf_dir:
-            candidate = self._pdf_dir / safe_name
-            if candidate.exists():
-                return candidate
+            # 优先按相对路径精确命中。
+            exact = self._pdf_dir / normalized
+            if self._is_valid_pdf_file(exact):
+                return exact
 
-        # 尝试当前目录
-        candidate = Path(safe_name)
-        if candidate.exists():
+            # 兼容历史行为：仅给文件名时递归匹配首个同名 PDF。
+            if "/" not in normalized:
+                for candidate in self._pdf_dir.rglob(normalized):
+                    if self._is_valid_pdf_file(candidate):
+                        return candidate
+
+        # 无 pdf_dir 场景下，尝试当前目录相对路径。
+        candidate = Path(normalized)
+        if self._is_valid_pdf_file(candidate):
             return candidate
 
         return None
+
+    def _normalize_pdf_path(self, pdf_name: str) -> str | None:
+        raw = (pdf_name or "").replace("\\", "/").strip().strip("/")
+        if not raw:
+            return None
+        if raw.startswith("/") or re.match(r"^[A-Za-z]:/", raw):
+            return None
+        parts = [p for p in raw.split("/") if p]
+        if not parts or any(p in {".", ".."} for p in parts):
+            return None
+        normalized = "/".join(parts)
+        if not normalized.lower().endswith(".pdf"):
+            return None
+        return normalized
+
+    @staticmethod
+    def _is_valid_pdf_file(path: Path) -> bool:
+        try:
+            return path.exists() and path.is_file() and path.suffix.lower() == ".pdf"
+        except Exception:
+            return False
 
     def get_page_count(self, pdf_name: str) -> int:
         """

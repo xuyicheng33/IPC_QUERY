@@ -586,6 +586,7 @@ class PartRepository:
                 SELECT
                   p.id,
                   d.pdf_name,
+                  d.relative_path AS source_relative_path,
                   p.document_id,
                   p.page_num,
                   p.page_end,

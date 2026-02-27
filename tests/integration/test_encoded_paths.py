@@ -102,3 +102,29 @@ def test_render_endpoint_supports_url_encoded_name(tmp_path: Path) -> None:
     finally:
         server.stop()
         thread.join(timeout=3.0)
+
+
+def test_render_endpoint_supports_url_encoded_relative_path(tmp_path: Path) -> None:
+    db_path = tmp_path / "data.sqlite"
+    cfg = _make_config(tmp_path, db_path)
+
+    rel_pdf_name = "sub/a b.pdf"
+    pdf_path = cfg.pdf_dir / rel_pdf_name
+    pdf_path.parent.mkdir(parents=True, exist_ok=True)
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((72, 72), "hello relative")
+    doc.save(str(pdf_path))
+    doc.close()
+
+    server = create_server(cfg)
+    thread, port = _start_server(server)
+    try:
+        encoded = quote(rel_pdf_name, safe="")
+        status, body, content_type = _request(port, "GET", f"/render/{encoded}/1.png")
+        assert status == 200
+        assert content_type == "image/png"
+        assert body.startswith(b"\x89PNG\r\n\x1a\n")
+    finally:
+        server.stop()
+        thread.join(timeout=3.0)

@@ -30,7 +30,8 @@ async function initDetailPage() {
     const data = await fetchJson(`/api/part/${id}`);
     const p = data?.part || {};
     const pn = (p.pn || p.part_number_canonical || p.part_number_cell || "-").toString();
-    const pdf = (p.pdf || p.source_pdf || "").toString();
+    const sourceRelativePath = (p.source_relative_path || p.source_pdf || "").toString();
+    const pdf = (sourceRelativePath || p.pdf || "").toString();
     const page = Number(p.page || p.page_num || 1);
     const pageEnd = Number(p.page_end || page);
 
