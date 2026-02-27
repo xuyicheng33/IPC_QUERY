@@ -13,13 +13,20 @@
 3. [MAINTENANCE.md](MAINTENANCE.md)  
    清理规则、提交前检查清单、维护约束。
 
+## MD3 当前基线
+
+以下文档是当前 MD3 改造口径下的验收与发布依据：
+
+- [md3/M0_BASELINE.md](md3/M0_BASELINE.md)
+- [md3/M4_DB_REFACTOR_ACCEPTANCE.md](md3/M4_DB_REFACTOR_ACCEPTANCE.md)
+- [md3/M5_RELEASE_CHECKLIST.md](md3/M5_RELEASE_CHECKLIST.md)
+
 ## 历史归档
 
-以下文档用于记录前端 UI 重建过程，默认不作为日常维护入口：
+以下文档用于记录早期 UI 重建过程（Swiss Spa/Lucide 口径），仅作历史参考，**不作为当前 MD3 发布基线**：
 
 - [archive/ui-rebuild/UI_REBUILD_BASELINE.md](archive/ui-rebuild/UI_REBUILD_BASELINE.md)
 - [archive/ui-rebuild/UI_REBUILD_FINAL_SUMMARY.md](archive/ui-rebuild/UI_REBUILD_FINAL_SUMMARY.md)
 - [archive/ui-rebuild/UI_DESKTOP_VALIDATION.md](archive/ui-rebuild/UI_DESKTOP_VALIDATION.md)
 - [archive/ui-rebuild/FRONTEND_BUILD_MAPPING.md](archive/ui-rebuild/FRONTEND_BUILD_MAPPING.md)
 - [archive/ui-rebuild/ICON_REPLACEMENT_MATRIX.md](archive/ui-rebuild/ICON_REPLACEMENT_MATRIX.md)
-
