@@ -513,9 +513,13 @@ class Server:
 
     def stop(self) -> None:
         """停止服务器"""
-        if self._server:
-            self._server.shutdown()
-            self._server = None
+        server = self._server
+        self._server = None
+        if server:
+            try:
+                server.shutdown()
+            finally:
+                server.server_close()
         if self._import is not None:
             self._import.stop()
         if self._scan is not None:
