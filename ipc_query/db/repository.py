@@ -750,7 +750,7 @@ class PartRepository:
         if node.get("parent_part_id"):
             rows = conn.execute(
                 """
-                SELECT p.*, d.pdf_name
+                SELECT p.*, d.pdf_name, d.relative_path AS source_relative_path
                 FROM parts p
                 JOIN documents d ON d.id = p.document_id
                 WHERE p.parent_part_id = ? AND p.nom_level = ? AND p.id != ?
@@ -764,7 +764,7 @@ class PartRepository:
         # 获取子级
         rows = conn.execute(
             """
-            SELECT p.*, d.pdf_name
+            SELECT p.*, d.pdf_name, d.relative_path AS source_relative_path
             FROM parts p
             JOIN documents d ON d.id = p.document_id
             WHERE p.parent_part_id = ?
@@ -785,7 +785,7 @@ class PartRepository:
         """获取节点信息"""
         row = conn.execute(
             """
-            SELECT p.*, d.pdf_name
+            SELECT p.*, d.pdf_name, d.relative_path AS source_relative_path
             FROM parts p
             JOIN documents d ON d.id = p.document_id
             WHERE p.id = ?

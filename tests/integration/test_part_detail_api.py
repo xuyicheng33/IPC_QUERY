@@ -96,3 +96,51 @@ def test_part_detail_includes_source_relative_path(tmp_path: Path) -> None:
     finally:
         server.stop()
         thread.join(timeout=3.0)
+
+
+def test_part_detail_children_include_source_relative_path(tmp_path: Path) -> None:
+    db_path = tmp_path / "data.sqlite"
+    cfg = _make_config(tmp_path, db_path)
+
+    with sqlite3.connect(str(db_path)) as conn:
+        ensure_schema(conn)
+        cur = conn.execute(
+            """
+            INSERT INTO documents(pdf_name, relative_path, pdf_path, miner_dir, created_at)
+            VALUES (?, ?, ?, ?, datetime('now'))
+            """,
+            ("a.pdf", "sub/a.pdf", "sub/a.pdf", "{}"),
+        )
+        doc_id = int(cur.lastrowid)
+        cur = conn.execute(
+            """
+            INSERT INTO parts(
+              document_id, page_num, page_end, extractor, row_kind,
+              part_number_cell, part_number_canonical, nom_level, nomenclature, nomenclature_clean
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (doc_id, 1, 1, "pdf_coords", "part", "P-ROOT", "P-ROOT", 0, "ROOT", "ROOT"),
+        )
+        parent_id = int(cur.lastrowid)
+        conn.execute(
+            """
+            INSERT INTO parts(
+              document_id, page_num, page_end, extractor, row_kind,
+              part_number_cell, part_number_canonical, nom_level, nomenclature, nomenclature_clean, parent_part_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (doc_id, 1, 1, "pdf_coords", "part", "P-CHILD", "P-CHILD", 1, "CHILD", "CHILD", parent_id),
+        )
+        conn.commit()
+
+    server = create_server(cfg)
+    thread, port = _start_server(server)
+    try:
+        status, body = _request_json(port, "GET", f"/api/part/{parent_id}")
+        assert status == 200
+        assert len(body["children"]) == 1
+        assert body["children"][0]["pdf"] == "a.pdf"
+        assert body["children"][0]["source_relative_path"] == "sub/a.pdf"
+    finally:
+        server.stop()
+        thread.join(timeout=3.0)
