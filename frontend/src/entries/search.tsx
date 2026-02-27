@@ -2,13 +2,10 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import "@/styles/tokens.css";
 import "@/styles/base.css";
-import { PlaceholderPage } from "@/pages/PlaceholderPage";
+import { SearchPage } from "@/pages/SearchPage";
 
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <PlaceholderPage
-      title="Search (Part 1 Scaffold)"
-      subtitle="Routing-compatible page entry is configured for /search."
-    />
+    <SearchPage />
   </React.StrictMode>
 );
