@@ -2,13 +2,10 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import "@/styles/tokens.css";
 import "@/styles/base.css";
-import { PlaceholderPage } from "@/pages/PlaceholderPage";
+import { PartDetailPage } from "@/pages/PartDetailPage";
 
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <PlaceholderPage
-      title="Part Detail (Part 1 Scaffold)"
-      subtitle="Routing-compatible page entry is configured for /part/{id}."
-    />
+    <PartDetailPage />
   </React.StrictMode>
 );

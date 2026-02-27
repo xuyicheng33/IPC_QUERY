@@ -36,6 +36,42 @@ export type DocumentItem = {
   relative_dir?: string;
 };
 
+export type PartPayload = {
+  id?: number;
+  pn?: string;
+  part_number_canonical?: string;
+  part_number_cell?: string;
+  source_relative_path?: string;
+  source_pdf?: string;
+  pdf?: string;
+  page?: number;
+  page_num?: number;
+  page_end?: number;
+  fig?: string;
+  figure_code?: string;
+  fig_item?: string;
+  units?: string;
+  units_per_assy?: string;
+  eff?: string;
+  effectivity?: string;
+  nom?: string;
+  nomenclature?: string;
+  nomenclature_clean?: string;
+};
+
+export type HierarchyItem = {
+  id: number;
+  pn?: string;
+  part_number?: string;
+};
+
+export type PartDetailResponse = {
+  part?: PartPayload;
+  parents?: HierarchyItem[];
+  siblings?: HierarchyItem[];
+  children?: HierarchyItem[];
+};
+
 export type LegacyHistoryItem = {
   q: string;
   match: MatchMode;
