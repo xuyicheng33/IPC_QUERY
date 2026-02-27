@@ -1,4 +1,6 @@
 import React from "react";
+import { Card } from "@/components/ui/Card";
+import { AppShell } from "@/components/layout/AppShell";
 
 type PlaceholderPageProps = {
   title: string;
@@ -7,11 +9,11 @@ type PlaceholderPageProps = {
 
 export function PlaceholderPage({ title, subtitle }: PlaceholderPageProps) {
   return (
-    <main className="mx-auto min-h-screen w-full max-w-[1200px] px-6 py-10">
-      <section className="rounded-lg border border-border bg-surface p-6 shadow-sm">
+    <AppShell>
+      <Card>
         <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
         <p className="mt-2 text-sm text-muted">{subtitle}</p>
-      </section>
-    </main>
+      </Card>
+    </AppShell>
   );
 }
