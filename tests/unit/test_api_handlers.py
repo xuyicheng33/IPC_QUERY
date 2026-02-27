@@ -23,6 +23,11 @@ def _make_handlers(
     search_service: MagicMock | None = None,
     db: MagicMock | None = None,
     config: Config | None = None,
+    *,
+    import_enabled: bool | None = None,
+    scan_enabled: bool | None = None,
+    import_reason: str = "",
+    scan_reason: str = "",
 ) -> ApiHandlers:
     render_service = MagicMock()
     render_service._find_pdf.return_value = pdf_path
@@ -32,6 +37,10 @@ def _make_handlers(
         doc_repo=MagicMock(),
         db=db or MagicMock(),
         config=config or Config(),
+        import_enabled=import_enabled,
+        scan_enabled=scan_enabled,
+        import_reason=import_reason,
+        scan_reason=scan_reason,
     )
 
 
@@ -115,6 +124,77 @@ def test_handle_doc_delete_not_found_raises(tmp_path: Path) -> None:
 
     with pytest.raises(NotFoundError):
         handlers.handle_doc_delete("missing.pdf")
+
+
+def test_handle_doc_rename_success(tmp_path: Path) -> None:
+    pdf_path = tmp_path / "sample.pdf"
+    pdf_path.write_bytes(b"0123")
+
+    import_service = MagicMock()
+    import_service.rename_document.return_value = {
+        "updated": True,
+        "old_path": "dir/a.pdf",
+        "new_path": "dir/b.pdf",
+        "pdf_name": "b.pdf",
+    }
+    handlers = _make_handlers(pdf_path)
+    handlers._import = import_service
+
+    status, body, content_type = handlers.handle_doc_rename(path="dir/a.pdf", new_name="b.pdf")
+
+    assert status == HTTPStatus.OK
+    assert content_type == "application/json; charset=utf-8"
+    payload = json.loads(body.decode("utf-8"))
+    assert payload["updated"] is True
+    assert payload["new_path"] == "dir/b.pdf"
+
+
+def test_handle_doc_rename_not_found_raises(tmp_path: Path) -> None:
+    handlers = _make_handlers(tmp_path / "sample.pdf")
+    handlers._import = MagicMock()
+    handlers._import.rename_document.return_value = {"updated": False, "old_path": "missing.pdf", "new_path": "missing.pdf"}
+
+    with pytest.raises(NotFoundError):
+        handlers.handle_doc_rename(path="missing.pdf", new_name="new.pdf")
+
+
+def test_handle_doc_move_success(tmp_path: Path) -> None:
+    handlers = _make_handlers(tmp_path / "sample.pdf")
+    handlers._import = MagicMock()
+    handlers._import.move_document.return_value = {
+        "updated": True,
+        "old_path": "dir/a.pdf",
+        "new_path": "archive/a.pdf",
+        "pdf_name": "a.pdf",
+    }
+
+    status, body, content_type = handlers.handle_doc_move(path="dir/a.pdf", target_dir="archive")
+
+    assert status == HTTPStatus.OK
+    assert content_type == "application/json; charset=utf-8"
+    payload = json.loads(body.decode("utf-8"))
+    assert payload["updated"] is True
+    assert payload["new_path"] == "archive/a.pdf"
+
+
+def test_handle_capabilities_returns_reasons_when_disabled(tmp_path: Path) -> None:
+    handlers = _make_handlers(
+        tmp_path / "sample.pdf",
+        import_enabled=False,
+        scan_enabled=False,
+        import_reason="import disabled by config",
+        scan_reason="scan disabled by config",
+    )
+
+    status, body, content_type = handlers.handle_capabilities()
+
+    assert status == HTTPStatus.OK
+    assert content_type == "application/json; charset=utf-8"
+    payload = json.loads(body.decode("utf-8"))
+    assert payload["import_enabled"] is False
+    assert payload["scan_enabled"] is False
+    assert payload["import_reason"] == "import disabled by config"
+    assert payload["scan_reason"] == "scan disabled by config"
 
 
 def test_handle_docs_batch_delete_success(tmp_path: Path) -> None:

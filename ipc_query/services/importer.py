@@ -334,6 +334,222 @@ class ImportService:
                 extra_fields={"path": str(path)},
             )
 
+    def rename_document(self, path: str, new_name: str) -> dict[str, Any]:
+        """
+        重命名文档（仅修改文件名，不改变目录）。
+
+        Returns:
+            {
+              "updated": bool,
+              "old_path": str,
+              "new_path": str,
+              "pdf_name": str,
+            }
+        """
+        source_rel = self._normalize_pdf_identifier(path)
+        safe_new_name = self._normalize_new_filename(new_name)
+        parent = source_rel.rsplit("/", 1)[0] if "/" in source_rel else ""
+        target_rel = f"{parent}/{safe_new_name}" if parent else safe_new_name
+        return self._relocate_document(source_rel=source_rel, target_rel=target_rel)
+
+    def move_document(self, path: str, target_dir: str) -> dict[str, Any]:
+        """
+        移动文档到目标目录（文件名保持不变）。
+
+        Returns:
+            {
+              "updated": bool,
+              "old_path": str,
+              "new_path": str,
+              "pdf_name": str,
+            }
+        """
+        source_rel = self._normalize_pdf_identifier(path)
+        safe_target_dir = self._normalize_target_dir(target_dir)
+        filename = Path(source_rel).name
+        target_rel = f"{safe_target_dir}/{filename}" if safe_target_dir else filename
+        return self._relocate_document(source_rel=source_rel, target_rel=target_rel)
+
+    def _relocate_document(self, source_rel: str, target_rel: str) -> dict[str, Any]:
+        source_rel = self._normalize_pdf_identifier(source_rel)
+        target_rel = self._normalize_pdf_identifier(target_rel)
+        target_name = Path(target_rel).name
+
+        self._assert_path_not_busy(source_rel)
+        self._assert_path_not_busy(target_rel)
+
+        if source_rel == target_rel:
+            with self._db_write_lock:
+                with sqlite3.connect(str(self._db_path), timeout=60.0) as conn:
+                    conn.row_factory = sqlite3.Row
+                    row = self._resolve_document_row_by_relative_path(conn, source_rel)
+                    if row is None:
+                        return {
+                            "updated": False,
+                            "old_path": source_rel,
+                            "new_path": target_rel,
+                            "pdf_name": target_name,
+                        }
+            return {
+                "updated": True,
+                "old_path": source_rel,
+                "new_path": target_rel,
+                "pdf_name": target_name,
+            }
+
+        moved = False
+        source_file: Path | None = None
+        target_file = self._pdf_dir / target_rel
+        doc_id = 0
+        old_pdf_path = ""
+        with self._db_write_lock:
+            with sqlite3.connect(str(self._db_path), timeout=60.0) as conn:
+                conn.row_factory = sqlite3.Row
+                conn.execute("PRAGMA foreign_keys=ON")
+                row = self._resolve_document_row_by_relative_path(conn, source_rel)
+                if row is None:
+                    return {
+                        "updated": False,
+                        "old_path": source_rel,
+                        "new_path": target_rel,
+                        "pdf_name": target_name,
+                    }
+
+                existing_target = self._resolve_document_row_by_relative_path(conn, target_rel)
+                if existing_target is not None:
+                    raise ConflictError(
+                        "Target path already exists",
+                        details={"path": target_rel},
+                    )
+
+                doc_id = int(row["id"])
+                old_pdf_path = str(row["pdf_path"] or "")
+                source_file = self._resolve_existing_pdf_file(source_rel, old_pdf_path)
+                if source_file is None:
+                    return {
+                        "updated": False,
+                        "old_path": source_rel,
+                        "new_path": target_rel,
+                        "pdf_name": target_name,
+                    }
+                if target_file.exists():
+                    raise ConflictError(
+                        "Target file already exists",
+                        details={"path": target_rel},
+                    )
+                target_file.parent.mkdir(parents=True, exist_ok=True)
+
+                try:
+                    source_file.replace(target_file)
+                except OSError:
+                    shutil.move(str(source_file), str(target_file))
+                moved = True
+
+                try:
+                    conn.execute(
+                        """
+                        UPDATE documents
+                        SET pdf_name = ?, relative_path = ?, pdf_path = ?
+                        WHERE id = ?
+                        """,
+                        (target_name, target_rel, target_rel, doc_id),
+                    )
+                    # 防御式处理：若目标路径残留旧 scan_state，先删除再迁移。
+                    conn.execute(
+                        "DELETE FROM scan_state WHERE relative_path = ? AND relative_path != ?",
+                        (target_rel, source_rel),
+                    )
+                    conn.execute(
+                        "UPDATE scan_state SET relative_path = ? WHERE relative_path = ?",
+                        (target_rel, source_rel),
+                    )
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    if moved:
+                        try:
+                            target_file.replace(source_file)
+                        except OSError:
+                            shutil.move(str(target_file), str(source_file))
+                    raise
+
+        if self._on_success:
+            try:
+                self._on_success()
+            except Exception:
+                logger.exception("Relocate success callback failed")
+
+        logger.info(
+            "Document relocated",
+            extra_fields={
+                "doc_id": doc_id,
+                "old_path": source_rel,
+                "new_path": target_rel,
+                "old_pdf_path": old_pdf_path,
+            },
+        )
+        return {
+            "updated": True,
+            "old_path": source_rel,
+            "new_path": target_rel,
+            "pdf_name": target_name,
+        }
+
+    def _assert_path_not_busy(self, relative_path: str) -> None:
+        with self._lock:
+            for job_id in self._job_order:
+                job = self._jobs.get(job_id)
+                if not job:
+                    continue
+                if job.relative_path() == relative_path and job.status in {"queued", "running"}:
+                    raise ValidationError("Document is being imported, please retry later")
+
+    def _normalize_new_filename(self, filename: str) -> str:
+        raw = (filename or "").replace("\\", "/").strip()
+        if not raw:
+            raise ValidationError("Missing new_name")
+        if "/" in raw:
+            raise ValidationError("new_name must be a file name")
+        safe_name = Path(raw).name
+        if not safe_name or safe_name in {".", ".."}:
+            raise ValidationError("Invalid new_name")
+        if not safe_name.lower().endswith(".pdf"):
+            raise ValidationError("Only .pdf files are supported")
+        return safe_name
+
+    def _resolve_document_row_by_relative_path(self, conn: sqlite3.Connection, relative_path: str) -> sqlite3.Row | None:
+        rows = conn.execute(
+            """
+            SELECT id, pdf_name, relative_path, pdf_path
+            FROM documents
+            WHERE relative_path = ?
+            ORDER BY id
+            LIMIT 2
+            """,
+            (relative_path,),
+        ).fetchall()
+        if not rows:
+            return None
+        if len(rows) > 1:
+            candidates = sorted(
+                str(r["relative_path"] or r["pdf_name"] or relative_path)
+                for r in rows
+            )
+            raise ConflictError(
+                "Ambiguous relative path",
+                details={
+                    "relative_path": relative_path,
+                    "candidates": candidates,
+                },
+            )
+        return cast(sqlite3.Row, rows[0])
+
+    def _resolve_existing_pdf_file(self, relative_path: str, raw_pdf_path: str) -> Path | None:
+        for path in self._candidate_pdf_paths(relative_path, raw_pdf_path):
+            if path.exists() and path.is_file():
+                return path
+        return None
+
     def delete_document(self, pdf_name: str) -> dict[str, Any]:
         """
         删除文档及其关联数据，并尝试删除对应 PDF 文件。

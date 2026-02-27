@@ -58,6 +58,10 @@ class ApiHandlers:
         config: Config,
         import_service: ImportService | None = None,
         scan_service: ScanService | None = None,
+        import_enabled: bool | None = None,
+        scan_enabled: bool | None = None,
+        import_reason: str = "",
+        scan_reason: str = "",
     ):
         self._search = search_service
         self._render = render_service
@@ -66,10 +70,27 @@ class ApiHandlers:
         self._config = config
         self._import = import_service
         self._scan = scan_service
+        self._import_enabled = bool(import_enabled) if import_enabled is not None else (import_service is not None)
+        self._scan_enabled = bool(scan_enabled) if scan_enabled is not None else (scan_service is not None)
+        self._import_reason = str(import_reason or "")
+        self._scan_reason = str(scan_reason or "")
 
     def import_enabled(self) -> bool:
         """导入服务是否可用。"""
-        return self._import is not None
+        return self._import_enabled
+
+    def scan_enabled(self) -> bool:
+        """扫描服务是否可用。"""
+        return self._scan_enabled
+
+    def handle_capabilities(self) -> tuple[int, bytes, str]:
+        payload = {
+            "import_enabled": self.import_enabled(),
+            "scan_enabled": self.scan_enabled(),
+            "import_reason": "" if self.import_enabled() else self._import_reason,
+            "scan_reason": "" if self.scan_enabled() else self._scan_reason,
+        }
+        return HTTPStatus.OK, _json_bytes(payload), "application/json; charset=utf-8"
 
     def handle_search(self, query_string: str) -> tuple[int, bytes, str]:
         """
@@ -191,6 +212,34 @@ class ApiHandlers:
         result = self._import.delete_document(pdf_name)
         if not result.get("deleted"):
             raise NotFoundError(f"PDF not found: {pdf_name}")
+        return HTTPStatus.OK, _json_bytes(result), "application/json; charset=utf-8"
+
+    def handle_doc_rename(self, path: str, new_name: str) -> tuple[int, bytes, str]:
+        """
+        重命名文档请求
+
+        POST /api/docs/rename
+        body: {"path": "dir/a.pdf", "new_name": "b.pdf"}
+        """
+        if self._import is None:
+            raise ValidationError("Import service is not enabled")
+        result = self._import.rename_document(path=path, new_name=new_name)
+        if not result.get("updated"):
+            raise NotFoundError(f"PDF not found: {path}")
+        return HTTPStatus.OK, _json_bytes(result), "application/json; charset=utf-8"
+
+    def handle_doc_move(self, path: str, target_dir: str) -> tuple[int, bytes, str]:
+        """
+        移动文档请求
+
+        POST /api/docs/move
+        body: {"path": "dir/a.pdf", "target_dir": "other/sub"}
+        """
+        if self._import is None:
+            raise ValidationError("Import service is not enabled")
+        result = self._import.move_document(path=path, target_dir=target_dir)
+        if not result.get("updated"):
+            raise NotFoundError(f"PDF not found: {path}")
         return HTTPStatus.OK, _json_bytes(result), "application/json; charset=utf-8"
 
     def handle_docs_batch_delete(self, paths: list[Any]) -> tuple[int, bytes, str]:

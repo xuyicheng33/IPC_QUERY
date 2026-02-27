@@ -539,3 +539,152 @@ def test_delete_pdf_file_returns_false_when_unlink_fails(
         assert service._delete_pdf_file("bad-delete.pdf", "") is False
     finally:
         service.stop()
+
+
+def test_rename_document_updates_file_db_and_scan_state(tmp_path: Path) -> None:
+    db_path = tmp_path / "db.sqlite"
+    pdf_dir = tmp_path / "pdfs"
+    upload_dir = tmp_path / "uploads"
+    (pdf_dir / "dir").mkdir(parents=True, exist_ok=True)
+
+    with sqlite3.connect(str(db_path)) as conn:
+        ensure_schema(conn)
+        conn.execute(
+            "INSERT INTO documents(pdf_name, relative_path, pdf_path, miner_dir, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
+            ("a.pdf", "dir/a.pdf", "dir/a.pdf", "{}"),
+        )
+        conn.execute(
+            "INSERT INTO scan_state(relative_path, size, mtime, content_hash, updated_at) VALUES (?, ?, ?, ?, datetime('now'))",
+            ("dir/a.pdf", 10, 1.0, "h1"),
+        )
+        conn.commit()
+
+    (pdf_dir / "dir" / "a.pdf").write_bytes(_PDF_PAYLOAD)
+    service = ImportService(db_path=db_path, pdf_dir=pdf_dir, upload_dir=upload_dir)
+    try:
+        result = service.rename_document("dir/a.pdf", "b.pdf")
+        assert result["updated"] is True
+        assert result["old_path"] == "dir/a.pdf"
+        assert result["new_path"] == "dir/b.pdf"
+        assert result["pdf_name"] == "b.pdf"
+        assert not (pdf_dir / "dir" / "a.pdf").exists()
+        assert (pdf_dir / "dir" / "b.pdf").exists()
+
+        with sqlite3.connect(str(db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT pdf_name, relative_path, pdf_path FROM documents WHERE relative_path = ?",
+                ("dir/b.pdf",),
+            ).fetchone()
+            assert row is not None
+            assert row["pdf_name"] == "b.pdf"
+            assert row["relative_path"] == "dir/b.pdf"
+            assert row["pdf_path"] == "dir/b.pdf"
+            assert conn.execute(
+                "SELECT COUNT(1) FROM scan_state WHERE relative_path = ?",
+                ("dir/a.pdf",),
+            ).fetchone()[0] == 0
+            assert conn.execute(
+                "SELECT COUNT(1) FROM scan_state WHERE relative_path = ?",
+                ("dir/b.pdf",),
+            ).fetchone()[0] == 1
+    finally:
+        service.stop()
+
+
+def test_move_document_updates_file_and_db(tmp_path: Path) -> None:
+    db_path = tmp_path / "db.sqlite"
+    pdf_dir = tmp_path / "pdfs"
+    upload_dir = tmp_path / "uploads"
+    (pdf_dir / "dir").mkdir(parents=True, exist_ok=True)
+
+    with sqlite3.connect(str(db_path)) as conn:
+        ensure_schema(conn)
+        conn.execute(
+            "INSERT INTO documents(pdf_name, relative_path, pdf_path, miner_dir, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
+            ("a.pdf", "dir/a.pdf", "dir/a.pdf", "{}"),
+        )
+        conn.commit()
+
+    (pdf_dir / "dir" / "a.pdf").write_bytes(_PDF_PAYLOAD)
+    service = ImportService(db_path=db_path, pdf_dir=pdf_dir, upload_dir=upload_dir)
+    try:
+        result = service.move_document("dir/a.pdf", "other/sub")
+        assert result["updated"] is True
+        assert result["old_path"] == "dir/a.pdf"
+        assert result["new_path"] == "other/sub/a.pdf"
+        assert result["pdf_name"] == "a.pdf"
+        assert not (pdf_dir / "dir" / "a.pdf").exists()
+        assert (pdf_dir / "other" / "sub" / "a.pdf").exists()
+
+        with sqlite3.connect(str(db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT pdf_name, relative_path, pdf_path FROM documents WHERE relative_path = ?",
+                ("other/sub/a.pdf",),
+            ).fetchone()
+            assert row is not None
+            assert row["pdf_name"] == "a.pdf"
+            assert row["relative_path"] == "other/sub/a.pdf"
+            assert row["pdf_path"] == "other/sub/a.pdf"
+    finally:
+        service.stop()
+
+
+def test_rename_document_conflict_raises(tmp_path: Path) -> None:
+    db_path = tmp_path / "db.sqlite"
+    pdf_dir = tmp_path / "pdfs"
+    upload_dir = tmp_path / "uploads"
+    (pdf_dir / "dir").mkdir(parents=True, exist_ok=True)
+
+    with sqlite3.connect(str(db_path)) as conn:
+        ensure_schema(conn)
+        conn.execute(
+            "INSERT INTO documents(pdf_name, relative_path, pdf_path, miner_dir, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
+            ("a.pdf", "dir/a.pdf", "dir/a.pdf", "{}"),
+        )
+        conn.execute(
+            "INSERT INTO documents(pdf_name, relative_path, pdf_path, miner_dir, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
+            ("b.pdf", "dir/b.pdf", "dir/b.pdf", "{}"),
+        )
+        conn.commit()
+
+    (pdf_dir / "dir" / "a.pdf").write_bytes(_PDF_PAYLOAD)
+    (pdf_dir / "dir" / "b.pdf").write_bytes(_PDF_PAYLOAD)
+    service = ImportService(db_path=db_path, pdf_dir=pdf_dir, upload_dir=upload_dir)
+    try:
+        with pytest.raises(ConflictError):
+            service.rename_document("dir/a.pdf", "b.pdf")
+    finally:
+        service.stop()
+
+
+def test_rename_and_move_reject_when_source_job_running(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _slow_ingest(_conn: object, _pdf_paths: list[Path]) -> dict[str, int]:
+        time.sleep(0.2)
+        return {
+            "docs_ingested": 1,
+            "docs_replaced": 0,
+            "parts_ingested": 0,
+            "xrefs_ingested": 0,
+            "aliases_ingested": 0,
+        }
+
+    monkeypatch.setattr(importer_module, "ingest_pdfs", _slow_ingest)
+    service = ImportService(
+        db_path=tmp_path / "db.sqlite",
+        pdf_dir=tmp_path / "pdfs",
+        upload_dir=tmp_path / "uploads",
+    )
+    try:
+        created = service.submit_upload("busy.pdf", _PDF_PAYLOAD, "application/pdf")
+        with pytest.raises(ValidationError, match="being imported"):
+            service.rename_document("busy.pdf", "renamed.pdf")
+        with pytest.raises(ValidationError, match="being imported"):
+            service.move_document("busy.pdf", "archive")
+        _wait_for_terminal(service, str(created["job_id"]), timeout_s=3.0)
+    finally:
+        service.stop()

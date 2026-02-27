@@ -186,6 +186,10 @@ class RequestHandler(BaseHTTPRequestHandler):
                 status, metrics_body, ct = self.handlers.handle_metrics()
                 self._send(status, metrics_body, ct)
 
+            elif path == "/api/capabilities":
+                status, capabilities_body, ct = self.handlers.handle_capabilities()
+                self._send(status, capabilities_body, ct)
+
             elif path == "/api/import/jobs":
                 qs = parse_qs(query_string) if query_string else {}
                 limit_raw = (qs.get("limit") or ["20"])[0]
@@ -328,6 +332,24 @@ class RequestHandler(BaseHTTPRequestHandler):
                 self._send(status, body, ct)
                 return
 
+            if path == "/api/docs/rename":
+                json_payload = self._read_json_body()
+                status, body, ct = self.handlers.handle_doc_rename(
+                    path=str(json_payload.get("path") or ""),
+                    new_name=str(json_payload.get("new_name") or ""),
+                )
+                self._send(status, body, ct)
+                return
+
+            if path == "/api/docs/move":
+                json_payload = self._read_json_body()
+                status, body, ct = self.handlers.handle_doc_move(
+                    path=str(json_payload.get("path") or ""),
+                    target_dir=str(json_payload.get("target_dir") or ""),
+                )
+                self._send(status, body, ct)
+                return
+
             if path == "/api/folders":
                 json_payload = self._read_json_body()
                 parent_path = str(json_payload.get("path") or "")
@@ -421,6 +443,10 @@ class Server:
         render_service: RenderService,
         import_service: ImportService | None,
         scan_service: ScanService | None,
+        import_enabled: bool,
+        scan_enabled: bool,
+        import_reason: str,
+        scan_reason: str,
     ):
         self._config = config
         self._db = db
@@ -428,6 +454,10 @@ class Server:
         self._render = render_service
         self._import = import_service
         self._scan = scan_service
+        self._import_enabled = bool(import_enabled)
+        self._scan_enabled = bool(scan_enabled)
+        self._import_reason = str(import_reason or "")
+        self._scan_reason = str(scan_reason or "")
         self._server: ThreadingHTTPServer | None = None
 
     def start(self) -> None:
@@ -445,6 +475,10 @@ class Server:
             config=self._config,
             import_service=self._import,
             scan_service=self._scan,
+            import_enabled=self._import_enabled,
+            scan_enabled=self._scan_enabled,
+            import_reason=self._import_reason,
+            scan_reason=self._scan_reason,
         )
 
         # 创建服务器
@@ -568,6 +602,26 @@ def _resolve_import_enablement(config: Config) -> tuple[bool, dict[str, Any]]:
     return enabled, details
 
 
+def _enablement_reason_text(enabled: bool, details: dict[str, Any], *, mode_name: str) -> str:
+    if enabled:
+        return ""
+
+    reason = str(details.get("reason") or "")
+    mode = str(details.get("mode") or mode_name or "auto")
+    db_writable = bool(details.get("db_writable"))
+    pdf_writable = bool(details.get("pdf_writable"))
+    upload_writable = bool(details.get("upload_writable"))
+
+    if reason == "disabled_by_config":
+        return f"{mode_name} service disabled by import_mode={mode}"
+    if reason in {"enabled_but_write_requirements_not_met", "auto_disabled_due_to_write_requirements"}:
+        return (
+            f"{mode_name} service unavailable: "
+            f"db_writable={db_writable}, pdf_writable={pdf_writable}, upload_writable={upload_writable}"
+        )
+    return f"{mode_name} service is not enabled"
+
+
 def create_server(config: Config) -> Server:
     """
     创建服务器实例
@@ -646,6 +700,10 @@ def create_server(config: Config) -> Server:
             extra_fields=enablement_details,
         )
 
+    scan_enabled = scan_service is not None
+    import_reason = _enablement_reason_text(import_enabled, enablement_details, mode_name="import")
+    scan_reason = "" if scan_enabled else _enablement_reason_text(scan_enabled, enablement_details, mode_name="scan")
+
     # 预热
     search_service.warmup()
 
@@ -655,4 +713,15 @@ def create_server(config: Config) -> Server:
         except Exception:
             logger.exception("Failed to enqueue startup scan job")
 
-    return Server(config, db, search_service, render_service, import_service, scan_service)
+    return Server(
+        config,
+        db,
+        search_service,
+        render_service,
+        import_service,
+        scan_service,
+        import_enabled=import_enabled,
+        scan_enabled=scan_enabled,
+        import_reason=import_reason,
+        scan_reason=scan_reason,
+    )

@@ -1,5 +1,5 @@
 import React from "react";
-import { Database, Search } from "lucide-react";
+import { ArrowLeft, Database, Search } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
 
@@ -12,6 +12,9 @@ type ShellAction = {
 type AppShellProps = {
   title?: string;
   actions?: ShellAction[];
+  showBack?: boolean;
+  backHref?: string;
+  backLabel?: string;
   children: React.ReactNode;
   contentClassName?: string;
 };
@@ -19,6 +22,9 @@ type AppShellProps = {
 export function AppShell({
   title = "ipc_query_system",
   actions,
+  showBack = true,
+  backHref = "/",
+  backLabel = "返回上一级",
   children,
   contentClassName,
 }: AppShellProps) {
@@ -38,6 +44,22 @@ export function AppShell({
             {title}
           </a>
           <nav className="flex flex-wrap items-center gap-2" aria-label="主导航">
+            {showBack ? (
+              <Button
+                variant="ghost"
+                className="gap-2"
+                onClick={() => {
+                  if (window.history.length > 1) {
+                    window.history.back()
+                    return
+                  }
+                  window.location.href = backHref
+                }}
+              >
+                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                <span>{backLabel}</span>
+              </Button>
+            ) : null}
             {nav.map((item) => (
               <a key={item.href} href={item.href}>
                 <Button variant="ghost" className="gap-2">

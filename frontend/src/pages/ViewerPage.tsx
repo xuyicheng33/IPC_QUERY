@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, FileText, RefreshCw } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, FileText, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -53,6 +53,20 @@ export function ViewerPage() {
         <div className="mx-auto flex min-h-16 w-full max-w-[1360px] flex-wrap items-center justify-between gap-3 px-4 py-2 md:px-6">
           <div className="text-sm font-medium">{hasPdf ? `页预览：${pdf}` : "页预览（缺少 pdf 参数）"}</div>
           <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="ghost"
+              className="gap-1.5"
+              onClick={() => {
+                if (window.history.length > 1) {
+                  window.history.back();
+                  return;
+                }
+                window.location.href = "/";
+              }}
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              返回上一级
+            </Button>
             <Button variant="ghost" className="gap-1.5" disabled={!hasPdf} onClick={() => setPage((prev) => Math.max(1, prev - 1))}>
               <ChevronLeft className="h-4 w-4" aria-hidden="true" />
               上一页

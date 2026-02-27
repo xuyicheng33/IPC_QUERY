@@ -107,6 +107,43 @@ export type ScanJob = {
   error?: string;
 };
 
+export type CapabilitiesResponse = {
+  import_enabled: boolean;
+  scan_enabled: boolean;
+  import_reason: string;
+  scan_reason: string;
+};
+
+export type RenameDocRequest = {
+  path: string;
+  new_name: string;
+};
+
+export type RenameDocResponse = {
+  updated: boolean;
+  old_path: string;
+  new_path: string;
+  pdf_name: string;
+};
+
+export type MoveDocRequest = {
+  path: string;
+  target_dir: string;
+};
+
+export type MoveDocResponse = {
+  updated: boolean;
+  old_path: string;
+  new_path: string;
+  pdf_name: string;
+};
+
+export type DbRowActionState = {
+  mode: "normal" | "renaming" | "moving";
+  value: string;
+  error: string;
+};
+
 export type LegacyHistoryItem = {
   q: string;
   match: MatchMode;

@@ -48,6 +48,7 @@ export function PartDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const searchState = useMemo(() => searchStateFromUrl(window.location.search), []);
+  const backUrl = useMemo(() => buildSearchUrl(searchState), [searchState]);
 
   useEffect(() => {
     if (!partId) {
@@ -70,7 +71,7 @@ export function PartDetailPage() {
 
   if (loading) {
     return (
-      <AppShell>
+      <AppShell backHref={backUrl}>
         <Card>
           <div className="flex items-center gap-2 text-sm text-muted">
             <RefreshCw className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -83,7 +84,7 @@ export function PartDetailPage() {
 
   if (error) {
     return (
-      <AppShell>
+      <AppShell backHref={backUrl}>
         <ErrorState message={`加载失败：${error}`} />
       </AppShell>
     );
@@ -92,7 +93,7 @@ export function PartDetailPage() {
   const part = payload?.part;
   if (!part) {
     return (
-      <AppShell>
+      <AppShell backHref={backUrl}>
         <EmptyState title="未找到零件信息" />
       </AppShell>
     );
@@ -106,10 +107,8 @@ export function PartDetailPage() {
   const flags = detectKeywordFlags(desc);
   const highlighted = renderHighlightedSegments(desc || "-");
   const pdfEncoded = encodeURIComponent(sourcePath);
-  const backUrl = buildSearchUrl(searchState);
-
   return (
-    <AppShell>
+    <AppShell backHref={backUrl}>
       <div className="grid gap-4">
         <Card className="grid gap-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
