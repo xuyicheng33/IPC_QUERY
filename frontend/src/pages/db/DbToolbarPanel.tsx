@@ -115,7 +115,11 @@ export function DbToolbarPanel({
           disabled={!capabilities.import_enabled || selectedCount === 0}
           title={capabilities.import_enabled ? undefined : importDisabledReason}
           startIcon={<MaterialSymbol name="delete" size={18} />}
-          onClick={onDeleteSelected}
+          onClick={() => {
+            if (window.confirm(`确认删除已选的 ${selectedCount} 个文件？此操作不可撤销。`)) {
+              onDeleteSelected();
+            }
+          }}
         >
           删除所选{selectedCount > 0 ? ` (${selectedCount})` : ""}
         </Button>

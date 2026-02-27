@@ -117,7 +117,7 @@ export function PartDetailPage() {
             </a>
             <div className="flex flex-wrap items-center gap-2">
               <a href={`/viewer.html?pdf=${pdfEncoded}&page=${page}`} target="_blank" rel="noreferrer">
-                <Button variant="ghost" className="gap-2">
+                <Button variant="primary" className="gap-2">
                   <MaterialSymbol name="open_in_new" size={18} />
                   打开页面
                 </Button>
@@ -186,11 +186,11 @@ export function PartDetailPage() {
             <MaterialSymbol name="link" size={18} sx={{ color: "text.secondary" }} />
             整页预览
           </div>
-          <div className="rounded-md border border-border bg-surface-soft p-3">
+          <div className="overflow-hidden rounded-md border border-border">
             <img
               src={`/render/${pdfEncoded}/${page}.png`}
               alt="PDF page preview"
-              className="w-full rounded-md border border-border bg-surface"
+              className="block w-full bg-surface"
             />
           </div>
         </Card>
@@ -202,8 +202,8 @@ export function PartDetailPage() {
 function Meta({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md border border-border bg-surface p-3">
-      <div className="text-xs text-muted">{label}</div>
-      <div className="mt-1 font-mono text-sm text-text">{value}</div>
+      <div className="text-[10px] uppercase tracking-wider text-muted">{label}</div>
+      <div className="mt-1 font-mono text-sm font-medium text-text">{value}</div>
     </div>
   );
 }

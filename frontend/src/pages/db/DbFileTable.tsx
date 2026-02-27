@@ -90,10 +90,10 @@ export function DbFileTable({
                 </TD>
                 <TD className="font-mono text-xs break-all">{rel || "-"}</TD>
                 <TD>
-                  <Badge variant={indexed ? "ok" : "neutral"}>{indexed ? "indexed" : "pending"}</Badge>
+                  <Badge variant={indexed ? "ok" : "warn"}>{indexed ? "indexed" : "pending"}</Badge>
                 </TD>
                 <TD>
-                  <Badge variant={taskStatus === "success" ? "ok" : taskStatus === "failed" ? "bad" : "neutral"}>
+                  <Badge variant={taskStatus === "success" ? "ok" : taskStatus === "failed" ? "bad" : "warn"}>
                     {taskStatus}
                   </Badge>
                 </TD>
@@ -199,7 +199,11 @@ export function DbFileTable({
                         disabled={!rel || !capabilitiesImportEnabled}
                         title={capabilitiesImportEnabled ? undefined : importDisabledReason}
                         startIcon={<MaterialSymbol name="delete" size={16} />}
-                        onClick={() => onDeleteSingle(rel)}
+                        onClick={() => {
+                          if (window.confirm(`确认删除 ${rel}？此操作不可撤销。`)) {
+                            onDeleteSingle(rel);
+                          }
+                        }}
                       >
                         删除
                       </Button>
@@ -211,9 +215,6 @@ export function DbFileTable({
           })}
         </tbody>
       </Table>
-      <Typography variant="caption" color="text.secondary" sx={{ px: 2, py: 1, display: "block" }}>
-        行操作状态机：idle → pending → success/error
-      </Typography>
     </TableWrap>
   );
 }

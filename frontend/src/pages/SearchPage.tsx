@@ -285,7 +285,7 @@ export function SearchPage() {
                         <TD className="font-mono text-[13px]">{pn}</TD>
                         <TD className="max-w-[320px] whitespace-nowrap overflow-hidden text-ellipsis">{source}</TD>
                         <TD className="font-mono text-[13px]">{page}</TD>
-                        <TD className="max-w-[520px] whitespace-nowrap overflow-hidden text-ellipsis">{nom}</TD>
+                        <TD className="max-w-[520px] whitespace-nowrap overflow-hidden text-ellipsis" title={nom}>{nom}</TD>
                       </tr>
                     );
                   })}
@@ -294,26 +294,28 @@ export function SearchPage() {
             </TableWrap>
           )}
 
-          <div className="mt-4 flex items-center justify-between">
-            <Button
-              variant="ghost"
-              disabled={state.page <= 1 || loading}
-              onClick={() => {
-                void runSearch({ ...state, page: Math.max(1, state.page - 1) });
-              }}
-            >
-              上一页
-            </Button>
-            <Button
-              variant="ghost"
-              disabled={state.page >= totalPages || loading}
-              onClick={() => {
-                void runSearch({ ...state, page: Math.min(totalPages, state.page + 1) });
-              }}
-            >
-              下一页
-            </Button>
-          </div>
+          {totalPages > 1 && (
+            <div className="mt-4 flex items-center justify-between">
+              <Button
+                variant="ghost"
+                disabled={state.page <= 1 || loading}
+                onClick={() => {
+                  void runSearch({ ...state, page: Math.max(1, state.page - 1) });
+                }}
+              >
+                上一页
+              </Button>
+              <Button
+                variant="ghost"
+                disabled={state.page >= totalPages || loading}
+                onClick={() => {
+                  void runSearch({ ...state, page: Math.min(totalPages, state.page + 1) });
+                }}
+              >
+                下一页
+              </Button>
+            </div>
+          )}
         </Card>
       </div>
     </AppShell>

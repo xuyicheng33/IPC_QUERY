@@ -20,7 +20,7 @@ type AppShellProps = {
 };
 
 export function AppShell({
-  title = "ipc_query_system",
+  title = "IPC 查询系统",
   actions,
   showBack = true,
   backHref = "/",
@@ -32,9 +32,9 @@ export function AppShell({
     actions && actions.length > 0
       ? actions
       : [
-          { href: "/search", label: "搜索", icon: <MaterialSymbol name="search" size={18} /> },
-          { href: "/db", label: "数据库", icon: <MaterialSymbol name="database" size={18} /> },
-        ];
+        { href: "/search", label: "搜索", icon: <MaterialSymbol name="search" size={18} /> },
+        { href: "/db", label: "数据库", icon: <MaterialSymbol name="database" size={18} /> },
+      ];
 
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "background.default", color: "text.primary" }}>
@@ -46,28 +46,28 @@ export function AppShell({
                 <Typography variant="h6">{title}</Typography>
               </a>
               <Stack component="nav" direction="row" spacing={1} flexWrap="wrap" aria-label="主导航">
-            {showBack ? (
-              <Button
-                variant="ghost"
-                startIcon={<MaterialSymbol name="arrow_back" size={18} />}
-                onClick={() => {
-                  if (window.history.length > 1) {
-                    window.history.back();
-                    return;
-                  }
-                  window.location.href = backHref;
-                }}
-              >
-                {backLabel}
-              </Button>
-            ) : null}
-            {nav.map((item) => (
-              <a key={item.href} href={item.href}>
-                <Button variant="ghost" startIcon={item.icon}>
-                  {item.label}
-                </Button>
-              </a>
-            ))}
+                {showBack ? (
+                  <Button
+                    variant="ghost"
+                    startIcon={<MaterialSymbol name="arrow_back" size={18} />}
+                    onClick={() => {
+                      if (window.history.length > 1) {
+                        window.history.back();
+                        return;
+                      }
+                      window.location.href = backHref;
+                    }}
+                  >
+                    {backLabel}
+                  </Button>
+                ) : null}
+                {nav.map((item) => (
+                  <a key={item.href} href={item.href}>
+                    <Button variant="ghost" startIcon={item.icon}>
+                      {item.label}
+                    </Button>
+                  </a>
+                ))}
               </Stack>
             </Stack>
           </Container>

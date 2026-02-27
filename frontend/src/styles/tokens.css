@@ -9,6 +9,12 @@
   --accent-hover: #004a75;
   --accent-soft: #d8e7f4;
   --danger: #ba1a1a;
+  --success: #1a6b3a;
+  --success-soft: #d3f0e0;
+  --warning: #8a5c00;
+  --warning-soft: #fdf0d3;
+  --info: #00639b;
+  --info-soft: #d8e7f4;
 
   --font-sans: "Roboto", "Noto Sans SC", "PingFang SC", "Segoe UI", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
