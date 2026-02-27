@@ -138,11 +138,23 @@ export type MoveDocResponse = {
   pdf_name: string;
 };
 
+export type DbActionPhase = "idle" | "pending" | "success" | "error";
+export type DbGlobalActionKey = "upload" | "batchDelete" | "rescan" | "createFolder";
+export type DbGlobalActionState = Record<
+  DbGlobalActionKey,
+  {
+    phase: DbActionPhase;
+    message: string;
+    updatedAt: number;
+    error?: string;
+  }
+>;
+
 export type DbRowActionState = {
   mode: "normal" | "renaming" | "moving";
   value: string;
   error: string;
-  phase?: "idle" | "pending" | "success" | "error";
+  phase: DbActionPhase;
 };
 
 export type LegacyHistoryItem = {

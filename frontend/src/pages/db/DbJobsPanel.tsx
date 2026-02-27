@@ -2,16 +2,7 @@ import React from "react";
 import { Box, CircularProgress, Typography } from "@mui/material";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
-import type { JobStatus } from "@/lib/types";
-
-type DisplayJob = {
-  rowId: string;
-  kind: "import" | "scan";
-  status: JobStatus;
-  pathText: string;
-  error: string;
-  updatedAt: number;
-};
+import type { DisplayJob } from "@/pages/db/useDbJobsPolling";
 
 type DbJobsPanelProps = {
   jobs: DisplayJob[];
@@ -49,5 +40,3 @@ export function DbJobsPanel({ jobs }: DbJobsPanelProps) {
     </Card>
   );
 }
-
-export type { DisplayJob };

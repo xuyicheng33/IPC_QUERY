@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import { buildDbUrl } from "@/lib/urlState";
-import type { CapabilitiesResponse } from "@/lib/types";
+import type { CapabilitiesResponse, DbActionPhase } from "@/lib/types";
 
 type DbToolbarPanelProps = {
   breadcrumbParts: string[];
@@ -15,8 +15,7 @@ type DbToolbarPanelProps = {
   capabilities: CapabilitiesResponse;
   importDisabledReason: string;
   scanDisabledReason: string;
-  actionResult: string;
-  actionError: boolean;
+  actionFeedback: { phase: DbActionPhase; message: string } | null;
   onNavigate: (path: string) => void;
   onUploadFiles: (files: File[]) => void;
   onDeleteSelected: () => void;
@@ -34,8 +33,7 @@ export function DbToolbarPanel({
   capabilities,
   importDisabledReason,
   scanDisabledReason,
-  actionResult,
-  actionError,
+  actionFeedback,
   onNavigate,
   onUploadFiles,
   onDeleteSelected,
@@ -161,9 +159,12 @@ export function DbToolbarPanel({
         </Button>
       </form>
 
-      {actionResult ? (
-        <Alert severity={actionError ? "error" : "success"} variant="outlined">
-          {actionResult}
+      {actionFeedback ? (
+        <Alert
+          severity={actionFeedback.phase === "error" ? "error" : actionFeedback.phase === "pending" ? "info" : "success"}
+          variant="outlined"
+        >
+          {actionFeedback.message}
         </Alert>
       ) : null}
     </>
