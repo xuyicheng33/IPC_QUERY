@@ -1,57 +1,56 @@
 # 维护与清理规则
 
-## 必须遵守的提交规则
-
-不要提交以下运行态文件：
+## 不应提交的文件
 
 - Python 缓存：`__pycache__/`、`*.pyc`
-- 测试缓存：`.pytest_cache/`
-- 类型检查缓存：`.mypy_cache/`
+- 测试/类型缓存：`.pytest_cache/`、`.mypy_cache/`
 - 覆盖率文件：`.coverage*`
-- 临时目录：`tmp/`
+- 本地运行临时目录：`tmp/`
 - SQLite 运行侧文件：`*.sqlite-wal`、`*.sqlite-shm`
-- 本地运行数据：`data/pdfs/`、`data/uploads/`、`data/ipc.sqlite`
+- 本地运行数据：`data/ipc.sqlite`、`data/pdfs/`、`data/uploads/`
+- 本地 Agent/IDE 个性化配置：`.claude/`、`.vscode/`（如存在）
 
-## QA 样本维护流程
+## 日常维护约定
 
-1. 稳定样本放入 `data/fixtures/qa/baseline/`。
-2. 自动扫描或实验样本放入 `data/fixtures/qa/archive/`。
-3. 只有长期回归需要时，才从 `archive` 提升到 `baseline`。
+- 新功能优先扩展 `ipc_query/`、`frontend/`、`tests/`。
+- 历史入口只归档到 `legacy/`，不在其上继续叠加新逻辑。
+- `web/` 为前端构建产物；改动前端源码后应重新构建并更新该目录。
 
-## 脚本维护策略
+## 文档维护约定
 
-- 日常可执行脚本统一放在 `scripts/`。
-- 历史入口或弃用脚本放入 `legacy/`。
-- 根目录只保留必要入口（当前仅保留 `build_db.py` 兼容壳）。
+- `README.md` 保持“新用户 1 分钟能启动”。
+- `docs/README.md` 维护文档入口。
+- 历史过程文档统一放入 `docs/archive/`，避免干扰主文档。
 
-## 每次整理后的最小检查清单
+## 提交前最小检查清单
 
 ```bash
-# 1) 不应有被跟踪的 pycache/pyc
-git ls-files | rg "__pycache__|\\.pyc$"
+# 1) 工作区检查
+git status
 
-# 2) 文档不应包含过时 demo 默认路径
-rg -n "demo_coords/" README.md docs scripts
-
-# 3) 主要入口可运行
-python3 build_db.py --help
-python3 -m ipc_query --help
-python3 scripts/tools/query_db.py --help
-python3 legacy/web_server.py --help
-
-# 4) 自动化测试
+# 2) 运行测试
 pytest
+node --test tests/web/*.test.mjs
 
-# 5) 核心类型门禁（阻断）
+# 3) 类型检查（可选但建议）
 mypy ipc_query cli
-
-# 6) 脚本类型门禁（扩展）
 mypy scripts
 ```
 
-## 类型问题常见修复规范
+## 发布检查清单
 
-- `reconfigure` 兼容调用：使用 `getattr(sys.stdout, "reconfigure", None)` 并在 `callable(...)` 后调用。
-- 正则匹配结果：先保存 `match = RE.search(...)`，再在 `if match:` 分支访问 `match.group(...)`。
-- 字典推断过窄：需要写入复杂值时，先标注 `result: dict[str, Any] = {...}`。
-- 连接关闭语义：`close_all()` 必须关闭所有登记连接，不应只关闭当前线程连接。
+```bash
+# 1) 确认在 main 且已同步远端
+git checkout main
+git pull --ff-only
+
+# 2) 打版本标签（示例）
+git tag -a vX.Y.Z -m "Release vX.Y.Z"
+
+# 3) 推送
+git push origin main
+git push origin vX.Y.Z
+```
+
+然后在 GitHub Releases 页面基于对应 tag 发布 release。
+

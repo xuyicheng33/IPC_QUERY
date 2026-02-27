@@ -25,3 +25,7 @@ data/uploads/
 
 # macOS
 .DS_Store
+
+# Local agent/editor settings
+.claude/
+.vscode/

@@ -2,40 +2,38 @@
 
 ## 一级目录职责
 
-- `ipc_query/`: 主应用代码（API/服务/数据库/配置）
-- `cli/`: 命令行入口定义
-- `web/`: 前端静态资源
-- `tests/`: 单元和集成测试
-- `scripts/`: 日常脚本实现（qa/tools）
-- `data/fixtures/`: 受版本管理的样本与固定数据
-- `docs/`: 维护与结构文档
-- `legacy/`: 历史入口和历史资料归档
+- `ipc_query/`：后端核心实现（API、服务、数据库、配置）
+- `frontend/`：React + Vite 前端源码（开发入口）
+- `web/`：前端构建产物（运行时静态资源）
+- `tests/`：单元、集成与前端测试
+- `scripts/`：QA 和工具脚本
+- `data/fixtures/`：可提交的固定样本数据
+- `docs/`：维护文档与历史归档
+- `legacy/`：历史入口与历史资料（归档，不建议继续扩展）
 
 ## 根目录收敛原则
 
-- 根目录只保留项目主入口和基础工程文件。
-- 历史脚本不再平铺在根目录，统一移入 `legacy/` 或 `scripts/`。
-- `build_db.py` 保留为兼容壳，实际实现在 `ipc_query/build_db.py`。
+- 根目录只放工程入口和基础配置文件。
+- 历史脚本不再平铺在根目录，统一放入 `legacy/` 或 `scripts/`。
+- `build_db.py` 仅作为兼容壳入口，真实实现位于 `ipc_query/build_db.py`。
 
-## scripts 目录规则
+## docs 组织策略
 
-- `scripts/qa/`: QA 样本生成、校验、PDF truth 工具
-- `scripts/tools/`: 查询、数据库对比等实用工具
-
-## data/fixtures 目录规则
-
-- `data/fixtures/qa/baseline/`: 长期保留的基线样本
-- `data/fixtures/qa/archive/`: 自动生成或历史样本归档
+- 日常文档：放在 `docs/` 根目录（如 `README.md`、`MAINTENANCE.md`、`STRUCTURE.md`）。
+- 历史过程文档：放入 `docs/archive/`（例如 UI 重建过程文档）。
 
 ## 新文件放置决策表
 
-| 文件类型 | 放置位置 |
+| 文件类型 | 建议位置 |
 |---|---|
 | 主服务代码 | `ipc_query/` |
-| CLI 参数与命令定义 | `cli/` |
+| 前端页面与组件源码 | `frontend/` |
+| 前端构建产物 | `web/` |
 | QA 检查/生成脚本 | `scripts/qa/` |
-| 临时分析/比对工具 | `scripts/tools/` |
-| 历史或弃用入口 | `legacy/` |
-| 需提交的样本数据 | `data/fixtures/` |
+| 工具脚本 | `scripts/tools/` |
+| 历史/弃用入口 | `legacy/` |
+| 版本管理样本 | `data/fixtures/` |
 | 运行态临时产物 | `tmp/`（不提交） |
-| 维护说明文档 | `docs/` |
+| 日常维护文档 | `docs/` |
+| 历史文档归档 | `docs/archive/` |
+
