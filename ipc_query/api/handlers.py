@@ -17,7 +17,7 @@ from urllib.parse import parse_qs
 from ..config import Config
 from ..db.connection import Database
 from ..db.repository import DocumentRepository
-from ..exceptions import IpcQueryError, NotFoundError, PartNotFoundError
+from ..exceptions import ConflictError, IpcQueryError, NotFoundError, PartNotFoundError
 from ..exceptions import ValidationError
 from ..services.importer import ImportService
 from ..services.render import RenderService
@@ -142,16 +142,22 @@ class ApiHandlers:
         if not target.exists() or not target.is_dir():
             raise NotFoundError(f"Folder not found: {rel or '/'}")
 
-        docs_by_rel: dict[str, dict[str, Any]] = {}
-        docs_by_name: dict[str, dict[str, Any]] = {}
-        for d in self._docs.get_all():
-            payload = d.to_dict()
-            rp = str(payload.get("relative_path") or payload.get("pdf_name") or "").replace("\\", "/").strip("/")
-            name = str(payload.get("pdf_name") or "").strip()
-            if rp:
-                docs_by_rel[rp] = payload
-            if name and name not in docs_by_name:
-                docs_by_name[name] = payload
+        docs_by_rel: dict[str, dict[str, Any]]
+        docs_by_name: dict[str, dict[str, Any]]
+        lookup_fn = getattr(self._docs, "get_lookup_for_dir", None)
+        if callable(lookup_fn):
+            docs_by_rel, docs_by_name = lookup_fn(rel)
+        else:
+            docs_by_rel = {}
+            docs_by_name = {}
+            for d in self._docs.get_all():
+                payload = d.to_dict()
+                rp = str(payload.get("relative_path") or payload.get("pdf_name") or "").replace("\\", "/").strip("/")
+                name = str(payload.get("pdf_name") or "").strip()
+                if rp:
+                    docs_by_rel[rp] = payload
+                if name and name not in docs_by_name:
+                    docs_by_name[name] = payload
 
         dirs: list[dict[str, Any]] = []
         files: list[dict[str, Any]] = []
@@ -214,6 +220,7 @@ class ApiHandlers:
                     "path": str(raw_path),
                     "ok": False,
                     "error": "path must be a string",
+                    "error_code": "VALIDATION_ERROR",
                 })
                 continue
 
@@ -223,6 +230,7 @@ class ApiHandlers:
                     "path": path,
                     "ok": False,
                     "error": "Missing filename",
+                    "error_code": "VALIDATION_ERROR",
                 })
                 continue
 
@@ -232,12 +240,31 @@ class ApiHandlers:
                     deleted += 1
                     results.append({"path": path, "ok": True, "detail": detail})
                 else:
-                    results.append({"path": path, "ok": False, "error": f"PDF not found: {path}"})
-            except (ValidationError, NotFoundError) as e:
-                results.append({"path": path, "ok": False, "error": str(e)})
+                    results.append({
+                        "path": path,
+                        "ok": False,
+                        "error": f"PDF not found: {path}",
+                        "error_code": "NOT_FOUND",
+                    })
+            except (ValidationError, NotFoundError, ConflictError) as e:
+                item = {
+                    "path": path,
+                    "ok": False,
+                    "error": str(e),
+                    "error_code": getattr(e, "code", "VALIDATION_ERROR"),
+                }
+                details = getattr(e, "details", None)
+                if details:
+                    item["details"] = details
+                results.append(item)
             except Exception as e:
                 logger.exception("Batch delete failed", extra_fields={"path": path})
-                results.append({"path": path, "ok": False, "error": str(e)})
+                results.append({
+                    "path": path,
+                    "ok": False,
+                    "error": str(e),
+                    "error_code": "INTERNAL_ERROR",
+                })
 
         total = len(paths)
         payload = {
@@ -348,6 +375,7 @@ class ApiHandlers:
         self,
         pdf_name: str,
         page_str: str,
+        scale_str: str | None = None,
     ) -> tuple[int, bytes | Path, str]:
         """
         处理渲染请求
@@ -359,8 +387,13 @@ class ApiHandlers:
         except ValueError:
             raise NotFoundError("Invalid page number")
 
+        try:
+            scale = float((scale_str or "").strip() or "2.0")
+        except ValueError:
+            scale = 2.0
+
         # 渲染页面
-        cache_path = self._render.render_page(pdf_name, page, scale=2.0)
+        cache_path = self._render.render_page(pdf_name, page, scale=scale)
 
         return HTTPStatus.OK, cache_path, "image/png"
 
@@ -470,6 +503,8 @@ class ApiHandlers:
             status = HTTPStatus.BAD_REQUEST
             if isinstance(error, NotFoundError):
                 status = HTTPStatus.NOT_FOUND
+            elif isinstance(error, ConflictError):
+                status = HTTPStatus.CONFLICT
             return status, _json_bytes(error.to_dict()), "application/json"
 
         # 未知错误

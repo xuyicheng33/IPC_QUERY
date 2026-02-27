@@ -18,7 +18,7 @@ from ipc_query.services import scanner as scanner_module
 _PDF_PAYLOAD = b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n"
 
 
-def _make_config(tmp_path: Path, db_path: Path) -> Config:
+def _make_config(tmp_path: Path, db_path: Path, *, import_mode: str = "auto") -> Config:
     pdf_dir = tmp_path / "pdfs"
     cache_dir = tmp_path / "cache"
     cfg = Config(
@@ -29,6 +29,7 @@ def _make_config(tmp_path: Path, db_path: Path) -> Config:
         pdf_dir=pdf_dir,
         upload_dir=pdf_dir,
         cache_dir=cache_dir,
+        import_mode=import_mode,
     )
     cfg.ensure_directories()
     return cfg
@@ -139,6 +140,21 @@ def test_folders_tree_import_and_scan(tmp_path: Path, monkeypatch) -> None:
         scan_terminal = _wait_job(port, f"/api/scan/{scan_job['job_id']}")
         assert scan_terminal["status"] == "success"
         assert int(scan_terminal["summary"]["scanned_files"]) >= 1
+    finally:
+        server.stop()
+        thread.join(timeout=3.0)
+
+
+def test_scan_disabled_when_import_mode_is_disabled(tmp_path: Path) -> None:
+    db_path = tmp_path / "data.sqlite"
+    cfg = _make_config(tmp_path, db_path, import_mode="disabled")
+    server = create_server(cfg)
+    thread, port = _start_server(server)
+    try:
+        status_scan, scan_body = _request_json(port, "POST", "/api/scan?path=engine")
+        assert status_scan == 400
+        assert scan_body["error"] == "VALIDATION_ERROR"
+        assert "not enabled" in scan_body["message"].lower()
     finally:
         server.stop()
         thread.join(timeout=3.0)

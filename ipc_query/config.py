@@ -55,6 +55,18 @@ def _database_path_from_env() -> Path:
     )
 
 
+def _parse_import_mode(value: str) -> str:
+    mode = (value or "").strip().lower()
+    if not mode:
+        return "auto"
+    if mode not in {"auto", "enabled", "disabled"}:
+        raise ConfigurationError(
+            "IMPORT_MODE must be one of: auto, enabled, disabled",
+            details={"import_mode": value},
+        )
+    return mode
+
+
 @dataclass
 class Config:
     """应用配置"""
@@ -83,6 +95,7 @@ class Config:
     import_queue_size: int = 8
     import_job_timeout_s: int = 600
     import_jobs_retained: int = 1000
+    import_mode: str = "auto"  # auto | enabled | disabled
 
     # 日志配置
     log_level: str = "INFO"
@@ -118,6 +131,7 @@ class Config:
             import_queue_size=int(os.getenv("IMPORT_QUEUE_SIZE", "8")),
             import_job_timeout_s=int(os.getenv("IMPORT_JOB_TIMEOUT_S", "600")),
             import_jobs_retained=int(os.getenv("IMPORT_JOBS_RETAINED", "1000")),
+            import_mode=_parse_import_mode(os.getenv("IMPORT_MODE", "auto")),
             log_level=os.getenv("LOG_LEVEL", "INFO"),
             log_format=os.getenv("LOG_FORMAT", "json"),
             default_page_size=int(os.getenv("DEFAULT_PAGE_SIZE", "20")),
@@ -176,6 +190,7 @@ class Config:
             "import_queue_size": self.import_queue_size,
             "import_job_timeout_s": self.import_job_timeout_s,
             "import_jobs_retained": self.import_jobs_retained,
+            "import_mode": self.import_mode,
             "log_level": self.log_level,
             "log_format": self.log_format,
         }

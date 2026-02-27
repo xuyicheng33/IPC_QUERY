@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from build_db import ensure_schema
-from ipc_query.exceptions import ValidationError
+from ipc_query.exceptions import ConflictError, ValidationError
 from ipc_query.services import importer as importer_module
 from ipc_query.services.importer import ImportService
 
@@ -209,6 +209,111 @@ def test_delete_document_returns_deleted_false_when_missing(tmp_path: Path) -> N
         assert result["deleted"] is False
         assert result["file_deleted"] is False
         assert result["deleted_counts"] == {"pages": 0, "parts": 0, "xrefs": 0, "aliases": 0}
+    finally:
+        service.stop()
+
+
+def test_delete_document_by_relative_path_is_exact(tmp_path: Path) -> None:
+    db_path = tmp_path / "db.sqlite"
+    pdf_dir = tmp_path / "pdfs"
+    upload_dir = tmp_path / "uploads"
+    (pdf_dir / "dir1").mkdir(parents=True, exist_ok=True)
+    (pdf_dir / "dir2").mkdir(parents=True, exist_ok=True)
+
+    with sqlite3.connect(str(db_path)) as conn:
+        ensure_schema(conn)
+        conn.execute(
+            "INSERT INTO documents(pdf_name, relative_path, pdf_path, miner_dir, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
+            ("same-dir1.pdf", "dir1/same.pdf", "dir1/same.pdf", "{}"),
+        )
+        conn.execute(
+            "INSERT INTO documents(pdf_name, relative_path, pdf_path, miner_dir, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
+            ("same-dir2.pdf", "dir2/same.pdf", "dir2/same.pdf", "{}"),
+        )
+        conn.commit()
+
+    (pdf_dir / "dir1" / "same.pdf").write_bytes(_PDF_PAYLOAD)
+    (pdf_dir / "dir2" / "same.pdf").write_bytes(_PDF_PAYLOAD)
+    service = ImportService(db_path=db_path, pdf_dir=pdf_dir, upload_dir=upload_dir)
+    try:
+        result = service.delete_document("dir1/same.pdf")
+        assert result["deleted"] is True
+        assert result["relative_path"] == "dir1/same.pdf"
+        assert not (pdf_dir / "dir1" / "same.pdf").exists()
+        assert (pdf_dir / "dir2" / "same.pdf").exists()
+    finally:
+        service.stop()
+
+
+def test_delete_document_basename_conflict_raises(tmp_path: Path) -> None:
+    db_path = tmp_path / "db.sqlite"
+    pdf_dir = tmp_path / "pdfs"
+    upload_dir = tmp_path / "uploads"
+    (pdf_dir / "dir1").mkdir(parents=True, exist_ok=True)
+    (pdf_dir / "dir2").mkdir(parents=True, exist_ok=True)
+
+    with sqlite3.connect(str(db_path)) as conn:
+        # 使用无 UNIQUE(pdf_name) 约束的最小 schema，模拟历史库中同名文档并存。
+        conn.executescript(
+            """
+            CREATE TABLE documents (
+              id INTEGER PRIMARY KEY,
+              pdf_name TEXT NOT NULL,
+              relative_path TEXT NOT NULL,
+              pdf_path TEXT NOT NULL,
+              miner_dir TEXT NOT NULL,
+              created_at TEXT NOT NULL
+            );
+            CREATE TABLE pages (
+              id INTEGER PRIMARY KEY,
+              document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+              page_num INTEGER NOT NULL
+            );
+            CREATE TABLE parts (
+              id INTEGER PRIMARY KEY,
+              document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+              page_num INTEGER NOT NULL,
+              page_end INTEGER NOT NULL,
+              extractor TEXT NOT NULL,
+              row_kind TEXT NOT NULL
+            );
+            CREATE TABLE xrefs (
+              id INTEGER PRIMARY KEY,
+              part_id INTEGER NOT NULL REFERENCES parts(id) ON DELETE CASCADE,
+              kind TEXT NOT NULL,
+              target TEXT NOT NULL
+            );
+            CREATE TABLE aliases (
+              id INTEGER PRIMARY KEY,
+              part_id INTEGER NOT NULL REFERENCES parts(id) ON DELETE CASCADE,
+              alias_type TEXT NOT NULL DEFAULT '',
+              alias_value TEXT NOT NULL
+            );
+            CREATE TABLE scan_state (
+              relative_path TEXT PRIMARY KEY,
+              size INTEGER NOT NULL,
+              mtime REAL NOT NULL,
+              content_hash TEXT,
+              updated_at TEXT NOT NULL
+            );
+            """
+        )
+        conn.execute(
+            "INSERT INTO documents(pdf_name, relative_path, pdf_path, miner_dir, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
+            ("same.pdf", "dir1/same.pdf", "dir1/same.pdf", "{}"),
+        )
+        conn.execute(
+            "INSERT INTO documents(pdf_name, relative_path, pdf_path, miner_dir, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
+            ("same.pdf", "dir2/same.pdf", "dir2/same.pdf", "{}"),
+        )
+        conn.commit()
+
+    service = ImportService(db_path=db_path, pdf_dir=pdf_dir, upload_dir=upload_dir)
+    try:
+        with pytest.raises(ConflictError) as exc:
+            service.delete_document("same.pdf")
+        assert exc.value.code == "CONFLICT"
+        assert exc.value.details.get("candidates") == ["dir1/same.pdf", "dir2/same.pdf"]
     finally:
         service.stop()
 

@@ -61,6 +61,18 @@ def test_import_jobs_retained_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     assert config.import_jobs_retained == 321
 
 
+def test_import_mode_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("IMPORT_MODE", "enabled")
+    config = Config.from_env()
+    assert config.import_mode == "enabled"
+
+
+def test_import_mode_invalid_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("IMPORT_MODE", "always-on")
+    with pytest.raises(ConfigurationError):
+        Config.from_env()
+
+
 def test_from_args_pdf_dir_defaults_upload_dir_to_same_path(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("PDF_DIR", raising=False)
     monkeypatch.delenv("UPLOAD_DIR", raising=False)

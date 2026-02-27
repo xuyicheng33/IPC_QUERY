@@ -40,6 +40,12 @@ python3 -m ipc_query serve --db ./data/ipc.sqlite --port 8791
 
 访问：`http://127.0.0.1:8791`
 
+### Docker 运行模式
+
+- 只读查询模式（默认）：`IMPORT_MODE=disabled` 且 `PDF_MOUNT_MODE=ro`
+- 可写管理模式：`IMPORT_MODE=enabled` 且 `PDF_MOUNT_MODE=rw`
+- 自动模式：`IMPORT_MODE=auto`（根据数据库与目录写权限自动启停导入/删除/重扫）
+
 ## Web 交互
 
 - 首页：`/`（仅标题 + 搜索框 + 搜索按钮）
@@ -120,6 +126,7 @@ python3 -m ipc_query serve --db ./data/ipc.sqlite --port 8791
 | `IMPORT_QUEUE_SIZE` | 导入队列长度 | `8` |
 | `IMPORT_JOB_TIMEOUT_S` | 导入超时预算（秒） | `600` |
 | `IMPORT_JOBS_RETAINED` | 保留导入任务数 | `1000` |
+| `IMPORT_MODE` | 导入/删除/重扫模式（`auto/enabled/disabled`） | `auto` |
 | `DEFAULT_PAGE_SIZE` | 默认搜索分页大小 | `20` |
 | `MAX_PAGE_SIZE` | 最大搜索分页大小 | `100` |
 | `CACHE_SIZE` | 缓存大小 | `1000` |

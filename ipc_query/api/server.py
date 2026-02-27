@@ -6,7 +6,6 @@ HTTP服务器模块
 
 from __future__ import annotations
 
-import mimetypes
 import re
 import sqlite3
 import uuid
@@ -217,7 +216,9 @@ class RequestHandler(BaseHTTPRequestHandler):
                 if match:
                     pdf_name_raw, page = match.groups()
                     pdf_name = unquote(pdf_name_raw)
-                    status, render_body, ct = self.handlers.handle_render(pdf_name, page)
+                    qs = parse_qs(query_string) if query_string else {}
+                    scale_raw = (qs.get("scale") or [""])[0]
+                    status, render_body, ct = self.handlers.handle_render(pdf_name, page, scale_raw)
                     if isinstance(render_body, Path):
                         # 发送图片文件
                         self.send_response(status)
@@ -262,7 +263,6 @@ class RequestHandler(BaseHTTPRequestHandler):
                 # 静态文件
                 status, static_body, ct = self.handlers.handle_static(path)
                 if isinstance(static_body, Path):
-                    ct = mimetypes.guess_type(str(static_body))[0] or "application/octet-stream"
                     size = static_body.stat().st_size
                     self.send_response(status)
                     self.send_header("Content-Type", ct)
@@ -517,6 +517,57 @@ def _is_database_writable(db_path: Path) -> bool:
         conn.close()
 
 
+def _is_directory_writable(path: Path) -> bool:
+    """检测目录是否可写。"""
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return False
+
+    probe_path = path / f".__ipc_write_probe_{uuid.uuid4().hex}"
+    try:
+        probe_path.write_bytes(b"1")
+        probe_path.unlink(missing_ok=True)
+        return True
+    except OSError:
+        try:
+            probe_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return False
+
+
+def _resolve_import_enablement(config: Config) -> tuple[bool, dict[str, Any]]:
+    mode = (config.import_mode or "auto").strip().lower()
+    if mode not in {"auto", "enabled", "disabled"}:
+        mode = "auto"
+    if mode == "disabled":
+        return False, {
+            "mode": mode,
+            "reason": "disabled_by_config",
+        }
+
+    db_writable = _is_database_writable(config.database_path)
+    pdf_writable = _is_directory_writable(config.pdf_dir) if config.pdf_dir is not None else False
+    upload_writable = _is_directory_writable(config.upload_dir)
+    fs_writable = pdf_writable and upload_writable
+    enabled = db_writable and fs_writable
+
+    details = {
+        "mode": mode,
+        "db_writable": db_writable,
+        "pdf_dir": str(config.pdf_dir) if config.pdf_dir is not None else None,
+        "pdf_writable": pdf_writable,
+        "upload_dir": str(config.upload_dir),
+        "upload_writable": upload_writable,
+    }
+    if mode == "enabled" and not enabled:
+        details["reason"] = "enabled_but_write_requirements_not_met"
+    elif mode == "auto" and not enabled:
+        details["reason"] = "auto_disabled_due_to_write_requirements"
+    return enabled, details
+
+
 def create_server(config: Config) -> Server:
     """
     创建服务器实例
@@ -561,7 +612,13 @@ def create_server(config: Config) -> Server:
     render_service = create_render_service(config.pdf_dir, config.cache_dir, config)
     import_service: ImportService | None
     scan_service: ScanService | None
-    if _is_database_writable(config.database_path):
+
+    def _on_content_changed() -> None:
+        search_service.clear_cache()
+        render_service.clear_cache()
+
+    import_enabled, enablement_details = _resolve_import_enablement(config)
+    if import_enabled:
         db_write_lock = threading.Lock()
         import_service = ImportService(
             db_path=config.database_path,
@@ -571,22 +628,22 @@ def create_server(config: Config) -> Server:
             queue_size=config.import_queue_size,
             job_timeout_s=config.import_job_timeout_s,
             max_jobs_retained=config.import_jobs_retained,
-            on_success=search_service.clear_cache,
+            on_success=_on_content_changed,
             db_write_lock=db_write_lock,
         )
         scan_service = ScanService(
             db_path=config.database_path,
             pdf_dir=config.pdf_dir,
             max_jobs_retained=config.import_jobs_retained,
-            on_success=search_service.clear_cache,
+            on_success=_on_content_changed,
             db_write_lock=db_write_lock,
         )
     else:
         import_service = None
         scan_service = None
         logger.warning(
-            "Import service disabled because database is readonly",
-            extra_fields={"db_path": str(config.database_path)},
+            "Import service disabled",
+            extra_fields=enablement_details,
         )
 
     # 预热

@@ -148,6 +148,13 @@ class ValidationError(IpcQueryError):
         super().__init__(message, code="VALIDATION_ERROR", details=details)
 
 
+class ConflictError(IpcQueryError):
+    """资源冲突错误"""
+
+    def __init__(self, message: str, details: dict[str, Any] | None = None):
+        super().__init__(message, code="CONFLICT", details=details)
+
+
 class RateLimitError(IpcQueryError):
     """请求频率限制错误"""
 

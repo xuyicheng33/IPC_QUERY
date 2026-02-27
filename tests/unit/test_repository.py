@@ -119,6 +119,24 @@ class TestDocumentRepository:
         assert doc is not None
         assert doc.id == 1
 
+    def test_get_lookup_for_dir_root(self, doc_repo: DocumentRepository, sample_db: sqlite3.Connection) -> None:
+        docs_by_rel, docs_by_name = doc_repo.get_lookup_for_dir("")
+        assert "test_doc.pdf" in docs_by_rel
+        assert "test_doc.pdf" in docs_by_name
+
+    def test_get_lookup_for_dir_subdir(self, doc_repo: DocumentRepository, sample_db: sqlite3.Connection) -> None:
+        sample_db.execute(
+            """
+            INSERT INTO documents (pdf_name, relative_path, pdf_path, miner_dir)
+            VALUES ('subdoc.pdf', 'sub/subdoc.pdf', '/tmp/sub/subdoc.pdf', '{}')
+            """
+        )
+        sample_db.commit()
+
+        docs_by_rel, docs_by_name = doc_repo.get_lookup_for_dir("sub")
+        assert "sub/subdoc.pdf" in docs_by_rel
+        assert "subdoc.pdf" in docs_by_name
+
 
 class TestPartRepository:
     """PartRepository 测试"""
@@ -260,6 +278,25 @@ class TestPartRepositorySearchByTerm:
         results, total = part_repo.search_by_term("BRACK")
 
         assert total >= 1
+
+    def test_search_by_term_is_case_insensitive_for_lowercase_data(
+        self, part_repo: PartRepository, sample_db: sqlite3.Connection
+    ) -> None:
+        sample_db.execute(
+            """
+            INSERT INTO parts (
+                document_id, page_num, figure_code, row_kind,
+                fig_item_raw, fig_item_no, not_illustrated,
+                part_number_cell, part_number_extracted, part_number_canonical,
+                nom_level, nomenclature, nomenclature_clean, parent_part_id
+            ) VALUES (1, 1, 'C', 'part', '7', '7', 0, 'LOWER-1', 'LOWER-1', 'LOWER-1', 1, 'lower bracket', 'lower bracket', NULL)
+            """
+        )
+        sample_db.commit()
+
+        results, total = part_repo.search_by_term("LOWER")
+        assert total >= 1
+        assert any((r.get("part_number_canonical") or "") == "LOWER-1" for r in results)
 
     def test_search_by_term_empty_query(
         self, part_repo: PartRepository, sample_db: sqlite3.Connection

@@ -356,7 +356,18 @@ async function initDbPage() {
     const results = Array.isArray(payload?.results) ? payload.results : [];
     const failed = results.filter((r) => !r?.ok);
     if (failed.length === 0) return "";
-    const sample = failed.slice(0, 3).map((r) => `${r.path || "-"}: ${r.error || "unknown error"}`);
+    const sample = failed.slice(0, 3).map((r) => {
+      const path = (r?.path || "-").toString();
+      const code = (r?.error_code || "").toString().toUpperCase();
+      if (code === "CONFLICT") {
+        const candidates = Array.isArray(r?.details?.candidates)
+          ? r.details.candidates.slice(0, 3).join(", ")
+          : "";
+        const suffix = candidates ? `，候选: ${candidates}` : "";
+        return `${path}: 命名冲突，请使用完整相对路径${suffix}`;
+      }
+      return `${path}: ${r?.error || "unknown error"}`;
+    });
     return sample.join(" | ");
   }
 

@@ -14,11 +14,11 @@ import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 from build_db import ingest_pdfs
 
-from ..exceptions import ValidationError
+from ..exceptions import ConflictError, ValidationError
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -348,6 +348,7 @@ class ImportService:
         """
         safe_identifier = self._normalize_pdf_identifier(pdf_name)
         safe_name = Path(safe_identifier).name
+        is_relative_path = "/" in safe_identifier
         with self._lock:
             for job_id in self._job_order:
                 job = self._jobs.get(job_id)
@@ -355,37 +356,35 @@ class ImportService:
                     continue
                 if job.relative_path() == safe_identifier and job.status in {"queued", "running"}:
                     raise ValidationError("Document is being imported, please retry later")
-                if job.filename == safe_name and job.status in {"queued", "running"}:
+                if (not is_relative_path) and job.filename == safe_name and job.status in {"queued", "running"}:
                     raise ValidationError("Document is being imported, please retry later")
 
         deleted_counts = {"pages": 0, "parts": 0, "xrefs": 0, "aliases": 0}
         raw_pdf_path = ""
+        resolved_relative_path = safe_identifier
         deleted = False
 
         with self._db_write_lock:
             with sqlite3.connect(str(self._db_path), timeout=60.0) as conn:
                 conn.row_factory = sqlite3.Row
                 conn.execute("PRAGMA foreign_keys=ON")
-                row = conn.execute(
-                    """
-                    SELECT id, pdf_name, relative_path, pdf_path
-                    FROM documents
-                    WHERE relative_path = ? OR pdf_name = ?
-                    ORDER BY CASE WHEN relative_path = ? THEN 0 ELSE 1 END
-                    LIMIT 1
-                    """,
-                    (safe_identifier, safe_name, safe_identifier),
-                ).fetchone()
+                row = self._resolve_delete_row(
+                    conn=conn,
+                    safe_identifier=safe_identifier,
+                    safe_name=safe_name,
+                )
                 if row is None:
                     return {
                         "deleted": False,
                         "pdf_name": safe_name,
+                        "relative_path": safe_identifier,
                         "deleted_counts": deleted_counts,
                         "file_deleted": False,
                     }
 
                 doc_id = int(row["id"])
                 safe_name = str(row["pdf_name"] or safe_name)
+                resolved_relative_path = str(row["relative_path"] or safe_identifier)
                 raw_pdf_path = str(row["pdf_path"] or "")
                 deleted_counts["pages"] = int(
                     conn.execute("SELECT COUNT(1) FROM pages WHERE document_id = ?", (doc_id,)).fetchone()[0]
@@ -417,13 +416,13 @@ class ImportService:
                 )
 
                 cur = conn.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
-                conn.execute("DELETE FROM scan_state WHERE relative_path = ?", (safe_identifier,))
+                conn.execute("DELETE FROM scan_state WHERE relative_path = ?", (resolved_relative_path,))
                 conn.commit()
                 deleted = cur.rowcount > 0
 
         file_deleted = False
         if deleted:
-            file_deleted = self._delete_pdf_file(safe_identifier, raw_pdf_path)
+            file_deleted = self._delete_pdf_file(resolved_relative_path, raw_pdf_path)
             if self._on_success:
                 try:
                     self._on_success()
@@ -441,10 +440,69 @@ class ImportService:
         return {
             "deleted": deleted,
             "pdf_name": safe_name,
-            "relative_path": safe_identifier,
+            "relative_path": resolved_relative_path,
             "deleted_counts": deleted_counts,
             "file_deleted": file_deleted,
         }
+
+    def _resolve_delete_row(
+        self,
+        conn: sqlite3.Connection,
+        safe_identifier: str,
+        safe_name: str,
+    ) -> sqlite3.Row | None:
+        if "/" in safe_identifier:
+            rows = conn.execute(
+                """
+                SELECT id, pdf_name, relative_path, pdf_path
+                FROM documents
+                WHERE relative_path = ?
+                ORDER BY id
+                LIMIT 2
+                """,
+                (safe_identifier,),
+            ).fetchall()
+            if not rows:
+                return None
+            if len(rows) > 1:
+                candidates = sorted(
+                    str(r["relative_path"] or r["pdf_name"] or safe_identifier)
+                    for r in rows
+                )
+                raise ConflictError(
+                    "Ambiguous relative path",
+                    details={
+                        "relative_path": safe_identifier,
+                        "candidates": candidates,
+                    },
+                )
+            return cast(sqlite3.Row, rows[0])
+
+        rows = conn.execute(
+            """
+            SELECT id, pdf_name, relative_path, pdf_path
+            FROM documents
+            WHERE pdf_name = ?
+            ORDER BY relative_path, id
+            LIMIT 200
+            """,
+            (safe_name,),
+        ).fetchall()
+        if not rows:
+            return None
+        if len(rows) > 1:
+            candidates = sorted(
+                str(r["relative_path"] or r["pdf_name"] or safe_name)
+                for r in rows
+            )
+            raise ConflictError(
+                "Ambiguous pdf name",
+                details={
+                    "pdf_name": safe_name,
+                    "candidates": candidates,
+                },
+            )
+        return cast(sqlite3.Row, rows[0])
 
     def _normalize_pdf_identifier(self, value: str) -> str:
         raw = (value or "").replace("\\", "/").strip().strip("/")

@@ -6,6 +6,7 @@ PDF渲染服务模块
 
 from __future__ import annotations
 
+import hashlib
 import threading
 import time
 from pathlib import Path
@@ -90,11 +91,19 @@ class RenderService:
         page = max(1, page)
         scale = max(0.5, min(scale, 4.0))
 
-        # 构建缓存文件路径
-        cache_key = re.sub(r"[^A-Za-z0-9._-]+", "_", pdf_name).strip("._")
-        if not cache_key:
-            cache_key = "pdf"
-        cache_filename = f"{cache_key}_{page}_{scale:.1f}.png"
+        # 查找PDF文件
+        pdf_path = self._find_pdf(pdf_name)
+        if pdf_path is None:
+            raise PdfNotFoundError(pdf_name)
+
+        try:
+            stat = pdf_path.stat()
+        except OSError as e:
+            raise PdfNotFoundError(pdf_name) from e
+        identity = self._cache_identity(pdf_name, pdf_path)
+        cache_filename = (
+            f"{identity}_{page}_{scale:.1f}_{int(stat.st_mtime_ns)}_{int(stat.st_size)}.png"
+        )
         cache_path = self._cache_dir / cache_filename
 
         # 检查缓存文件
@@ -114,24 +123,22 @@ class RenderService:
             )
 
         try:
-            return self._do_render(pdf_name, page, scale, cache_path)
+            rendered = self._do_render(pdf_name, pdf_path, page, scale, cache_path)
+            self._prune_old_versions(identity, page, scale, keep=2)
+            return rendered
         finally:
             self._semaphore.release()
 
     def _do_render(
         self,
         pdf_name: str,
+        pdf_path: Path,
         page: int,
         scale: float,
         cache_path: Path,
     ) -> Path:
         """执行渲染"""
         start_time = time.perf_counter()
-
-        # 查找PDF文件
-        pdf_path = self._find_pdf(pdf_name)
-        if pdf_path is None:
-            raise PdfNotFoundError(pdf_name)
 
         try:
             # 打开PDF
@@ -181,6 +188,40 @@ class RenderService:
                 f"Failed to render page: {e}",
                 details={"pdf": pdf_name, "page": page},
             ) from e
+
+    def _cache_identity(self, pdf_name: str, pdf_path: Path) -> str:
+        normalized = self._normalize_pdf_path(pdf_name)
+        if normalized is not None:
+            raw = normalized
+        elif self._pdf_dir is not None:
+            try:
+                raw = pdf_path.resolve().relative_to(self._pdf_dir.resolve()).as_posix()
+            except Exception:
+                raw = pdf_path.name
+        else:
+            raw = pdf_path.as_posix()
+        digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()
+        return digest[:20]
+
+    def _prune_old_versions(self, identity: str, page: int, scale: float, keep: int = 2) -> None:
+        pattern = f"{identity}_{page}_{scale:.1f}_*.png"
+        try:
+            candidates = sorted(
+                self._cache_dir.glob(pattern),
+                key=lambda p: p.stat().st_mtime_ns,
+                reverse=True,
+            )
+        except Exception:
+            return
+
+        for old in candidates[keep:]:
+            try:
+                old.unlink(missing_ok=True)
+            except Exception:
+                logger.debug(
+                    "Failed to prune old render cache file",
+                    extra_fields={"path": str(old)},
+                )
 
     def _find_pdf(self, pdf_name: str) -> Path | None:
         """查找PDF文件"""

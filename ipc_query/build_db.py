@@ -881,173 +881,182 @@ def ingest_pdfs(conn: sqlite3.Connection, pdf_paths: list[Path], base_dir: Path 
             src_docs = src.execute(
                 "SELECT id, pdf_name, relative_path, pdf_path, miner_dir, created_at FROM documents ORDER BY id"
             ).fetchall()
+            txn_open = False
+            try:
+                conn.execute("BEGIN IMMEDIATE")
+                txn_open = True
 
-            for src_doc in src_docs:
-                existing = conn.execute(
-                    "SELECT id FROM documents WHERE relative_path = ? OR pdf_name = ?",
-                    (src_doc["relative_path"], src_doc["pdf_name"]),
-                ).fetchone()
-                if existing is not None:
-                    conn.execute("DELETE FROM documents WHERE id = ?", (existing[0],))
-                    summary["docs_replaced"] += 1
+                for src_doc in src_docs:
+                    existing = conn.execute(
+                        "SELECT id FROM documents WHERE relative_path = ? OR pdf_name = ?",
+                        (src_doc["relative_path"], src_doc["pdf_name"]),
+                    ).fetchone()
+                    if existing is not None:
+                        conn.execute("DELETE FROM documents WHERE id = ?", (existing[0],))
+                        summary["docs_replaced"] += 1
 
-                dst_doc_cur = conn.execute(
-                    """
-                    INSERT INTO documents(pdf_name, relative_path, pdf_path, miner_dir, created_at)
-                    VALUES (?, ?, ?, ?, ?)
-                    """,
-                    (
-                        src_doc["pdf_name"],
-                        src_doc["relative_path"],
-                        src_doc["pdf_path"],
-                        src_doc["miner_dir"],
-                        src_doc["created_at"],
-                    ),
-                )
-                if dst_doc_cur.lastrowid is None:
-                    raise RuntimeError("Failed to insert destination document row")
-                dst_doc_id = int(dst_doc_cur.lastrowid)
-                src_doc_id = int(src_doc["id"])
-                summary["docs_ingested"] += 1
-
-                src_pages = src.execute(
-                    """
-                    SELECT page_num, figure_code, figure_label, date_text, page_token, rf_text
-                    FROM pages
-                    WHERE document_id = ?
-                    ORDER BY page_num
-                    """,
-                    (src_doc_id,),
-                ).fetchall()
-                for page in src_pages:
-                    conn.execute(
+                    dst_doc_cur = conn.execute(
                         """
-                        INSERT INTO pages(document_id, page_num, figure_code, figure_label, date_text, page_token, rf_text)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO documents(pdf_name, relative_path, pdf_path, miner_dir, created_at)
+                        VALUES (?, ?, ?, ?, ?)
                         """,
                         (
-                            dst_doc_id,
-                            page["page_num"],
-                            page["figure_code"],
-                            page["figure_label"],
-                            page["date_text"],
-                            page["page_token"],
-                            page["rf_text"],
+                            src_doc["pdf_name"],
+                            src_doc["relative_path"],
+                            src_doc["pdf_path"],
+                            src_doc["miner_dir"],
+                            src_doc["created_at"],
                         ),
                     )
+                    if dst_doc_cur.lastrowid is None:
+                        raise RuntimeError("Failed to insert destination document row")
+                    dst_doc_id = int(dst_doc_cur.lastrowid)
+                    src_doc_id = int(src_doc["id"])
+                    summary["docs_ingested"] += 1
 
-                src_parts = src.execute(
-                    """
-                    SELECT
-                      id, page_num, page_end, extractor, meta_data_raw, figure_code,
-                      fig_item_raw, fig_item_no, fig_item_no_source, not_illustrated,
-                      part_number_cell, part_number_extracted, part_number_canonical,
-                      pn_corrected, pn_method, pn_best_similarity, pn_needs_review, correction_note,
-                      row_kind, nom_level, nomenclature_clean, parent_part_id, attached_to_part_id,
-                      nomenclature, effectivity, units_per_assy, miner_table_img_path
-                    FROM parts
-                    WHERE document_id = ?
-                    ORDER BY id
-                    """,
-                    (src_doc_id,),
-                ).fetchall()
-
-                max_part_id = int(conn.execute("SELECT COALESCE(MAX(id), 0) FROM parts").fetchone()[0])
-                part_id_map: dict[int, int] = {}
-                for idx, src_part in enumerate(src_parts, start=1):
-                    part_id_map[int(src_part["id"])] = max_part_id + idx
-
-                for src_part in src_parts:
-                    src_part_id = int(src_part["id"])
-                    dst_part_id = part_id_map[src_part_id]
-                    src_parent_id = src_part["parent_part_id"]
-                    src_attached_id = src_part["attached_to_part_id"]
-                    dst_parent_id = part_id_map.get(int(src_parent_id)) if src_parent_id is not None else None
-                    dst_attached_id = part_id_map.get(int(src_attached_id)) if src_attached_id is not None else None
-
-                    conn.execute(
+                    src_pages = src.execute(
                         """
-                        INSERT INTO parts(
-                          id, document_id, page_num, page_end, extractor, meta_data_raw, figure_code,
+                        SELECT page_num, figure_code, figure_label, date_text, page_token, rf_text
+                        FROM pages
+                        WHERE document_id = ?
+                        ORDER BY page_num
+                        """,
+                        (src_doc_id,),
+                    ).fetchall()
+                    for page in src_pages:
+                        conn.execute(
+                            """
+                            INSERT INTO pages(document_id, page_num, figure_code, figure_label, date_text, page_token, rf_text)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                dst_doc_id,
+                                page["page_num"],
+                                page["figure_code"],
+                                page["figure_label"],
+                                page["date_text"],
+                                page["page_token"],
+                                page["rf_text"],
+                            ),
+                        )
+
+                    src_parts = src.execute(
+                        """
+                        SELECT
+                          id, page_num, page_end, extractor, meta_data_raw, figure_code,
                           fig_item_raw, fig_item_no, fig_item_no_source, not_illustrated,
                           part_number_cell, part_number_extracted, part_number_canonical,
                           pn_corrected, pn_method, pn_best_similarity, pn_needs_review, correction_note,
                           row_kind, nom_level, nomenclature_clean, parent_part_id, attached_to_part_id,
                           nomenclature, effectivity, units_per_assy, miner_table_img_path
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        FROM parts
+                        WHERE document_id = ?
+                        ORDER BY id
                         """,
-                        (
-                            dst_part_id,
-                            dst_doc_id,
-                            src_part["page_num"],
-                            src_part["page_end"],
-                            src_part["extractor"],
-                            src_part["meta_data_raw"],
-                            src_part["figure_code"],
-                            src_part["fig_item_raw"],
-                            src_part["fig_item_no"],
-                            src_part["fig_item_no_source"],
-                            src_part["not_illustrated"],
-                            src_part["part_number_cell"],
-                            src_part["part_number_extracted"],
-                            src_part["part_number_canonical"],
-                            src_part["pn_corrected"],
-                            src_part["pn_method"],
-                            src_part["pn_best_similarity"],
-                            src_part["pn_needs_review"],
-                            src_part["correction_note"],
-                            src_part["row_kind"],
-                            src_part["nom_level"],
-                            src_part["nomenclature_clean"],
-                            dst_parent_id,
-                            dst_attached_id,
-                            src_part["nomenclature"],
-                            src_part["effectivity"],
-                            src_part["units_per_assy"],
-                            src_part["miner_table_img_path"],
-                        ),
-                    )
-                summary["parts_ingested"] += len(src_parts)
+                        (src_doc_id,),
+                    ).fetchall()
 
-                src_xrefs = src.execute(
-                    """
-                    SELECT x.part_id, x.kind, x.target
-                    FROM xrefs x
-                    JOIN parts p ON p.id = x.part_id
-                    WHERE p.document_id = ?
-                    """,
-                    (src_doc_id,),
-                ).fetchall()
-                for xref in src_xrefs:
-                    mapped_part_id = part_id_map.get(int(xref["part_id"]))
-                    if mapped_part_id is None:
-                        continue
-                    conn.execute(
-                        "INSERT INTO xrefs(part_id, kind, target) VALUES (?, ?, ?)",
-                        (mapped_part_id, xref["kind"], xref["target"]),
-                    )
-                summary["xrefs_ingested"] += len(src_xrefs)
+                    max_part_id = int(conn.execute("SELECT COALESCE(MAX(id), 0) FROM parts").fetchone()[0])
+                    part_id_map: dict[int, int] = {}
+                    for idx, src_part in enumerate(src_parts, start=1):
+                        part_id_map[int(src_part["id"])] = max_part_id + idx
 
-                src_aliases = src.execute(
-                    """
-                    SELECT a.part_id, a.alias_type, a.alias_value
-                    FROM aliases a
-                    JOIN parts p ON p.id = a.part_id
-                    WHERE p.document_id = ?
-                    """,
-                    (src_doc_id,),
-                ).fetchall()
-                for alias in src_aliases:
-                    mapped_part_id = part_id_map.get(int(alias["part_id"]))
-                    if mapped_part_id is None:
-                        continue
-                    conn.execute(
-                        "INSERT INTO aliases(part_id, alias_type, alias_value) VALUES (?, ?, ?)",
-                        (mapped_part_id, alias["alias_type"], alias["alias_value"]),
-                    )
-                summary["aliases_ingested"] += len(src_aliases)
+                    for src_part in src_parts:
+                        src_part_id = int(src_part["id"])
+                        dst_part_id = part_id_map[src_part_id]
+                        src_parent_id = src_part["parent_part_id"]
+                        src_attached_id = src_part["attached_to_part_id"]
+                        dst_parent_id = part_id_map.get(int(src_parent_id)) if src_parent_id is not None else None
+                        dst_attached_id = part_id_map.get(int(src_attached_id)) if src_attached_id is not None else None
+
+                        conn.execute(
+                            """
+                            INSERT INTO parts(
+                              id, document_id, page_num, page_end, extractor, meta_data_raw, figure_code,
+                              fig_item_raw, fig_item_no, fig_item_no_source, not_illustrated,
+                              part_number_cell, part_number_extracted, part_number_canonical,
+                              pn_corrected, pn_method, pn_best_similarity, pn_needs_review, correction_note,
+                              row_kind, nom_level, nomenclature_clean, parent_part_id, attached_to_part_id,
+                              nomenclature, effectivity, units_per_assy, miner_table_img_path
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                dst_part_id,
+                                dst_doc_id,
+                                src_part["page_num"],
+                                src_part["page_end"],
+                                src_part["extractor"],
+                                src_part["meta_data_raw"],
+                                src_part["figure_code"],
+                                src_part["fig_item_raw"],
+                                src_part["fig_item_no"],
+                                src_part["fig_item_no_source"],
+                                src_part["not_illustrated"],
+                                src_part["part_number_cell"],
+                                src_part["part_number_extracted"],
+                                src_part["part_number_canonical"],
+                                src_part["pn_corrected"],
+                                src_part["pn_method"],
+                                src_part["pn_best_similarity"],
+                                src_part["pn_needs_review"],
+                                src_part["correction_note"],
+                                src_part["row_kind"],
+                                src_part["nom_level"],
+                                src_part["nomenclature_clean"],
+                                dst_parent_id,
+                                dst_attached_id,
+                                src_part["nomenclature"],
+                                src_part["effectivity"],
+                                src_part["units_per_assy"],
+                                src_part["miner_table_img_path"],
+                            ),
+                        )
+                    summary["parts_ingested"] += len(src_parts)
+
+                    src_xrefs = src.execute(
+                        """
+                        SELECT x.part_id, x.kind, x.target
+                        FROM xrefs x
+                        JOIN parts p ON p.id = x.part_id
+                        WHERE p.document_id = ?
+                        """,
+                        (src_doc_id,),
+                    ).fetchall()
+                    for xref in src_xrefs:
+                        mapped_part_id = part_id_map.get(int(xref["part_id"]))
+                        if mapped_part_id is None:
+                            continue
+                        conn.execute(
+                            "INSERT INTO xrefs(part_id, kind, target) VALUES (?, ?, ?)",
+                            (mapped_part_id, xref["kind"], xref["target"]),
+                        )
+                    summary["xrefs_ingested"] += len(src_xrefs)
+
+                    src_aliases = src.execute(
+                        """
+                        SELECT a.part_id, a.alias_type, a.alias_value
+                        FROM aliases a
+                        JOIN parts p ON p.id = a.part_id
+                        WHERE p.document_id = ?
+                        """,
+                        (src_doc_id,),
+                    ).fetchall()
+                    for alias in src_aliases:
+                        mapped_part_id = part_id_map.get(int(alias["part_id"]))
+                        if mapped_part_id is None:
+                            continue
+                        conn.execute(
+                            "INSERT INTO aliases(part_id, alias_type, alias_value) VALUES (?, ?, ?)",
+                            (mapped_part_id, alias["alias_type"], alias["alias_value"]),
+                        )
+                    summary["aliases_ingested"] += len(src_aliases)
 
                 conn.commit()
+                txn_open = False
+            except Exception:
+                if txn_open:
+                    conn.rollback()
+                raise
         finally:
             src.close()
     finally:

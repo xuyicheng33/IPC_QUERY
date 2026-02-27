@@ -12,8 +12,8 @@ services:
     volumes:
       # Persist database
       - ./data:/app/data:rw
-      # PDF files (read-only)
-      - ${PDF_DIR:-./pdfs}:/app/pdfs:ro
+      # PDF files mount mode: ro (query-only) | rw (enable import/delete/scan)
+      - ${PDF_DIR:-./pdfs}:/app/pdfs:${PDF_MOUNT_MODE:-ro}
       # Cache directory
       - ipc_cache:/app/cache
     environment:
@@ -25,6 +25,7 @@ services:
       - LOG_FORMAT=${LOG_FORMAT:-json}
       - CACHE_SIZE=${CACHE_SIZE:-1000}
       - CACHE_TTL=${CACHE_TTL:-300}
+      - IMPORT_MODE=${IMPORT_MODE:-disabled}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8791/api/health', timeout=2).read()"]

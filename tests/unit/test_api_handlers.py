@@ -13,6 +13,7 @@ import pytest
 
 from ipc_query.api.handlers import ApiHandlers
 from ipc_query.config import Config
+from ipc_query.exceptions import ConflictError
 from ipc_query.exceptions import NotFoundError
 from ipc_query.exceptions import ValidationError
 
@@ -174,7 +175,31 @@ def test_handle_docs_batch_delete_partial_failure(tmp_path: Path) -> None:
     assert payload["results"][0]["ok"] is True
     assert payload["results"][1]["ok"] is False
     assert "not found" in payload["results"][1]["error"].lower()
+    assert payload["results"][1]["error_code"] == "NOT_FOUND"
     assert import_service.delete_document.call_count == 2
+
+
+def test_handle_docs_batch_delete_conflict_includes_details(tmp_path: Path) -> None:
+    pdf_path = tmp_path / "sample.pdf"
+    pdf_path.write_bytes(b"0123")
+
+    import_service = MagicMock()
+    import_service.delete_document.side_effect = ConflictError(
+        "Ambiguous pdf name",
+        details={"pdf_name": "a.pdf", "candidates": ["d1/a.pdf", "d2/a.pdf"]},
+    )
+    handlers = _make_handlers(pdf_path)
+    handlers._import = import_service
+
+    status, body, _ = handlers.handle_docs_batch_delete(["a.pdf"])
+
+    assert status == HTTPStatus.OK
+    payload = json.loads(body.decode("utf-8"))
+    assert payload["failed"] == 1
+    item = payload["results"][0]
+    assert item["ok"] is False
+    assert item["error_code"] == "CONFLICT"
+    assert item["details"]["candidates"] == ["d1/a.pdf", "d2/a.pdf"]
 
 
 def test_handle_docs_batch_delete_invalid_payload_raises(tmp_path: Path) -> None:
@@ -294,9 +319,10 @@ def test_handle_docs_tree_lists_directories_and_files(tmp_path: Path) -> None:
 
     handlers = _make_handlers(tmp_path / "sample.pdf")
     handlers._config = Config(pdf_dir=pdf_root)
-    handlers._docs.get_all.return_value = [
-        MagicMock(to_dict=lambda: {"id": 1, "pdf_name": "b.pdf", "relative_path": "b.pdf", "relative_dir": ""}),
-    ]
+    handlers._docs.get_lookup_for_dir.return_value = (
+        {"b.pdf": {"id": 1, "pdf_name": "b.pdf", "relative_path": "b.pdf", "relative_dir": ""}},
+        {"b.pdf": {"id": 1, "pdf_name": "b.pdf", "relative_path": "b.pdf", "relative_dir": ""}},
+    )
 
     status, body, _ = handlers.handle_docs_tree("")
 
@@ -306,6 +332,20 @@ def test_handle_docs_tree_lists_directories_and_files(tmp_path: Path) -> None:
     assert any(d["name"] == "sub" for d in payload["directories"])
     row = next(f for f in payload["files"] if f["name"] == "b.pdf")
     assert row["indexed"] is True
+
+
+def test_handle_render_propagates_scale(tmp_path: Path) -> None:
+    pdf_path = tmp_path / "sample.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4\n%%EOF\n")
+    handlers = _make_handlers(pdf_path)
+    handlers._render.render_page.return_value = tmp_path / "render.png"
+
+    status, body, ct = handlers.handle_render("sample.pdf", "1.png", "1.5")
+
+    assert status == HTTPStatus.OK
+    assert ct == "image/png"
+    assert isinstance(body, Path)
+    handlers._render.render_page.assert_called_once_with("sample.pdf", 1, scale=1.5)
 
 
 def test_handle_folder_create_creates_dir(tmp_path: Path) -> None:
@@ -345,3 +385,15 @@ def test_handle_scan_job_not_found_raises(tmp_path: Path) -> None:
 
     with pytest.raises(NotFoundError):
         handlers.handle_scan_job("missing")
+
+
+def test_handle_error_maps_conflict_to_409(tmp_path: Path) -> None:
+    handlers = _make_handlers(tmp_path / "sample.pdf")
+    status, body, content_type = handlers.handle_error(
+        ConflictError("Ambiguous pdf name", details={"pdf_name": "a.pdf"})
+    )
+
+    assert status == HTTPStatus.CONFLICT
+    assert content_type == "application/json"
+    payload = json.loads(body.decode("utf-8"))
+    assert payload["error"] == "CONFLICT"

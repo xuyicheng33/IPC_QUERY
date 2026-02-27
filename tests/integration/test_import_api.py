@@ -19,7 +19,13 @@ from ipc_query.services import importer as importer_module
 _PDF_PAYLOAD = b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n"
 
 
-def _make_config(tmp_path: Path, db_path: Path, *, max_file_size_mb: int = 100) -> Config:
+def _make_config(
+    tmp_path: Path,
+    db_path: Path,
+    *,
+    max_file_size_mb: int = 100,
+    import_mode: str = "auto",
+) -> Config:
     pdf_dir = tmp_path / "pdfs"
     cache_dir = tmp_path / "cache"
     cfg = Config(
@@ -31,6 +37,7 @@ def _make_config(tmp_path: Path, db_path: Path, *, max_file_size_mb: int = 100) 
         upload_dir=pdf_dir,
         cache_dir=cache_dir,
         import_max_file_size_mb=max_file_size_mb,
+        import_mode=import_mode,
     )
     cfg.ensure_directories()
     return cfg
@@ -105,7 +112,7 @@ def _wait_for_job(port: int, job_id: str, timeout_s: float = 3.0) -> dict:
 
 def test_import_submit_and_jobs_endpoints(tmp_path: Path, monkeypatch) -> None:
     db_path = tmp_path / "data.sqlite"
-    cfg = _make_config(tmp_path, db_path)
+    cfg = _make_config(tmp_path, db_path, import_mode="enabled")
 
     def _fake_ingest(_conn: object, _pdf_paths: list[Path]) -> dict[str, int]:
         return {
@@ -269,3 +276,27 @@ def test_import_disabled_when_db_is_readonly(tmp_path: Path) -> None:
         server.stop()
         thread.join(timeout=3.0)
         db_path.chmod(0o644)
+
+
+def test_import_disabled_when_import_mode_is_disabled(tmp_path: Path) -> None:
+    db_path = tmp_path / "data.sqlite"
+    cfg = _make_config(tmp_path, db_path, import_mode="disabled")
+    server = create_server(cfg)
+    thread, port = _start_server(server)
+    try:
+        status, body = _request_json(
+            port,
+            "POST",
+            "/api/import",
+            body=_PDF_PAYLOAD,
+            headers={
+                "Content-Type": "application/pdf",
+                "X-File-Name": "disabled.pdf",
+            },
+        )
+        assert status == 400
+        assert body["error"] == "VALIDATION_ERROR"
+        assert "not enabled" in body["message"].lower()
+    finally:
+        server.stop()
+        thread.join(timeout=3.0)

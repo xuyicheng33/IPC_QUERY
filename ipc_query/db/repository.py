@@ -90,6 +90,45 @@ class DocumentRepository:
         )
         return Document.from_row(dict(row) if row else None)
 
+    def get_lookup_for_dir(self, relative_dir: str) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+        """按目录返回文档索引（relative_path->doc, pdf_name->doc）。"""
+        rel_dir = (relative_dir or "").replace("\\", "/").strip().strip("/")
+        if rel_dir:
+            prefix = f"{rel_dir}/%"
+            rows = self._db.execute(
+                """
+                SELECT id, pdf_name, relative_path, pdf_path, miner_dir, created_at
+                FROM documents
+                WHERE relative_path = ? OR relative_path LIKE ?
+                ORDER BY relative_path, pdf_name
+                """,
+                (rel_dir, prefix),
+            )
+        else:
+            rows = self._db.execute(
+                """
+                SELECT id, pdf_name, relative_path, pdf_path, miner_dir, created_at
+                FROM documents
+                WHERE coalesce(relative_path, '') = '' OR instr(relative_path, '/') = 0
+                ORDER BY relative_path, pdf_name
+                """
+            )
+
+        docs_by_rel: dict[str, dict[str, Any]] = {}
+        docs_by_name: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            doc = Document.from_row(dict(row))
+            if doc is None:
+                continue
+            payload = doc.to_dict()
+            rel = str(payload.get("relative_path") or payload.get("pdf_name") or "").replace("\\", "/").strip("/")
+            name = str(payload.get("pdf_name") or "").strip()
+            if rel:
+                docs_by_rel[rel] = payload
+            if name and name not in docs_by_name:
+                docs_by_name[name] = payload
+        return docs_by_rel, docs_by_name
+
 
 class PartRepository:
     """零件数据访问"""
@@ -303,14 +342,14 @@ class PartRepository:
             ]
         else:
             hits = [
-                "SELECT id AS id, 0 AS rank FROM parts WHERE nomenclature_clean LIKE :q_contains",
+                "SELECT id AS id, 0 AS rank FROM parts WHERE UPPER(coalesce(nomenclature_clean, nomenclature, '')) LIKE :q_contains",
             ]
 
         if term_kw and not dotprefix:
             hits.append(
                 "SELECT attached_to_part_id AS id, 1 AS rank FROM parts "
                 "WHERE attached_to_part_id IS NOT NULL "
-                "AND coalesce(nomenclature_clean, nomenclature, '') LIKE :q_contains"
+                "AND UPPER(coalesce(nomenclature_clean, nomenclature, '')) LIKE :q_contains"
             )
 
         hits_sql = "\n            UNION ALL\n            ".join(hits)
@@ -465,10 +504,10 @@ class PartRepository:
             "SELECT part_id AS id, (:pn_rank_offset + 23) AS rank FROM aliases WHERE :contains = 1 AND alias_value LIKE :q_contains",
             # 术语匹配
             "SELECT id AS id, (:term_rank_offset + 0) AS rank FROM parts WHERE :term_enabled = 1 AND :term_dot_only = 1 AND nom_level >= :min_level",
-            "SELECT id AS id, (:term_rank_offset + 0) AS rank FROM parts WHERE :term_enabled = 1 AND :term_dot_only = 0 AND nomenclature_clean LIKE :q_contains",
+            "SELECT id AS id, (:term_rank_offset + 0) AS rank FROM parts WHERE :term_enabled = 1 AND :term_dot_only = 0 AND UPPER(coalesce(nomenclature_clean, nomenclature, '')) LIKE :q_contains",
             "SELECT attached_to_part_id AS id, (:term_rank_offset + 1) AS rank FROM parts "
             "WHERE :term_enabled = 1 AND :term_dot_only = 0 AND :kw = 1 AND :dotprefix = 0 "
-            "AND attached_to_part_id IS NOT NULL AND coalesce(nomenclature_clean, nomenclature, '') LIKE :q_contains",
+            "AND attached_to_part_id IS NOT NULL AND UPPER(coalesce(nomenclature_clean, nomenclature, '')) LIKE :q_contains",
         ]
 
         hits_sql = "\n            UNION ALL\n            ".join(hits)

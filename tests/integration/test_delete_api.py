@@ -114,3 +114,73 @@ def test_delete_doc_via_rest_path_returns_404_when_missing(tmp_path: Path) -> No
         server.stop()
         thread.join(timeout=3.0)
 
+
+def test_delete_doc_returns_409_for_ambiguous_basename(tmp_path: Path) -> None:
+    db_path = tmp_path / "data.sqlite"
+    cfg = _make_config(tmp_path, db_path)
+
+    with sqlite3.connect(str(db_path)) as conn:
+        conn.executescript(
+            """
+            CREATE TABLE documents (
+              id INTEGER PRIMARY KEY,
+              pdf_name TEXT NOT NULL,
+              relative_path TEXT NOT NULL,
+              pdf_path TEXT NOT NULL,
+              miner_dir TEXT NOT NULL,
+              created_at TEXT NOT NULL
+            );
+            CREATE TABLE pages (
+              id INTEGER PRIMARY KEY,
+              document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+              page_num INTEGER NOT NULL
+            );
+            CREATE TABLE parts (
+              id INTEGER PRIMARY KEY,
+              document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+              page_num INTEGER NOT NULL,
+              page_end INTEGER NOT NULL,
+              extractor TEXT NOT NULL,
+              row_kind TEXT NOT NULL
+            );
+            CREATE TABLE xrefs (
+              id INTEGER PRIMARY KEY,
+              part_id INTEGER NOT NULL REFERENCES parts(id) ON DELETE CASCADE,
+              kind TEXT NOT NULL,
+              target TEXT NOT NULL
+            );
+            CREATE TABLE aliases (
+              id INTEGER PRIMARY KEY,
+              part_id INTEGER NOT NULL REFERENCES parts(id) ON DELETE CASCADE,
+              alias_type TEXT NOT NULL DEFAULT '',
+              alias_value TEXT NOT NULL
+            );
+            CREATE TABLE scan_state (
+              relative_path TEXT PRIMARY KEY,
+              size INTEGER NOT NULL,
+              mtime REAL NOT NULL,
+              content_hash TEXT,
+              updated_at TEXT NOT NULL
+            );
+            """
+        )
+        conn.execute(
+            "INSERT INTO documents(pdf_name, relative_path, pdf_path, miner_dir, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
+            ("same.pdf", "dir1/same.pdf", "dir1/same.pdf", "{}"),
+        )
+        conn.execute(
+            "INSERT INTO documents(pdf_name, relative_path, pdf_path, miner_dir, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
+            ("same.pdf", "dir2/same.pdf", "dir2/same.pdf", "{}"),
+        )
+        conn.commit()
+
+    server = create_server(cfg)
+    thread, port = _start_server(server)
+    try:
+        status, body = _request_json(port, "DELETE", "/api/docs?name=same.pdf")
+        assert status == 409
+        assert body["error"] == "CONFLICT"
+        assert body["details"]["candidates"] == ["dir1/same.pdf", "dir2/same.pdf"]
+    finally:
+        server.stop()
+        thread.join(timeout=3.0)
