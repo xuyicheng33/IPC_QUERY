@@ -1,13 +1,12 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Alert, Snackbar } from "@mui/material";
 import { AppShell } from "@/components/layout/AppShell";
 import { Card } from "@/components/ui/Card";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import { fetchJson } from "@/lib/api";
-import type { CapabilitiesResponse } from "@/lib/types";
+import type { CapabilitiesResponse, DbListItem } from "@/lib/types";
 import { dbPathFromUrl } from "@/lib/urlState";
-import { DbDirectoryTreePanel } from "@/pages/db/DbDirectoryTreePanel";
 import { DbFileTable } from "@/pages/db/DbFileTable";
-import { DbJobsPanel } from "@/pages/db/DbJobsPanel";
 import { DbToolbarPanel } from "@/pages/db/DbToolbarPanel";
 import { useDbDirectoryModel } from "@/pages/db/useDbDirectoryModel";
 import { useDbJobsPolling } from "@/pages/db/useDbJobsPolling";
@@ -15,6 +14,7 @@ import { useDbOperations } from "@/pages/db/useDbOperations";
 
 export function DbPage() {
   const [folderName, setFolderName] = useState("");
+  const [toastOpen, setToastOpen] = useState(false);
   const [capabilities, setCapabilities] = useState<CapabilitiesResponse>({
     import_enabled: true,
     scan_enabled: true,
@@ -64,6 +64,28 @@ export function DbPage() {
     startImportJob: polling.startImportJob,
     startScanJob: polling.startScanJob,
   });
+  const listItems = useMemo<DbListItem[]>(() => {
+    const directoryItems = directory.directories.map((dir) => {
+      const name = String(dir.name || dir.path || "").split("/").pop() || dir.path || "-";
+      return {
+        name,
+        relative_path: dir.path,
+        indexed: true,
+        is_dir: true,
+      };
+    });
+    const fileItems = directory.files.map((file) => ({
+      ...file,
+      is_dir: false,
+    }));
+    return [...directoryItems, ...fileItems];
+  }, [directory.directories, directory.files]);
+
+  useEffect(() => {
+    if (operations.actionFeedback?.message) {
+      setToastOpen(true);
+    }
+  }, [operations.actionFeedback]);
 
   useEffect(() => {
     const onPopState = () => {
@@ -82,68 +104,71 @@ export function DbPage() {
   }, []);
 
   return (
-    <AppShell actions={[{ href: "/search", label: "搜索", icon: <MaterialSymbol name="search" size={18} /> }]}>
-      <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <DbDirectoryTreePanel
-          currentPath={directory.currentPath}
-          treeCache={directory.treeCache}
-          expandedDirs={directory.expandedDirs}
-          onRefresh={() => void directory.refreshCurrentDirectory()}
-          onLoadDirectory={(path) => void directory.loadDirectory(path, { push: true, force: false })}
-          onToggleExpand={directory.toggleExpandDir}
-          onEnsureTreeNode={async (path) => {
-            await directory.ensureTreeNode(path);
-          }}
-        />
+    <AppShell actions={[{ href: "/search", label: "搜索", icon: <MaterialSymbol name="search" size={18} /> }]} hideHeaderTitle>
+      <div className="grid gap-4">
+        <Card className="grid min-w-0 gap-4 p-4">
+          <DbToolbarPanel
+            currentPath={directory.currentPath}
+            breadcrumbParts={directory.breadcrumbParts}
+            status={directory.status}
+            selectedCount={directory.selectedCount}
+            fileCount={directory.files.length}
+            folderName={folderName}
+            onFolderNameChange={setFolderName}
+            capabilities={capabilities}
+            importDisabledReason={importDisabledReason}
+            onNavigate={(path) => void directory.loadDirectory(path, { push: true, force: false })}
+            onUploadFiles={(selected) => void operations.submitUploads(selected)}
+            onDeleteSelected={() => void operations.deleteSelected(Array.from(directory.selectedPaths))}
+            onRefresh={() => void directory.refreshCurrentDirectory()}
+            onCreateFolder={() =>
+              void operations.createFolder(folderName, () => {
+                setFolderName("");
+              })
+            }
+          />
 
-        <div className="grid min-w-0 gap-3">
-          <Card className="grid min-w-0 gap-3">
-            <DbToolbarPanel
-              breadcrumbParts={directory.breadcrumbParts}
-              status={directory.status}
-              selectedCount={directory.selectedCount}
-              folderName={folderName}
-              onFolderNameChange={setFolderName}
-              capabilities={capabilities}
-              importDisabledReason={importDisabledReason}
-              scanDisabledReason={scanDisabledReason}
-              actionFeedback={operations.actionFeedback}
-              onNavigate={(path) => void directory.loadDirectory(path, { push: true, force: false })}
-              onUploadFiles={(selected) => void operations.submitUploads(selected)}
-              onDeleteSelected={() => void operations.deleteSelected(Array.from(directory.selectedPaths))}
-              onTriggerRescan={() => void operations.triggerRescan()}
-              onRefresh={() => void directory.refreshCurrentDirectory()}
-              onCreateFolder={() =>
-                void operations.createFolder(folderName, () => {
-                  setFolderName("");
-                })
-              }
-            />
-
-            <DbFileTable
-              files={directory.files}
-              selectedPaths={directory.selectedPaths}
-              selectAllChecked={directory.selectAllChecked}
-              knownDirectories={directory.knownDirectories}
-              jobStatusByPath={polling.jobStatusByPath}
-              capabilitiesImportEnabled={capabilities.import_enabled}
-              importDisabledReason={importDisabledReason}
-              getRowActionState={operations.rowActions.getRowActionState}
-              onSetRowActionState={operations.rowActions.setRowActionState}
-              onClearRowActionState={operations.rowActions.clearRowActionState}
-              onToggleSelect={directory.toggleSelect}
-              onToggleSelectAll={directory.toggleSelectAll}
-              onBeginRename={operations.rowActions.beginRename}
-              onBeginMove={operations.rowActions.beginMove}
-              onApplyRename={(path) => void operations.rowActions.applyRename(path)}
-              onApplyMove={(path) => void operations.rowActions.applyMove(path)}
-              onDeleteSingle={(path) => void operations.deleteSelected([path])}
-            />
-          </Card>
-
-          <DbJobsPanel jobs={polling.jobs} />
-        </div>
+          <DbFileTable
+            items={listItems}
+            selectedPaths={directory.selectedPaths}
+            selectAllChecked={directory.selectAllChecked}
+            knownDirectories={directory.knownDirectories}
+            capabilitiesImportEnabled={capabilities.import_enabled}
+            importDisabledReason={importDisabledReason}
+            getRowActionState={operations.rowActions.getRowActionState}
+            onSetRowActionState={operations.rowActions.setRowActionState}
+            onClearRowActionState={operations.rowActions.clearRowActionState}
+            onToggleSelect={directory.toggleSelect}
+            onToggleSelectAll={directory.toggleSelectAll}
+            onBeginRename={operations.rowActions.beginRename}
+            onBeginMove={operations.rowActions.beginMove}
+            onApplyRename={(path) => void operations.rowActions.applyRename(path)}
+            onApplyMove={(path) => void operations.rowActions.applyMove(path)}
+            onDeleteSingle={(path) => void operations.deleteSelected([path])}
+            onOpenDirectory={(path) => void directory.loadDirectory(path, { push: true, force: false })}
+          />
+        </Card>
       </div>
+      <Snackbar
+        open={toastOpen}
+        autoHideDuration={2800}
+        onClose={() => setToastOpen(false)}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        <Alert
+          onClose={() => setToastOpen(false)}
+          severity={
+            operations.actionFeedback?.phase === "error"
+              ? "error"
+              : operations.actionFeedback?.phase === "pending"
+                ? "info"
+                : "success"
+          }
+          variant="filled"
+        >
+          {operations.actionFeedback?.message || "操作完成"}
+        </Alert>
+      </Snackbar>
     </AppShell>
   );
 }

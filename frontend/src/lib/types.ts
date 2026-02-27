@@ -48,6 +48,14 @@ export type DocsTreeFile = {
   document?: DocumentItem;
 };
 
+export type DbListItem = {
+  name: string;
+  relative_path: string;
+  indexed: boolean;
+  is_dir: boolean;
+  document?: DocumentItem;
+};
+
 export type DocsTreeResponse = {
   path: string;
   directories: DocsTreeDirectory[];

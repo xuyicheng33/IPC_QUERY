@@ -11,6 +11,7 @@ type ShellAction = {
 
 type AppShellProps = {
   title?: string;
+  hideHeaderTitle?: boolean;
   actions?: ShellAction[];
   showBack?: boolean;
   backHref?: string;
@@ -21,6 +22,7 @@ type AppShellProps = {
 
 export function AppShell({
   title = "IPC 查询系统",
+  hideHeaderTitle = true,
   actions,
   showBack = true,
   backHref = "/",
@@ -41,14 +43,19 @@ export function AppShell({
       <AppBar position="sticky" color="inherit" elevation={0} sx={{ borderBottom: "1px solid", borderColor: "divider" }}>
         <Toolbar sx={{ px: { xs: 2, md: 3 }, py: 1 }}>
           <Container maxWidth={false} sx={{ maxWidth: 1360, px: "0 !important" }}>
-            <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} alignItems={{ md: "center" }} justifyContent="space-between">
-              <a href="/">
-                <Typography variant="h6">{title}</Typography>
-              </a>
-              <Stack component="nav" direction="row" spacing={1} flexWrap="wrap" aria-label="主导航">
+            <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between">
+              {hideHeaderTitle ? (
+                <div />
+              ) : (
+                <a href="/">
+                  <Typography variant="h6">{title}</Typography>
+                </a>
+              )}
+              <Stack component="nav" direction="row" spacing={1} flexWrap="wrap" aria-label="主导航" justifyContent="flex-end">
                 {showBack ? (
                   <Button
                     variant="ghost"
+                    className="h-9 gap-1.5 px-4"
                     startIcon={<MaterialSymbol name="arrow_back" size={18} />}
                     onClick={() => {
                       if (window.history.length > 1) {
@@ -63,7 +70,7 @@ export function AppShell({
                 ) : null}
                 {nav.map((item) => (
                   <a key={item.href} href={item.href}>
-                    <Button variant="ghost" startIcon={item.icon}>
+                    <Button variant="ghost" className="h-9 gap-1.5 px-4" startIcon={item.icon}>
                       {item.label}
                     </Button>
                   </a>

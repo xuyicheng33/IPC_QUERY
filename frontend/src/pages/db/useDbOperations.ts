@@ -287,6 +287,12 @@ export function useDbOperations({
         updateGlobalAction("createFolder", "error", "创建失败：请输入目录名", "missing folder name");
         return;
       }
+      if (normalizeDir(currentPath) !== "") {
+        const message = "仅支持在根目录创建子目录";
+        updateGlobalAction("createFolder", "error", message, "root-only");
+        setStatus(message);
+        return;
+      }
 
       updateGlobalAction("createFolder", "pending", `正在创建目录：${name}`);
       try {

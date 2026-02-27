@@ -16,6 +16,7 @@ const variantMap: Record<ButtonVariant, { variant: MuiButtonProps["variant"]; co
 export function Button({
   variant = "ghost",
   type = "button",
+  sx,
   ...props
 }: ButtonProps) {
   const mapped = variantMap[variant];
@@ -23,9 +24,21 @@ export function Button({
     <MuiButton
       variant={mapped.variant}
       color={mapped.color}
-      size="small"
+      size="medium"
       type={type}
       disableElevation
+      sx={[
+        {
+          minHeight: 38,
+          borderRadius: 999,
+          px: 1.75,
+          fontWeight: 600,
+          letterSpacing: 0,
+          textTransform: "none",
+          whiteSpace: "nowrap",
+        },
+        ...(Array.isArray(sx) ? sx : sx ? [sx] : []),
+      ]}
       {...props}
     />
   );
