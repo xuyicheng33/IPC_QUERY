@@ -77,3 +77,84 @@ def test_ingest_pdfs_rolls_back_when_midway_failure_occurs(
         assert rows == [("keep.pdf", "keep.pdf")]
     finally:
         raw_conn.close()
+
+
+def test_ensure_schema_migrates_legacy_unique_pdf_name_constraint(tmp_path: Path) -> None:
+    db_path = tmp_path / "legacy.sqlite"
+    with sqlite3.connect(str(db_path)) as conn:
+        conn.executescript(
+            """
+            CREATE TABLE documents (
+              id INTEGER PRIMARY KEY,
+              pdf_name TEXT NOT NULL UNIQUE,
+              relative_path TEXT NOT NULL DEFAULT '',
+              pdf_path TEXT NOT NULL,
+              miner_dir TEXT NOT NULL,
+              created_at TEXT NOT NULL
+            );
+            """
+        )
+        conn.execute(
+            "INSERT INTO documents(pdf_name, relative_path, pdf_path, miner_dir, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
+            ("same.pdf", "dir/a/same.pdf", "dir/a/same.pdf", "{}"),
+        )
+        conn.commit()
+
+        build_db_module.ensure_schema(conn)
+
+        # 迁移后，同名不同目录应可共存。
+        conn.execute(
+            "INSERT INTO documents(pdf_name, relative_path, pdf_path, miner_dir, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
+            ("same.pdf", "dir/b/same.pdf", "dir/b/same.pdf", "{}"),
+        )
+        conn.commit()
+
+        rows = conn.execute(
+            "SELECT pdf_name, relative_path FROM documents WHERE pdf_name = ? ORDER BY relative_path",
+            ("same.pdf",),
+        ).fetchall()
+        assert rows == [
+            ("same.pdf", "dir/a/same.pdf"),
+            ("same.pdf", "dir/b/same.pdf"),
+        ]
+
+
+def test_ingest_pdfs_replaces_by_relative_path_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _fake_build_db(output_path: Path, pdf_paths: list[Path], base_dir: Path | None = None) -> None:
+        with sqlite3.connect(str(output_path)) as conn:
+            build_db_module.ensure_schema(conn)
+            conn.execute(
+                "INSERT INTO documents(pdf_name, relative_path, pdf_path, miner_dir, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
+                ("same.pdf", "engine/same.pdf", "engine/same.pdf", "{}"),
+            )
+            conn.commit()
+
+    monkeypatch.setattr(build_db_module, "build_db", _fake_build_db)
+
+    db_path = tmp_path / "target-relative.sqlite"
+    with sqlite3.connect(str(db_path)) as conn:
+        build_db_module.ensure_schema(conn)
+        conn.execute(
+            "INSERT INTO documents(pdf_name, relative_path, pdf_path, miner_dir, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
+            ("same.pdf", "other/same.pdf", "other/same.pdf", "{}"),
+        )
+        conn.execute(
+            "INSERT INTO documents(pdf_name, relative_path, pdf_path, miner_dir, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
+            ("same.pdf", "engine/same.pdf", "engine/same.pdf", "{}"),
+        )
+        conn.commit()
+
+        summary = build_db_module.ingest_pdfs(conn, [Path("engine/same.pdf")])
+        assert summary["docs_ingested"] == 1
+        assert summary["docs_replaced"] == 1
+
+        rows = conn.execute(
+            "SELECT relative_path, COUNT(1) FROM documents GROUP BY relative_path ORDER BY relative_path"
+        ).fetchall()
+        assert rows == [
+            ("engine/same.pdf", 1),
+            ("other/same.pdf", 1),
+        ]

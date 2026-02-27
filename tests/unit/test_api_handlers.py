@@ -22,6 +22,7 @@ def _make_handlers(
     pdf_path: Path,
     search_service: MagicMock | None = None,
     db: MagicMock | None = None,
+    config: Config | None = None,
 ) -> ApiHandlers:
     render_service = MagicMock()
     render_service._find_pdf.return_value = pdf_path
@@ -30,7 +31,7 @@ def _make_handlers(
         render_service=render_service,
         doc_repo=MagicMock(),
         db=db or MagicMock(),
-        config=Config(),
+        config=config or Config(),
     )
 
 
@@ -264,7 +265,38 @@ def test_handle_search_page_size_falls_back_to_default_limit(tmp_path: Path) -> 
         query="abc",
         match="all",
         page=1,
-        page_size=60,
+        page_size=20,
+        include_notes=False,
+        source_pdf="",
+        source_dir="",
+    )
+
+
+def test_handle_search_page_size_uses_config_default(tmp_path: Path) -> None:
+    pdf_path = tmp_path / "sample.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4\n%%EOF\n")
+    search_service = MagicMock()
+    search_service.search.return_value = {
+        "results": [],
+        "total": 0,
+        "page": 1,
+        "page_size": 33,
+        "has_more": False,
+        "match": "all",
+    }
+    handlers = _make_handlers(
+        pdf_path,
+        search_service=search_service,
+        config=Config(default_page_size=33),
+    )
+
+    handlers.handle_search("q=abc&page=-9&page_size=-1&limit=-5")
+
+    search_service.search.assert_called_once_with(
+        query="abc",
+        match="all",
+        page=1,
+        page_size=33,
         include_notes=False,
         source_pdf="",
         source_dir="",

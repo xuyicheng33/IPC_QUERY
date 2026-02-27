@@ -614,7 +614,7 @@ def _init_db(conn: sqlite3.Connection) -> None:
 
         CREATE TABLE documents (
           id INTEGER PRIMARY KEY,
-          pdf_name TEXT NOT NULL UNIQUE,
+          pdf_name TEXT NOT NULL,
           relative_path TEXT NOT NULL UNIQUE,
           pdf_path TEXT NOT NULL,
           miner_dir TEXT NOT NULL,
@@ -698,6 +698,7 @@ def _init_db(conn: sqlite3.Connection) -> None:
         CREATE INDEX idx_xrefs_part ON xrefs(part_id);
         CREATE INDEX idx_alias_value ON aliases(alias_value);
         CREATE INDEX idx_alias_part ON aliases(part_id);
+        CREATE INDEX idx_documents_pdf_name ON documents(pdf_name);
         CREATE UNIQUE INDEX idx_parts_row_unique ON parts(
           document_id,
           page_num,
@@ -729,7 +730,7 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
         """
         CREATE TABLE IF NOT EXISTS documents (
           id INTEGER PRIMARY KEY,
-          pdf_name TEXT NOT NULL UNIQUE,
+          pdf_name TEXT NOT NULL,
           relative_path TEXT NOT NULL DEFAULT '',
           pdf_path TEXT NOT NULL,
           miner_dir TEXT NOT NULL,
@@ -813,6 +814,7 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_xrefs_part ON xrefs(part_id);
         CREATE INDEX IF NOT EXISTS idx_alias_value ON aliases(alias_value);
         CREATE INDEX IF NOT EXISTS idx_alias_part ON aliases(part_id);
+        CREATE INDEX IF NOT EXISTS idx_documents_pdf_name ON documents(pdf_name);
         CREATE UNIQUE INDEX IF NOT EXISTS idx_parts_row_unique ON parts(
           document_id,
           page_num,
@@ -829,6 +831,7 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
         );
         """
     )
+    _migrate_documents_pdf_name_unique(conn)
     table_info = conn.execute("PRAGMA table_info(documents)").fetchall()
     cols = {str(r[1]) for r in table_info}
     if "relative_path" not in cols:
@@ -844,11 +847,68 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _migrate_documents_pdf_name_unique(conn: sqlite3.Connection) -> None:
+    """
+    兼容迁移：移除 documents.pdf_name 的唯一约束。
+
+    旧版本 schema 将 pdf_name 设为 UNIQUE，导致不同目录下同名 PDF 不能共存。
+    这里在检测到该唯一索引时重建 documents 表，保留历史数据并放开约束。
+    """
+    try:
+        indexes = conn.execute("PRAGMA index_list(documents)").fetchall()
+    except sqlite3.Error:
+        return
+
+    has_unique_pdf_name = False
+    for idx in indexes:
+        # PRAGMA index_list columns: seq, name, unique, origin, partial
+        if int(idx[2] or 0) != 1:
+            continue
+        index_name = str(idx[1] or "")
+        safe_index_name = index_name.replace("'", "''")
+        try:
+            cols = conn.execute(f"PRAGMA index_info('{safe_index_name}')").fetchall()
+        except sqlite3.Error:
+            continue
+        col_names = [str(col[2]) for col in cols if len(col) > 2]
+        if col_names == ["pdf_name"]:
+            has_unique_pdf_name = True
+            break
+
+    if not has_unique_pdf_name:
+        return
+
+    conn.execute("PRAGMA foreign_keys=OFF")
+    try:
+        conn.executescript(
+            """
+            CREATE TABLE documents__new (
+              id INTEGER PRIMARY KEY,
+              pdf_name TEXT NOT NULL,
+              relative_path TEXT NOT NULL DEFAULT '',
+              pdf_path TEXT NOT NULL,
+              miner_dir TEXT NOT NULL,
+              created_at TEXT NOT NULL
+            );
+
+            INSERT INTO documents__new(id, pdf_name, relative_path, pdf_path, miner_dir, created_at)
+            SELECT id, pdf_name, COALESCE(relative_path, ''), pdf_path, miner_dir, created_at
+            FROM documents;
+
+            DROP TABLE documents;
+            ALTER TABLE documents__new RENAME TO documents;
+            CREATE INDEX IF NOT EXISTS idx_documents_pdf_name ON documents(pdf_name);
+            """
+        )
+    finally:
+        conn.execute("PRAGMA foreign_keys=ON")
+
+
 def ingest_pdfs(conn: sqlite3.Connection, pdf_paths: list[Path], base_dir: Path | None = None) -> dict[str, int]:
     """
     Ingest PDFs into an existing SQLite database without dropping prior documents.
 
-    Existing rows for the same `pdf_name` will be replaced.
+    Existing rows for the same `relative_path` will be replaced.
     """
     ensure_schema(conn)
 
@@ -888,8 +948,8 @@ def ingest_pdfs(conn: sqlite3.Connection, pdf_paths: list[Path], base_dir: Path 
 
                 for src_doc in src_docs:
                     existing = conn.execute(
-                        "SELECT id FROM documents WHERE relative_path = ? OR pdf_name = ?",
-                        (src_doc["relative_path"], src_doc["pdf_name"]),
+                        "SELECT id FROM documents WHERE relative_path = ?",
+                        (src_doc["relative_path"],),
                     ).fetchone()
                     if existing is not None:
                         conn.execute("DELETE FROM documents WHERE id = ?", (existing[0],))

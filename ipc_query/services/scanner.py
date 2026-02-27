@@ -204,6 +204,15 @@ class ScanService:
                     rows = conn.execute("SELECT relative_path, size, mtime FROM scan_state").fetchall()
 
                 prev = {str(r["relative_path"]): (int(r["size"]), float(r["mtime"])) for r in rows}
+                current_rel_paths = {rel_path for rel_path, _abs_path, _size, _mtime in entries}
+                removed_rel_paths = sorted(set(prev.keys()) - current_rel_paths)
+                docs_deleted = 0
+
+                for rel_path in removed_rel_paths:
+                    cur = conn.execute("DELETE FROM documents WHERE relative_path = ?", (rel_path,))
+                    docs_deleted += int(cur.rowcount or 0)
+                    conn.execute("DELETE FROM scan_state WHERE relative_path = ?", (rel_path,))
+
                 for rel_path, abs_path, size, mtime in entries:
                     old = prev.get(rel_path)
                     if old is None or old[0] != size or abs(old[1] - mtime) > 1e-9:
@@ -242,6 +251,8 @@ class ScanService:
             "path": path,
             "scanned_files": len(entries),
             "changed_files": len(changed_paths),
+            "deleted_files": len(removed_rel_paths),
+            "docs_deleted": docs_deleted,
             **ingest_summary,
         }
 
@@ -267,4 +278,3 @@ class ScanService:
                 self._jobs.pop(job_id, None)
                 continue
             idx += 1
-

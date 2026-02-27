@@ -88,13 +88,14 @@ class ApiHandlers:
         include_notes = (qs.get("include_notes") or ["0"])[0] == "1"
         source_pdf = (qs.get("source_pdf") or [""])[0].strip()
         source_dir = (qs.get("source_dir") or [""])[0].strip()
+        configured_default_page_size = _safe_int(str(self._config.default_page_size), 20)
         if page <= 0:
             page = 1
 
         if page_size <= 0:
-            page_size = _safe_int((qs.get("limit") or [""])[0], 60)
+            page_size = _safe_int((qs.get("limit") or [""])[0], configured_default_page_size)
         if page_size <= 0:
-            page_size = 60
+            page_size = configured_default_page_size
 
         result = self._search.search(
             query=q,
