@@ -42,6 +42,19 @@ export function SearchPage() {
       return !currentDir || dir === currentDir;
     });
   }, [docs, state.source_dir]);
+  const duplicateDocNames = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const doc of docsInDir) {
+      const name = String(doc.pdf_name || doc.relative_path || "").trim();
+      if (!name) continue;
+      counts.set(name, (counts.get(name) || 0) + 1);
+    }
+    const duplicates = new Set<string>();
+    for (const [name, count] of counts.entries()) {
+      if (count > 1) duplicates.add(name);
+    }
+    return duplicates;
+  }, [docsInDir]);
 
   const totalPages = useMemo(() => computeTotalPages(total, effectivePageSize), [total, effectivePageSize]);
 
@@ -198,7 +211,11 @@ export function SearchPage() {
                   <option value="">全部文档</option>
                   {docsInDir.map((doc) => {
                     const value = String(doc.relative_path || doc.pdf_name || "");
-                    const label = String(doc.pdf_name || value);
+                    const baseLabel = String(doc.pdf_name || value || "-");
+                    const label =
+                      duplicateDocNames.has(baseLabel) && value && value !== baseLabel
+                        ? `${baseLabel} (${value})`
+                        : baseLabel;
                     return (
                       <option key={value} value={value}>
                         {label}
