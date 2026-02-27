@@ -3,9 +3,12 @@ import { createRoot } from "react-dom/client";
 import "@/styles/tokens.css";
 import "@/styles/base.css";
 import { ViewerPage } from "@/pages/ViewerPage";
+import { AppProviders } from "@/theme/AppProviders";
 
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <ViewerPage />
+    <AppProviders>
+      <ViewerPage />
+    </AppProviders>
   </React.StrictMode>
 );

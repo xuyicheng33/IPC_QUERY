@@ -1,5 +1,5 @@
 import React from "react";
-import { cn } from "@/lib/cn";
+import { Chip } from "@mui/material";
 
 type BadgeVariant = "neutral" | "ok" | "bad";
 
@@ -10,21 +10,13 @@ type BadgeProps = {
 };
 
 const badgeClass: Record<BadgeVariant, string> = {
-  neutral: "border-border text-muted bg-surface",
-  ok: "border-accent text-accent bg-accent-soft",
-  bad: "border-danger text-danger bg-[#fff5f5]",
+  neutral: "bg-surface text-muted border-border",
+  ok: "bg-accent-soft text-accent border-accent",
+  bad: "bg-[#fff5f5] text-danger border-danger",
 };
 
 export function Badge({ variant = "neutral", children, className }: BadgeProps) {
   return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium",
-        badgeClass[variant],
-        className
-      )}
-    >
-      {children}
-    </span>
+    <Chip label={children} variant="outlined" size="small" className={`${badgeClass[variant]} ${className || ""}`} />
   );
 }

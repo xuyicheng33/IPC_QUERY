@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ExternalLink, FileText, Layers, Link2, RefreshCw } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
+import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import { fetchJson } from "@/lib/api";
 import { detectKeywordFlags, renderHighlightedSegments } from "@/lib/keyword";
 import type { HierarchyItem, PartDetailResponse, SearchState } from "@/lib/types";
@@ -74,7 +74,7 @@ export function PartDetailPage() {
       <AppShell backHref={backUrl}>
         <Card>
           <div className="flex items-center gap-2 text-sm text-muted">
-            <RefreshCw className="h-4 w-4 animate-spin" aria-hidden="true" />
+            <MaterialSymbol name="progress_activity" size={18} className="animate-spin" />
             加载中...
           </div>
         </Card>
@@ -118,13 +118,13 @@ export function PartDetailPage() {
             <div className="flex flex-wrap items-center gap-2">
               <a href={`/viewer.html?pdf=${pdfEncoded}&page=${page}`} target="_blank" rel="noreferrer">
                 <Button variant="ghost" className="gap-2">
-                  <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                  <MaterialSymbol name="open_in_new" size={18} />
                   打开页面
                 </Button>
               </a>
               <a href={`/pdf/${pdfEncoded}#page=${page}`} target="_blank" rel="noreferrer">
                 <Button variant="ghost" className="gap-2">
-                  <FileText className="h-4 w-4" aria-hidden="true" />
+                  <MaterialSymbol name="description" size={18} />
                   原 PDF
                 </Button>
               </a>
@@ -171,7 +171,7 @@ export function PartDetailPage() {
 
         <Card>
           <div className="mb-3 flex items-center gap-2 text-sm font-medium">
-            <Layers className="h-4 w-4 text-muted" aria-hidden="true" />
+            <MaterialSymbol name="account_tree" size={18} sx={{ color: "text.secondary" }} />
             层级关系
           </div>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -183,7 +183,7 @@ export function PartDetailPage() {
 
         <Card>
           <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-            <Link2 className="h-4 w-4 text-muted" aria-hidden="true" />
+            <MaterialSymbol name="link" size={18} sx={{ color: "text.secondary" }} />
             整页预览
           </div>
           <div className="rounded-md border border-border bg-surface-soft p-3">

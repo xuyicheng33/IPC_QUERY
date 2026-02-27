@@ -1,1 +1,1 @@
-import{j as t,b as o}from"./Card.js";function n({className:e,children:s,...r}){return t.jsx("select",{className:o("h-10 rounded-md border border-border bg-surface px-3 text-sm text-text transition-colors duration-fast ease-premium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",e),...r,children:s})}export{n as S};
+import{j as o}from"./AppProviders.js";import{T as i}from"./Input.js";function a({className:t,children:e,...r}){return o.jsx(i,{className:t,variant:"outlined",select:!0,SelectProps:{native:!0},...r,children:e})}export{a as S};

@@ -1,27 +1,53 @@
 import React from "react";
+import {
+  Table as MuiTable,
+  TableCell,
+  TableContainer,
+  type TableContainerProps,
+  type TableProps as MuiTableProps,
+  type TableCellProps,
+} from "@mui/material";
 import { cn } from "@/lib/cn";
 
 export function TableWrap({ className, children }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("overflow-x-auto rounded-md border border-border", className)}>{children}</div>;
+  return (
+    <TableContainer component="div" className={className as TableContainerProps["className"]} sx={{ borderRadius: 3 }}>
+      {children}
+    </TableContainer>
+  );
 }
 
 export function Table({ className, children }: React.TableHTMLAttributes<HTMLTableElement>) {
-  return <table className={cn("w-full border-collapse text-sm", className)}>{children}</table>;
+  return (
+    <MuiTable size="small" className={className as MuiTableProps["className"]}>
+      {children}
+    </MuiTable>
+  );
 }
 
 export function TH({ className, children }: React.ThHTMLAttributes<HTMLTableCellElement>) {
   return (
-    <th
-      className={cn(
-        "h-11 border-b border-border bg-surface-soft px-3 text-left text-xs font-semibold uppercase tracking-wide text-muted",
-        className
-      )}
+    <TableCell
+      className={className as TableCellProps["className"]}
+      sx={{
+        py: 1.2,
+        px: 1.5,
+        bgcolor: "action.hover",
+        borderBottomColor: "divider",
+        fontSize: 12,
+        fontWeight: 700,
+        letterSpacing: 0.4,
+      }}
     >
       {children}
-    </th>
+    </TableCell>
   );
 }
 
 export function TD({ className, children }: React.TdHTMLAttributes<HTMLTableCellElement>) {
-  return <td className={cn("h-11 border-b border-border px-3 align-top text-sm text-text", className)}>{children}</td>;
+  return (
+    <TableCell className={cn("align-top", className)} sx={{ py: 1.2, px: 1.5, borderBottomColor: "divider" }}>
+      {children}
+    </TableCell>
+  );
 }

@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ChevronLeft, ChevronRight, FileText, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
+import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import { Select } from "@/components/ui/Select";
 
 function toPositiveInt(value: string | null, fallback: number): number {
@@ -64,17 +64,16 @@ export function ViewerPage() {
                 window.location.href = "/";
               }}
             >
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              <MaterialSymbol name="arrow_back" size={18} />
               返回上一级
             </Button>
             <Button variant="ghost" className="gap-1.5" disabled={!hasPdf} onClick={() => setPage((prev) => Math.max(1, prev - 1))}>
-              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+              <MaterialSymbol name="chevron_left" size={18} />
               上一页
             </Button>
             <Input
               type="number"
-              min={1}
-              step={1}
+              inputProps={{ min: 1, step: 1 }}
               className="w-[92px]"
               value={page}
               onChange={(event) => setPage(Math.max(1, toPositiveInt(event.target.value, page)))}
@@ -83,7 +82,7 @@ export function ViewerPage() {
             />
             <Button variant="ghost" className="gap-1.5" disabled={!hasPdf} onClick={() => setPage((prev) => prev + 1)}>
               下一页
-              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+              <MaterialSymbol name="chevron_right" size={18} />
             </Button>
             <Select
               className="w-[96px]"
@@ -100,7 +99,7 @@ export function ViewerPage() {
             </Select>
             <a href={hasPdf ? `/pdf/${encodedPdf}?p=${page}#page=${page}` : undefined} target="_blank" rel="noreferrer">
               <Button variant="ghost" className="gap-2" disabled={!hasPdf}>
-                <FileText className="h-4 w-4" aria-hidden="true" />
+                <MaterialSymbol name="description" size={18} />
                 原 PDF
               </Button>
             </a>
@@ -128,7 +127,7 @@ export function ViewerPage() {
                 }}
               />
               <div className="mt-3 flex items-center gap-2 text-xs text-muted">
-                <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+                <MaterialSymbol name="progress_activity" size={15} className="animate-spin" />
                 {status || "加载中..."}
               </div>
             </>

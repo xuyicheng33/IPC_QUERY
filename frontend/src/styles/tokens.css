@@ -1,16 +1,16 @@
 :root {
-  --bg: #f5f7f6;
+  --bg: #f7f9fc;
   --surface: #ffffff;
-  --surface-soft: #f1f4f2;
-  --border: #d8dfdb;
-  --text: #101416;
-  --text-muted: #5e676d;
-  --accent: #2f7a6c;
-  --accent-hover: #255f54;
-  --accent-soft: #e7f1ee;
-  --danger: #b45555;
+  --surface-soft: #eef3f7;
+  --border: #d7e2e9;
+  --text: #162027;
+  --text-muted: #4c5b66;
+  --accent: #00639b;
+  --accent-hover: #004a75;
+  --accent-soft: #d8e7f4;
+  --danger: #ba1a1a;
 
-  --font-sans: "Inter", "Noto Sans SC", "PingFang SC", "Segoe UI", system-ui, sans-serif;
+  --font-sans: "Roboto", "Noto Sans SC", "PingFang SC", "Segoe UI", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
 
   --space-1: 4px;
@@ -22,8 +22,8 @@
   --space-8: 32px;
 
   --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 12px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
 
   --motion-fast: 160ms ease-out;
   --motion-base: 200ms ease-out;

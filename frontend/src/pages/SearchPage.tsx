@@ -1,5 +1,4 @@
 import React, { FormEvent, useEffect, useMemo, useState } from "react";
-import { Filter, Search } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -7,6 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Input } from "@/components/ui/Input";
+import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import { Select } from "@/components/ui/Select";
 import { Table, TableWrap, TD, TH } from "@/components/ui/Table";
 import { fetchJson } from "@/lib/api";
@@ -149,8 +149,13 @@ export function SearchPage() {
                 placeholder="输入件号或术语关键字"
                 aria-label="搜索关键字"
               />
-              <Button variant="primary" className="h-11 gap-2 px-5" type="submit" disabled={loading}>
-                <Search className="h-4 w-4" aria-hidden="true" />
+              <Button
+                variant="primary"
+                className="h-11 gap-2 px-5"
+                type="submit"
+                disabled={loading}
+                startIcon={<MaterialSymbol name="search" size={18} />}
+              >
                 {loading ? "查询中" : "搜索"}
               </Button>
             </div>
@@ -214,7 +219,7 @@ export function SearchPage() {
 
               <div className="flex items-end justify-start xl:justify-end">
                 <Badge variant="neutral" className="h-10 items-center">
-                  <Filter className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                  <MaterialSymbol name="tune" size={16} sx={{ mr: 0.5 }} />
                   总计 {total} 条
                 </Badge>
               </div>

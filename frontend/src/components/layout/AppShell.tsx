@@ -1,7 +1,7 @@
 import React from "react";
-import { ArrowLeft, Database, Search } from "lucide-react";
+import { AppBar, Box, Container, Stack, Toolbar, Typography } from "@mui/material";
 import { Button } from "@/components/ui/Button";
-import { cn } from "@/lib/cn";
+import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 
 type ShellAction = {
   href: string;
@@ -32,46 +32,50 @@ export function AppShell({
     actions && actions.length > 0
       ? actions
       : [
-          { href: "/search", label: "搜索", icon: <Search className="h-4 w-4" aria-hidden="true" /> },
-          { href: "/db", label: "数据库", icon: <Database className="h-4 w-4" aria-hidden="true" /> },
+          { href: "/search", label: "搜索", icon: <MaterialSymbol name="search" size={18} /> },
+          { href: "/db", label: "数据库", icon: <MaterialSymbol name="database" size={18} /> },
         ];
 
   return (
-    <div className="min-h-screen bg-bg text-text">
-      <header className="sticky top-0 z-20 border-b border-border bg-surface">
-        <div className="mx-auto flex min-h-16 w-full max-w-[1360px] flex-wrap items-center justify-between gap-3 px-4 py-2 md:px-6">
-          <a href="/" className="text-base font-semibold tracking-tight">
-            {title}
-          </a>
-          <nav className="flex flex-wrap items-center gap-2" aria-label="主导航">
+    <Box sx={{ minHeight: "100vh", bgcolor: "background.default", color: "text.primary" }}>
+      <AppBar position="sticky" color="inherit" elevation={0} sx={{ borderBottom: "1px solid", borderColor: "divider" }}>
+        <Toolbar sx={{ px: { xs: 2, md: 3 }, py: 1 }}>
+          <Container maxWidth={false} sx={{ maxWidth: 1360, px: "0 !important" }}>
+            <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} alignItems={{ md: "center" }} justifyContent="space-between">
+              <a href="/">
+                <Typography variant="h6">{title}</Typography>
+              </a>
+              <Stack component="nav" direction="row" spacing={1} flexWrap="wrap" aria-label="主导航">
             {showBack ? (
               <Button
                 variant="ghost"
-                className="gap-2"
+                startIcon={<MaterialSymbol name="arrow_back" size={18} />}
                 onClick={() => {
                   if (window.history.length > 1) {
-                    window.history.back()
-                    return
+                    window.history.back();
+                    return;
                   }
-                  window.location.href = backHref
+                  window.location.href = backHref;
                 }}
               >
-                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                <span>{backLabel}</span>
+                {backLabel}
               </Button>
             ) : null}
             {nav.map((item) => (
               <a key={item.href} href={item.href}>
-                <Button variant="ghost" className="gap-2">
-                  {item.icon}
-                  <span>{item.label}</span>
+                <Button variant="ghost" startIcon={item.icon}>
+                  {item.label}
                 </Button>
               </a>
             ))}
-          </nav>
-        </div>
-      </header>
-      <main className={cn("mx-auto w-full max-w-[1360px] px-4 py-6 md:px-6", contentClassName)}>{children}</main>
-    </div>
+              </Stack>
+            </Stack>
+          </Container>
+        </Toolbar>
+      </AppBar>
+      <Container maxWidth={false} sx={{ maxWidth: 1360, px: { xs: 2, md: 3 }, py: 3 }} className={contentClassName}>
+        {children}
+      </Container>
+    </Box>
   );
 }

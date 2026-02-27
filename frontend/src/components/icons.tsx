@@ -1,17 +1,8 @@
-import {
-  ChevronDown,
-  ChevronRight,
-  FileText,
-  Folder,
-  Star,
-  StarOff,
-} from "lucide-react";
-
 export const AppIcons = {
-  Folder,
-  FileText,
-  ChevronRight,
-  ChevronDown,
-  Star,
-  StarOff,
+  Folder: "folder",
+  FileText: "description",
+  ChevronRight: "chevron_right",
+  ChevronDown: "expand_more",
+  Star: "star",
+  StarOff: "star_outline",
 };

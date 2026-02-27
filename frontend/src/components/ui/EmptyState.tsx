@@ -1,5 +1,6 @@
 import React from "react";
-import { SearchX } from "lucide-react";
+import { Box, Stack, Typography } from "@mui/material";
+import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 
 type EmptyStateProps = {
   title: string;
@@ -8,10 +9,28 @@ type EmptyStateProps = {
 
 export function EmptyState({ title, description }: EmptyStateProps) {
   return (
-    <div className="flex min-h-[120px] flex-col items-center justify-center rounded-lg border border-dashed border-border bg-surface-soft px-6 py-8 text-center">
-      <SearchX className="mb-3 h-5 w-5 text-muted" aria-hidden="true" />
-      <div className="text-sm font-medium text-text">{title}</div>
-      {description ? <p className="mt-1 text-xs text-muted">{description}</p> : null}
-    </div>
+    <Box
+      sx={{
+        minHeight: 120,
+        border: "1px dashed",
+        borderColor: "divider",
+        bgcolor: "action.hover",
+        borderRadius: 3,
+        px: 3,
+        py: 4,
+      }}
+    >
+      <Stack spacing={1} alignItems="center">
+        <MaterialSymbol name="search_off" size={22} sx={{ color: "text.secondary" }} />
+        <Typography variant="body2" fontWeight={600}>
+          {title}
+        </Typography>
+        {description ? (
+          <Typography variant="caption" color="text.secondary">
+            {description}
+          </Typography>
+        ) : null}
+      </Stack>
+    </Box>
   );
 }

@@ -1,18 +1,18 @@
 import React from "react";
-import { cn } from "@/lib/cn";
+import { TextField, type TextFieldProps } from "@mui/material";
 
-type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement>;
+type SelectProps = Omit<TextFieldProps, "variant" | "select">;
 
 export function Select({ className, children, ...props }: SelectProps) {
   return (
-    <select
-      className={cn(
-        "h-10 rounded-md border border-border bg-surface px-3 text-sm text-text transition-colors duration-fast ease-premium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-        className
-      )}
+    <TextField
+      className={className}
+      variant="outlined"
+      select
+      SelectProps={{ native: true }}
       {...props}
     >
       {children}
-    </select>
+    </TextField>
   );
 }

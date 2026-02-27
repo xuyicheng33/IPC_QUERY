@@ -142,6 +142,7 @@ export type DbRowActionState = {
   mode: "normal" | "renaming" | "moving";
   value: string;
   error: string;
+  phase?: "idle" | "pending" | "success" | "error";
 };
 
 export type LegacyHistoryItem = {

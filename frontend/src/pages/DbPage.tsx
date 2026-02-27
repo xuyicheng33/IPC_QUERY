@@ -1,29 +1,7 @@
 import React, { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import {
-  ArrowUpRight,
-  Check,
-  ChevronDown,
-  ChevronRight,
-  FileText,
-  Folder,
-  FolderInput,
-  FolderPlus,
-  LoaderCircle,
-  Pencil,
-  RefreshCw,
-  ScanSearch,
-  Trash2,
-  Upload,
-  X,
-} from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
-import { Table, TableWrap, TD, TH } from "@/components/ui/Table";
+import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import { fetchJson } from "@/lib/api";
 import type {
   CapabilitiesResponse,
@@ -37,15 +15,10 @@ import type {
   ScanJob,
 } from "@/lib/types";
 import { buildDbUrl, dbPathFromUrl, normalizeDir } from "@/lib/urlState";
-
-type DisplayJob = {
-  rowId: string;
-  kind: "import" | "scan";
-  status: JobStatus;
-  pathText: string;
-  error: string;
-  updatedAt: number;
-};
+import { DbDirectoryTreePanel } from "@/pages/db/DbDirectoryTreePanel";
+import { DbFileTable } from "@/pages/db/DbFileTable";
+import { DbJobsPanel, type DisplayJob } from "@/pages/db/DbJobsPanel";
+import { DbToolbarPanel } from "@/pages/db/DbToolbarPanel";
 
 type BatchDeleteResult = {
   total: number;
@@ -67,6 +40,15 @@ function toJobStatus(value: string | undefined): JobStatus {
   return "queued";
 }
 
+function baseActionState(mode: DbRowActionState["mode"], value = ""): DbRowActionState {
+  return {
+    mode,
+    value,
+    error: "",
+    phase: "idle",
+  };
+}
+
 export function DbPage() {
   const [currentPath, setCurrentPath] = useState(() => dbPathFromUrl(window.location.search));
   const [treeCache, setTreeCache] = useState<Map<string, DocsTreeResponse>>(() => new Map());
@@ -86,7 +68,6 @@ export function DbPage() {
   });
   const [rowActionStates, setRowActionStates] = useState<Record<string, DbRowActionState>>({});
 
-  const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const activeImportJobIdsRef = useRef<Set<string>>(new Set());
   const activeScanJobIdRef = useRef("");
   const jobStatusByPathRef = useRef<Map<string, JobStatus>>(new Map());
@@ -117,7 +98,7 @@ export function DbPage() {
   }, [treeCache]);
 
   const getRowActionState = (path: string): DbRowActionState =>
-    rowActionStates[path] || { mode: "normal", value: "", error: "" };
+    rowActionStates[path] || baseActionState("normal");
 
   const setRowActionState = (path: string, state: DbRowActionState) => {
     setRowActionStates((prev) => ({ ...prev, [path]: state }));
@@ -428,12 +409,11 @@ export function DbPage() {
       }
     }
 
-    if (uploadInputRef.current) uploadInputRef.current.value = "";
     ensurePolling();
   };
 
-  const createFolder = async (event: FormEvent) => {
-    event.preventDefault();
+  const createFolder = async (event?: FormEvent) => {
+    event?.preventDefault();
     if (!capabilities.import_enabled) {
       const message = importDisabledReason || "导入服务不可用";
       renderActionResult(`创建目录不可用：${message}`, true);
@@ -519,476 +499,138 @@ export function DbPage() {
 
   const beginRename = (path: string) => {
     const filename = path.split("/").pop() || path;
-    setRowActionState(path, { mode: "renaming", value: filename, error: "" });
+    setRowActionState(path, baseActionState("renaming", filename));
   };
 
   const beginMove = (path: string) => {
-    setRowActionState(path, { mode: "moving", value: currentPath, error: "" });
+    setRowActionState(path, baseActionState("moving", currentPath));
   };
 
   const applyRename = async (path: string) => {
     if (!capabilities.import_enabled) {
       const message = importDisabledReason || "导入服务不可用";
-      setRowActionState(path, { mode: "renaming", value: "", error: message });
+      setRowActionState(path, { ...baseActionState("renaming"), error: message, phase: "error" });
       return;
     }
     const state = getRowActionState(path);
     const newName = state.value.trim();
     if (!newName) {
-      setRowActionState(path, { ...state, error: "请输入新文件名" });
+      setRowActionState(path, { ...state, error: "请输入新文件名", phase: "error" });
       return;
     }
+
+    setRowActionState(path, { ...state, error: "", phase: "pending" });
     try {
       const result = await fetchJson<RenameDocResponse>("/api/docs/rename", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ path, new_name: newName }),
       });
+      setRowActionState(path, { ...state, phase: "success" });
       clearRowActionState(path);
       renderActionResult(`改名成功：${result.old_path} -> ${result.new_path}`);
       await refreshCurrentDirectory();
     } catch (error) {
       const message = String((error as Error)?.message || error);
-      setRowActionState(path, { ...state, error: message });
+      setRowActionState(path, { ...state, error: message, phase: "error" });
     }
   };
 
   const applyMove = async (path: string) => {
     if (!capabilities.import_enabled) {
       const message = importDisabledReason || "导入服务不可用";
-      setRowActionState(path, { mode: "moving", value: "", error: message });
+      setRowActionState(path, { ...baseActionState("moving"), error: message, phase: "error" });
       return;
     }
+
     const state = getRowActionState(path);
     const targetDir = normalizeDir(state.value || "");
+    setRowActionState(path, { ...state, error: "", phase: "pending" });
+
     try {
       const result = await fetchJson<MoveDocResponse>("/api/docs/move", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ path, target_dir: targetDir }),
       });
+      setRowActionState(path, { ...state, phase: "success" });
       clearRowActionState(path);
       renderActionResult(`移动成功：${result.old_path} -> ${result.new_path}`);
       await refreshCurrentDirectory();
     } catch (error) {
       const message = String((error as Error)?.message || error);
-      setRowActionState(path, { ...state, error: message });
+      setRowActionState(path, { ...state, error: message, phase: "error" });
     }
-  };
-
-  const renderTree = (path: string, depth: number): React.ReactNode => {
-    const node = treeCache.get(path);
-    if (!node) return null;
-
-    const entries: React.ReactNode[] = [];
-
-    for (const dir of node.directories || []) {
-      const dirPath = normalizeDir(dir.path || "");
-      const expanded = expandedDirs.has(dirPath);
-      entries.push(
-        <div key={`dir-${dirPath}`} className="flex flex-col">
-          <div
-            className={`flex items-center gap-1 rounded-md px-1 py-0.5 ${dirPath === currentPath ? "bg-accent-soft" : "hover:bg-surface-soft"}`}
-            style={{ paddingLeft: `${depth * 14}px` }}
-          >
-            <button
-              type="button"
-              className="inline-flex h-6 w-6 items-center justify-center rounded border border-border bg-surface hover:bg-surface-soft"
-              onClick={() => {
-                if (expanded) {
-                  setExpandedDirs((prev) => {
-                    const next = new Set(prev);
-                    next.delete(dirPath);
-                    return next;
-                  });
-                  return;
-                }
-
-                setExpandedDirs((prev) => {
-                  const next = new Set(prev);
-                  next.add(dirPath);
-                  return next;
-                });
-                void ensureTreeNode(dirPath);
-              }}
-              aria-label={expanded ? "收起目录" : "展开目录"}
-            >
-              {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-            </button>
-            <button
-              type="button"
-              className="flex flex-1 items-center gap-1.5 rounded px-1 py-1 text-left font-mono text-xs hover:bg-surface"
-              onClick={() => {
-                void loadDirectory(dirPath, { push: true, force: false });
-              }}
-            >
-              <Folder className="h-3.5 w-3.5 text-muted" />
-              {dir.name || dirPath || "-"}
-            </button>
-          </div>
-          {expanded ? (
-            <>
-              {(treeCache.get(dirPath)?.files || []).map((file) => (
-                <div
-                  key={`file-${file.relative_path}`}
-                  className="flex items-center gap-1.5 py-1 text-xs text-muted"
-                  style={{ paddingLeft: `${(depth + 1) * 14}px` }}
-                >
-                  <FileText className="h-3.5 w-3.5" />
-                  <span className="font-mono">{file.relative_path || file.name || "-"}</span>
-                </div>
-              ))}
-              {renderTree(dirPath, depth + 1)}
-            </>
-          ) : null}
-        </div>
-      );
-    }
-
-    return entries;
   };
 
   const breadcrumbParts = currentPath ? currentPath.split("/") : [];
 
   return (
-    <AppShell actions={[{ href: "/search", label: "搜索" }]}>
+    <AppShell actions={[{ href: "/search", label: "搜索", icon: <MaterialSymbol name="search" size={18} /> }]}>
       <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <Card className="grid gap-3">
-          <div className="flex items-center justify-between">
-            <div className="text-sm font-medium">目录树</div>
-            <Button variant="ghost" className="h-9 gap-2 px-3" onClick={() => void refreshCurrentDirectory()}>
-              <RefreshCw className="h-4 w-4" />
-              刷新树
-            </Button>
-          </div>
+        <DbDirectoryTreePanel
+          currentPath={currentPath}
+          treeCache={treeCache}
+          expandedDirs={expandedDirs}
+          onRefresh={() => void refreshCurrentDirectory()}
+          onLoadDirectory={(path) => void loadDirectory(path, { push: true, force: false })}
+          onToggleExpand={(path, expanded) => {
+            setExpandedDirs((prev) => {
+              const next = new Set(prev);
+              if (expanded) next.add(path);
+              else next.delete(path);
+              return next;
+            });
+          }}
+          onEnsureTreeNode={async (path) => {
+            await ensureTreeNode(path);
+          }}
+        />
 
-          <div className="min-h-[500px] rounded-md border border-border bg-surface p-2">
-            <div className={`mb-1 flex items-center rounded-md px-1 py-1 ${currentPath === "" ? "bg-accent-soft" : ""}`}>
-              <button
-                type="button"
-                className="flex flex-1 items-center gap-1.5 rounded px-1 py-1 text-left font-mono text-xs hover:bg-surface-soft"
-                onClick={() => {
-                  void loadDirectory("", { push: true, force: false });
-                }}
-              >
-                <Folder className="h-3.5 w-3.5 text-muted" />/
-              </button>
-            </div>
-
-            {(treeCache.get("")?.files || []).map((file) => (
-              <div key={`root-file-${file.relative_path}`} className="flex items-center gap-1.5 py-1 pl-4 text-xs text-muted">
-                <FileText className="h-3.5 w-3.5" />
-                <span className="font-mono">{file.relative_path || file.name || "-"}</span>
-              </div>
-            ))}
-
-            {renderTree("", 1)}
-          </div>
-        </Card>
-
-        <Card className="grid min-w-0 gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="font-mono text-xs">
-              <a
-                href="/db"
-                onClick={(event) => {
-                  event.preventDefault();
-                  void loadDirectory("", { push: true, force: false });
-                }}
-                className="text-accent"
-              >
-                /
-              </a>
-              {breadcrumbParts.map((part, index) => {
-                const path = breadcrumbParts.slice(0, index + 1).join("/");
-                return (
-                  <span key={path}>
-                    /{" "}
-                    <a
-                      href={buildDbUrl(path)}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        void loadDirectory(path, { push: true, force: false });
-                      }}
-                      className="text-accent"
-                    >
-                      {part}
-                    </a>
-                  </span>
-                );
-              })}
-            </div>
-            <div className="text-sm text-muted">{status}</div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="primary"
-              className="h-10 gap-2"
-              disabled={!capabilities.import_enabled}
-              title={capabilities.import_enabled ? "上传 PDF" : importDisabledReason}
-              onClick={() => {
-                uploadInputRef.current?.click();
-              }}
-            >
-              <Upload className="h-4 w-4" />上传 PDF
-            </Button>
-            <input
-              ref={uploadInputRef}
-              type="file"
-              accept=".pdf,application/pdf"
-              multiple
-              className="hidden"
-              onChange={(event) => {
-                const selected = Array.from(event.target.files || []);
-                void submitUploads(selected);
-              }}
+        <div className="grid min-w-0 gap-3">
+          <Card className="grid min-w-0 gap-3">
+            <DbToolbarPanel
+              breadcrumbParts={breadcrumbParts}
+              status={status}
+              selectedCount={selectedCount}
+              folderName={folderName}
+              onFolderNameChange={setFolderName}
+              capabilities={capabilities}
+              importDisabledReason={importDisabledReason}
+              scanDisabledReason={scanDisabledReason}
+              actionResult={actionResult}
+              actionError={actionError}
+              onNavigate={(path) => void loadDirectory(path, { push: true, force: false })}
+              onUploadFiles={(selected) => void submitUploads(selected)}
+              onDeleteSelected={() => void deleteSelected(Array.from(selectedPaths))}
+              onTriggerRescan={() => void triggerRescan()}
+              onRefresh={() => void refreshCurrentDirectory()}
+              onCreateFolder={() => void createFolder()}
             />
 
-            <Button
-              variant="danger"
-              className="h-10 gap-2"
-              disabled={!capabilities.import_enabled || selectedCount === 0}
-              title={capabilities.import_enabled ? undefined : importDisabledReason}
-              onClick={() => {
-                void deleteSelected(Array.from(selectedPaths));
-              }}
-            >
-              <Trash2 className="h-4 w-4" />删除所选{selectedCount > 0 ? ` (${selectedCount})` : ""}
-            </Button>
-
-            <Button
-              variant="ghost"
-              className="h-10 gap-2"
-              disabled={!capabilities.scan_enabled}
-              title={capabilities.scan_enabled ? undefined : scanDisabledReason}
-              onClick={() => void triggerRescan()}
-            >
-              <ScanSearch className="h-4 w-4" />重扫当前目录
-            </Button>
-
-            <Button variant="ghost" className="h-10 gap-2" onClick={() => void refreshCurrentDirectory()}>
-              <RefreshCw className="h-4 w-4" />刷新
-            </Button>
-          </div>
-
-          <form className="flex flex-wrap items-center gap-2" onSubmit={createFolder}>
-            <div className="text-sm text-muted">创建子目录</div>
-            <Input
-              value={folderName}
-              onChange={(event) => setFolderName(event.target.value)}
-              placeholder="例如：engine"
-              className="max-w-[260px]"
-              disabled={!capabilities.import_enabled}
+            <DbFileTable
+              files={files}
+              selectedPaths={selectedPaths}
+              selectAllChecked={selectAllChecked}
+              knownDirectories={knownDirectories}
+              jobStatusByPath={jobStatusByPathRef.current}
+              capabilitiesImportEnabled={capabilities.import_enabled}
+              importDisabledReason={importDisabledReason}
+              getRowActionState={getRowActionState}
+              onSetRowActionState={setRowActionState}
+              onClearRowActionState={clearRowActionState}
+              onToggleSelect={toggleSelect}
+              onToggleSelectAll={toggleSelectAll}
+              onBeginRename={beginRename}
+              onBeginMove={beginMove}
+              onApplyRename={(path) => void applyRename(path)}
+              onApplyMove={(path) => void applyMove(path)}
+              onDeleteSingle={(path) => void deleteSelected([path])}
             />
-            <Button
-              variant="ghost"
-              type="submit"
-              className="h-10 gap-2"
-              disabled={!capabilities.import_enabled}
-              title={capabilities.import_enabled ? undefined : importDisabledReason}
-            >
-              <FolderPlus className="h-4 w-4" />创建
-            </Button>
-          </form>
+          </Card>
 
-          {actionResult ? (
-            <div className={`text-sm ${actionError ? "text-danger" : "text-muted"}`}>{actionResult}</div>
-          ) : null}
-
-          {files.length === 0 ? (
-            <EmptyState title="无 PDF 文件" />
-          ) : (
-            <TableWrap>
-              <Table>
-                <thead>
-                  <tr>
-                    <TH className="w-[48px]">
-                      <input
-                        type="checkbox"
-                        aria-label="全选文件"
-                        checked={selectAllChecked}
-                        onChange={(event) => toggleSelectAll(event.target.checked)}
-                      />
-                    </TH>
-                    <TH>文件名</TH>
-                    <TH>入库状态</TH>
-                    <TH>任务状态</TH>
-                    <TH>操作</TH>
-                  </tr>
-                </thead>
-                <tbody>
-                  {files.map((file) => {
-                    const rel = normalizeDir(file.relative_path || file.name || "");
-                    const indexed = Boolean(file.indexed);
-                    const taskStatus = jobStatusByPathRef.current.get(rel) || "queued";
-                    const checked = selectedPaths.has(rel);
-                    const actionState = getRowActionState(rel);
-                    const moveTarget = normalizeDir(actionState.value || "");
-                    const previewHref = `/viewer.html?pdf=${encodeURIComponent(rel)}&page=1`;
-                    return (
-                      <tr key={rel || file.name} className="group">
-                        <TD>
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            disabled={!rel}
-                            onChange={() => toggleSelect(rel)}
-                          />
-                        </TD>
-                        <TD className="font-mono text-xs break-all">{rel || "-"}</TD>
-                        <TD>
-                          <Badge variant={indexed ? "ok" : "neutral"}>{indexed ? "indexed" : "pending"}</Badge>
-                        </TD>
-                        <TD>
-                          <Badge variant={taskStatus === "success" ? "ok" : taskStatus === "failed" ? "bad" : "neutral"}>
-                            {taskStatus}
-                          </Badge>
-                        </TD>
-                        <TD className="min-w-[360px]">
-                          {actionState.mode === "renaming" ? (
-                            <div className="grid gap-1">
-                              <div className="flex items-center gap-1">
-                                <Input
-                                  value={actionState.value}
-                                  onChange={(event) =>
-                                    setRowActionState(rel, { ...actionState, value: event.target.value, error: "" })
-                                  }
-                                  className="h-8"
-                                  placeholder="新文件名，如 b.pdf"
-                                />
-                                <Button
-                                  variant="ghost"
-                                  className="h-8 min-w-8 px-2"
-                                  onClick={() => {
-                                    void applyRename(rel);
-                                  }}
-                                >
-                                  <Check className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  className="h-8 min-w-8 px-2"
-                                  onClick={() => clearRowActionState(rel)}
-                                >
-                                  <X className="h-3.5 w-3.5" />
-                                </Button>
-                              </div>
-                              {actionState.error ? <div className="text-xs text-danger">{actionState.error}</div> : null}
-                            </div>
-                          ) : actionState.mode === "moving" ? (
-                            <div className="grid gap-1">
-                              <div className="flex items-center gap-1">
-                                <Select
-                                  value={moveTarget}
-                                  className="h-8"
-                                  onChange={(event) =>
-                                    setRowActionState(rel, {
-                                      ...actionState,
-                                      value: normalizeDir(event.target.value),
-                                      error: "",
-                                    })
-                                  }
-                                >
-                                  {knownDirectories.map((dir) => (
-                                    <option key={dir || "root"} value={dir}>
-                                      {dir || "/"}
-                                    </option>
-                                  ))}
-                                </Select>
-                                <Button
-                                  variant="ghost"
-                                  className="h-8 min-w-8 px-2"
-                                  onClick={() => {
-                                    void applyMove(rel);
-                                  }}
-                                >
-                                  <Check className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  className="h-8 min-w-8 px-2"
-                                  onClick={() => clearRowActionState(rel)}
-                                >
-                                  <X className="h-3.5 w-3.5" />
-                                </Button>
-                              </div>
-                              {actionState.error ? <div className="text-xs text-danger">{actionState.error}</div> : null}
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
-                              <a href={previewHref} target="_blank" rel="noreferrer">
-                                <Button variant="ghost" className="h-8 gap-1.5 px-2" disabled={!rel}>
-                                  <ArrowUpRight className="h-3.5 w-3.5" />
-                                  预览
-                                </Button>
-                              </a>
-                              <Button
-                                variant="ghost"
-                                className="h-8 gap-1.5 px-2"
-                                disabled={!rel || !capabilities.import_enabled}
-                                title={capabilities.import_enabled ? undefined : importDisabledReason}
-                                onClick={() => beginRename(rel)}
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                                改名
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                className="h-8 gap-1.5 px-2"
-                                disabled={!rel || !capabilities.import_enabled}
-                                title={capabilities.import_enabled ? undefined : importDisabledReason}
-                                onClick={() => beginMove(rel)}
-                              >
-                                <FolderInput className="h-3.5 w-3.5" />
-                                移动
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                className="h-8 gap-1.5 px-2 text-danger"
-                                disabled={!rel || !capabilities.import_enabled}
-                                title={capabilities.import_enabled ? undefined : importDisabledReason}
-                                onClick={() => {
-                                  void deleteSelected([rel]);
-                                }}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                                删除
-                              </Button>
-                            </div>
-                          )}
-                        </TD>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </Table>
-            </TableWrap>
-          )}
-
-          <div className="mt-1 text-sm font-medium">任务状态</div>
-          {jobs.length === 0 ? (
-            <p className="text-sm text-muted">暂无任务</p>
-          ) : (
-            <div className="grid gap-2">
-              {jobs.slice(0, 20).map((job) => (
-                <div key={job.rowId} className="flex items-center justify-between gap-3 rounded-md border border-border bg-surface p-3">
-                  <div className="min-w-0">
-                    <div className="truncate font-mono text-xs text-text">{job.pathText}</div>
-                    <div className="text-xs text-muted">
-                      {job.kind} · {job.status}
-                    </div>
-                    {job.error ? <div className="truncate text-xs text-danger">{job.error}</div> : null}
-                  </div>
-                  <Badge variant={job.status === "success" ? "ok" : job.status === "failed" ? "bad" : "neutral"}>
-                    {job.status === "running" ? <LoaderCircle className="mr-1 h-3 w-3 animate-spin" /> : null}
-                    {job.status}
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
+          <DbJobsPanel jobs={jobs} />
+        </div>
       </div>
     </AppShell>
   );
