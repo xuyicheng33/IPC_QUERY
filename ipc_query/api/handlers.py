@@ -15,6 +15,7 @@ from typing import Any
 from urllib.parse import parse_qs
 
 from ..config import Config
+from ..constants import VERSION
 from ..db.connection import Database
 from ..db.repository import DocumentRepository
 from ..exceptions import ConflictError, IpcQueryError, NotFoundError, PartNotFoundError
@@ -330,7 +331,7 @@ class ApiHandlers:
         status = "healthy" if database.get("status") == "healthy" else "unhealthy"
         result = {
             "status": status,
-            "version": "2.0.0",
+            "version": VERSION,
             "database": database,
         }
         return HTTPStatus.OK, _json_bytes(result), "application/json; charset=utf-8"

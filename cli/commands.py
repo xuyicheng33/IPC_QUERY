@@ -11,6 +11,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from ipc_query import __version__
+
 
 def cmd_serve(args: argparse.Namespace) -> int:
     """
@@ -170,7 +172,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--version",
         action="version",
-        version="%(prog)s 2.0.0",
+        version=f"%(prog)s {__version__}",
     )
 
     subparsers = parser.add_subparsers(dest="command", help="可用命令")

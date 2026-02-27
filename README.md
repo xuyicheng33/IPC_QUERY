@@ -6,7 +6,7 @@
 IPC_QUERY 是一个面向 IPC (Illustrated Parts Catalog) PDF 的零件查询系统：
 - 从 PDF 提取零件、层级与交叉引用信息
 - 提供 Web 页面和 API 查询
-- 支持在 `/db` 页面上传、删除、重扫 PDF
+- 支持在 `/db` 页面上传、删除、改名、移动、刷新 PDF
 
 ## 1 分钟上手
 
@@ -25,7 +25,7 @@ python3 -m ipc_query serve --db ./data/ipc.sqlite --port 8791
 - `/`：首页
 - `/search`：搜索页（件号/术语/来源过滤）
 - `/part/{id}`：零件详情页（层级关系、xref、页预览）
-- `/db`：PDF 文件管理页（上传、删除、重扫、目录管理）
+- `/db`：PDF 文件管理页（极简 Finder 风格，上传/删除/改名/移动/刷新）
 
 ## 常用操作
 
@@ -91,11 +91,11 @@ legacy/         # 历史入口归档（不建议新功能继续使用）
 
 ## 发布（GitHub）
 
-项目当前版本：`v2.0.0`。
+项目当前版本：`v3.0.0`（release3）。
 
 建议流程：
 1. 合并变更到 `main`
-2. 打 tag（例如 `v2.0.1`）
+2. 打 tag（例如 `release3` 或 `v3.0.0`）
 3. 推送 `main` 与 tag
 4. 在 GitHub Releases 页面基于 tag 发布 release
 
@@ -105,8 +105,7 @@ legacy/         # 历史入口归档（不建议新功能继续使用）
 git checkout main
 git pull --ff-only
 
-git tag -a v2.0.1 -m "Release v2.0.1"
+git tag -a release3 -m "Release release3 (v3.0.0)"
 git push origin main
-git push origin v2.0.1
+git push origin release3
 ```
-

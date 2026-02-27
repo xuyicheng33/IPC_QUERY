@@ -21,6 +21,10 @@
 - [md3/M4_DB_REFACTOR_ACCEPTANCE.md](md3/M4_DB_REFACTOR_ACCEPTANCE.md)
 - [md3/M5_RELEASE_CHECKLIST.md](md3/M5_RELEASE_CHECKLIST.md)
 
+## 设计与前端交接
+
+- [frontend/FRONTEND_HANDOFF_RELEASE3.md](frontend/FRONTEND_HANDOFF_RELEASE3.md)
+
 ## 历史归档
 
 以下文档用于记录早期 UI 重建过程（Swiss Spa/Lucide 口径），仅作历史参考，**不作为当前 MD3 发布基线**：

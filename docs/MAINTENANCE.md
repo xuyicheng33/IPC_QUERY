@@ -20,6 +20,7 @@
 
 - `README.md` 保持“新用户 1 分钟能启动”。
 - `docs/README.md` 维护文档入口。
+- 前端布局/交互变更后，同步更新设计交接文档（`docs/frontend/*`）。
 - 历史过程文档统一放入 `docs/archive/`，避免干扰主文档。
 
 ## 提交前最小检查清单
@@ -45,12 +46,11 @@ git checkout main
 git pull --ff-only
 
 # 2) 打版本标签（示例）
-git tag -a vX.Y.Z -m "Release vX.Y.Z"
+git tag -a release3 -m "Release release3 (v3.0.0)"
 
 # 3) 推送
 git push origin main
-git push origin vX.Y.Z
+git push origin release3
 ```
 
 然后在 GitHub Releases 页面基于对应 tag 发布 release。
-

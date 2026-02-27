@@ -20,6 +20,7 @@
 ## docs 组织策略
 
 - 日常文档：放在 `docs/` 根目录（如 `README.md`、`MAINTENANCE.md`、`STRUCTURE.md`）。
+- 前端设计交接文档：放在 `docs/frontend/`。
 - 历史过程文档：放入 `docs/archive/`（例如 UI 重建过程文档）。
 
 ## 新文件放置决策表
@@ -35,5 +36,5 @@
 | 版本管理样本 | `data/fixtures/` |
 | 运行态临时产物 | `tmp/`（不提交） |
 | 日常维护文档 | `docs/` |
+| 前端设计交接文档 | `docs/frontend/` |
 | 历史文档归档 | `docs/archive/` |
-
