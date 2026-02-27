@@ -12,31 +12,48 @@
       <a class="btn ghost" href="/search">搜索</a>
     </header>
 
-    <main class="page dbGrid">
-      <section class="card stack gap">
+    <main class="page dbManager">
+      <section class="card dbTreePane stack gap">
         <div class="row between">
-          <div class="k">目录</div>
-          <button id="btnRescan" class="btn ghost" type="button">重扫当前目录</button>
+          <div class="k">目录树</div>
+          <button id="btnRefreshTree" class="btn ghost" type="button">刷新树</button>
         </div>
-        <div id="dbStatus" class="muted">加载中...</div>
-        <div id="pathCrumb" class="mono">/</div>
-        <div id="dirList" class="stack"></div>
-        <div id="fileList" class="stack"></div>
+        <div id="treeRoot" class="treeRoot stack"></div>
       </section>
 
-      <section class="card stack gap">
-        <div class="k">创建子目录</div>
-        <form id="folderForm" class="row gap">
-          <input id="folderName" class="input flex" type="text" placeholder="例如：engine" />
-          <button class="btn primary" type="submit">创建</button>
+      <section class="card dbFilePane stack gap">
+        <div class="row between wrap">
+          <div id="pathCrumb" class="mono">/</div>
+          <div id="dbStatus" class="muted">加载中...</div>
+        </div>
+        <div class="row gap wrap">
+          <button id="btnUpload" class="btn primary" type="button">上传 PDF</button>
+          <input id="uploadFiles" class="hidden" type="file" accept=".pdf,application/pdf" multiple />
+          <button id="btnDeleteSelected" class="btn danger" type="button" disabled>删除所选</button>
+          <button id="btnRescan" class="btn ghost" type="button">重扫当前目录</button>
+          <button id="btnRefresh" class="btn ghost" type="button">刷新</button>
+        </div>
+        <form id="folderForm" class="row gap wrap">
+          <label class="k" for="folderName">创建子目录</label>
+          <input id="folderName" class="input flex folderInput" type="text" placeholder="例如：engine" />
+          <button class="btn ghost" type="submit">创建</button>
         </form>
-
-        <div class="k">上传 PDF（支持批量）</div>
-        <form id="uploadForm" class="stack gap">
-          <input id="uploadFiles" class="input" type="file" accept=".pdf,application/pdf" multiple />
-          <button class="btn primary" type="submit">上传并入库</button>
-        </form>
-
+        <div id="dbActionResult" class="muted"></div>
+        <div class="tableWrap">
+          <table class="table dbTable">
+            <thead>
+              <tr>
+                <th><input id="selectAllFiles" type="checkbox" aria-label="全选文件" /></th>
+                <th>文件名</th>
+                <th>入库状态</th>
+                <th>任务状态</th>
+                <th>单文件操作</th>
+              </tr>
+            </thead>
+            <tbody id="dbFilesBody"></tbody>
+          </table>
+        </div>
+        <div id="dbEmpty" class="muted" hidden>无 PDF 文件</div>
         <div class="k">任务状态</div>
         <div id="jobsList" class="stack"></div>
       </section>

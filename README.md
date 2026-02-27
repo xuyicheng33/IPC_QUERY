@@ -44,8 +44,8 @@ python3 -m ipc_query serve --db ./data/ipc.sqlite --port 8791
 
 - 首页：`/`（仅标题 + 搜索框 + 搜索按钮）
 - 结果页：`/search`（支持来源目录/文档、匹配模式、备注筛选）
-- 详情页：`/part/{id}`（保留术语、层级、预览、打开 PDF）
-- 数据库页：`/db`（目录浏览、创建子目录、单/批量上传、删除、重扫）
+- 详情页：`/part/{id}`（保留术语、层级、预览、打开 PDF，包含 optional/replace 卡片与术语高亮）
+- 数据库页：`/db`（双栏文件管理器：左侧目录树，右侧文件表；支持多选删除、批量上传、重扫、创建子目录）
 
 服务启动后会自动提交一次 PDF 目录增量扫描任务（新增/变更文件入库）。
 
@@ -58,6 +58,7 @@ python3 -m ipc_query serve --db ./data/ipc.sqlite --port 8791
 | `/api/docs` | GET | 获取文档列表 |
 | `/api/docs/tree?path={relative_dir}` | GET | 获取目录树（子目录 + PDF 文件 + 入库状态） |
 | `/api/docs?name={pdf_name}` | DELETE | 删除指定 PDF 及关联数据 |
+| `/api/docs/batch-delete` | POST | 批量删除 PDF（逐项返回成功/失败） |
 | `/api/health` | GET | 健康检查 |
 | `/api/metrics` | GET | 性能指标 |
 | `/api/import` | POST | 上传 PDF 并创建导入任务（支持 `target_dir`） |

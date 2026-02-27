@@ -319,6 +319,15 @@ class RequestHandler(BaseHTTPRequestHandler):
                 self._send(status, body, ct)
                 return
 
+            if path == "/api/docs/batch-delete":
+                json_payload = self._read_json_body()
+                raw_paths = json_payload.get("paths")
+                if not isinstance(raw_paths, list):
+                    raise ValidationError("`paths` must be an array")
+                status, body, ct = self.handlers.handle_docs_batch_delete(paths=raw_paths)
+                self._send(status, body, ct)
+                return
+
             if path == "/api/folders":
                 json_payload = self._read_json_body()
                 parent_path = str(json_payload.get("path") or "")

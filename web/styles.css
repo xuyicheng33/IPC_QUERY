@@ -92,6 +92,10 @@ a {
   align-items: center;
 }
 
+.wrap {
+  flex-wrap: wrap;
+}
+
 .between {
   justify-content: space-between;
 }
@@ -152,6 +156,17 @@ a {
   background: #fff;
   color: var(--text);
   border-color: var(--border);
+}
+
+.btn.danger {
+  background: #fff5f5;
+  color: var(--danger);
+  border-color: #fecaca;
+}
+
+.btn.danger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .filters {
@@ -303,6 +318,121 @@ a {
   gap: 16px;
 }
 
+.dbManager {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 16px;
+}
+
+.dbTreePane {
+  min-height: 520px;
+}
+
+.treeRoot {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px;
+  background: #fff;
+  min-height: 420px;
+}
+
+.treeRow,
+.treeLeaf {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+}
+
+.treeRow.active .treeDirBtn {
+  background: #ecfeff;
+  border-color: #99f6e4;
+}
+
+.treeToggle {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  min-width: 24px;
+  min-height: 24px;
+  background: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.treeDirBtn {
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 8px;
+  padding: 4px 6px;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.treeLeaf {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.dbFilePane #pathCrumb a {
+  color: var(--primary-2);
+}
+
+.folderInput {
+  min-width: 200px;
+}
+
+.dbTable td,
+.dbTable th {
+  white-space: nowrap;
+}
+
+.dbTable td:nth-child(2) {
+  width: 100%;
+  white-space: normal;
+}
+
+.filePath {
+  font-family: var(--mono);
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.actionResultBad {
+  color: var(--danger);
+}
+
+.flagCards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.flagCard {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  background: #fff;
+}
+
+.flagValue {
+  font-family: var(--mono);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.flagValue.yes {
+  color: #0f766e;
+}
+
+.kwHit {
+  background: #fef08a;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
 .historyFavGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -364,6 +494,10 @@ a {
     grid-template-columns: 1fr;
   }
 
+  .dbManager {
+    grid-template-columns: 1fr;
+  }
+
   .historyFavGrid {
     grid-template-columns: 1fr;
   }
@@ -373,6 +507,10 @@ a {
   }
 
   .kvGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .flagCards {
     grid-template-columns: 1fr;
   }
 }

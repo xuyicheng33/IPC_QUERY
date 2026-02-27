@@ -191,6 +191,63 @@ class ApiHandlers:
             raise NotFoundError(f"PDF not found: {pdf_name}")
         return HTTPStatus.OK, _json_bytes(result), "application/json; charset=utf-8"
 
+    def handle_docs_batch_delete(self, paths: list[Any]) -> tuple[int, bytes, str]:
+        """
+        批量删除文档请求
+
+        POST /api/docs/batch-delete
+        body: {"paths": ["a.pdf", "sub/b.pdf"]}
+        """
+        if self._import is None:
+            raise ValidationError("Import service is not enabled")
+        if not isinstance(paths, list):
+            raise ValidationError("`paths` must be an array")
+        if len(paths) == 0:
+            raise ValidationError("`paths` must not be empty")
+
+        results: list[dict[str, Any]] = []
+        deleted = 0
+
+        for raw_path in paths:
+            if not isinstance(raw_path, str):
+                results.append({
+                    "path": str(raw_path),
+                    "ok": False,
+                    "error": "path must be a string",
+                })
+                continue
+
+            path = raw_path.strip()
+            if not path:
+                results.append({
+                    "path": path,
+                    "ok": False,
+                    "error": "Missing filename",
+                })
+                continue
+
+            try:
+                detail = self._import.delete_document(path)
+                if detail.get("deleted"):
+                    deleted += 1
+                    results.append({"path": path, "ok": True, "detail": detail})
+                else:
+                    results.append({"path": path, "ok": False, "error": f"PDF not found: {path}"})
+            except (ValidationError, NotFoundError) as e:
+                results.append({"path": path, "ok": False, "error": str(e)})
+            except Exception as e:
+                logger.exception("Batch delete failed", extra_fields={"path": path})
+                results.append({"path": path, "ok": False, "error": str(e)})
+
+        total = len(paths)
+        payload = {
+            "total": total,
+            "deleted": deleted,
+            "failed": total - deleted,
+            "results": results,
+        }
+        return HTTPStatus.OK, _json_bytes(payload), "application/json; charset=utf-8"
+
     def handle_health(self) -> tuple[int, bytes, str]:
         """
         处理健康检查请求

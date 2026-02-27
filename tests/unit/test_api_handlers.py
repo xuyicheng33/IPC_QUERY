@@ -14,6 +14,7 @@ import pytest
 from ipc_query.api.handlers import ApiHandlers
 from ipc_query.config import Config
 from ipc_query.exceptions import NotFoundError
+from ipc_query.exceptions import ValidationError
 
 
 def _make_handlers(
@@ -112,6 +113,79 @@ def test_handle_doc_delete_not_found_raises(tmp_path: Path) -> None:
 
     with pytest.raises(NotFoundError):
         handlers.handle_doc_delete("missing.pdf")
+
+
+def test_handle_docs_batch_delete_success(tmp_path: Path) -> None:
+    pdf_path = tmp_path / "sample.pdf"
+    pdf_path.write_bytes(b"0123")
+
+    import_service = MagicMock()
+    import_service.delete_document.side_effect = [
+        {
+            "deleted": True,
+            "pdf_name": "a.pdf",
+            "relative_path": "a.pdf",
+            "deleted_counts": {"pages": 1, "parts": 2, "xrefs": 0, "aliases": 0},
+            "file_deleted": True,
+        },
+        {
+            "deleted": True,
+            "pdf_name": "b.pdf",
+            "relative_path": "dir/b.pdf",
+            "deleted_counts": {"pages": 0, "parts": 0, "xrefs": 0, "aliases": 0},
+            "file_deleted": True,
+        },
+    ]
+    handlers = _make_handlers(pdf_path)
+    handlers._import = import_service
+
+    status, body, content_type = handlers.handle_docs_batch_delete(["a.pdf", "dir/b.pdf"])
+
+    assert status == HTTPStatus.OK
+    assert content_type == "application/json; charset=utf-8"
+    payload = json.loads(body.decode("utf-8"))
+    assert payload["total"] == 2
+    assert payload["deleted"] == 2
+    assert payload["failed"] == 0
+    assert [item["path"] for item in payload["results"]] == ["a.pdf", "dir/b.pdf"]
+    assert all(item["ok"] is True for item in payload["results"])
+    assert import_service.delete_document.call_count == 2
+
+
+def test_handle_docs_batch_delete_partial_failure(tmp_path: Path) -> None:
+    pdf_path = tmp_path / "sample.pdf"
+    pdf_path.write_bytes(b"0123")
+
+    import_service = MagicMock()
+    import_service.delete_document.side_effect = [
+        {"deleted": True, "pdf_name": "a.pdf", "relative_path": "a.pdf"},
+        {"deleted": False, "pdf_name": "missing.pdf", "relative_path": "missing.pdf"},
+    ]
+    handlers = _make_handlers(pdf_path)
+    handlers._import = import_service
+
+    status, body, _ = handlers.handle_docs_batch_delete(["a.pdf", "missing.pdf"])
+
+    assert status == HTTPStatus.OK
+    payload = json.loads(body.decode("utf-8"))
+    assert payload["total"] == 2
+    assert payload["deleted"] == 1
+    assert payload["failed"] == 1
+    assert payload["results"][0]["ok"] is True
+    assert payload["results"][1]["ok"] is False
+    assert "not found" in payload["results"][1]["error"].lower()
+    assert import_service.delete_document.call_count == 2
+
+
+def test_handle_docs_batch_delete_invalid_payload_raises(tmp_path: Path) -> None:
+    handlers = _make_handlers(tmp_path / "sample.pdf")
+    handlers._import = MagicMock()
+
+    with pytest.raises(ValidationError):
+        handlers.handle_docs_batch_delete("not-list")  # type: ignore[arg-type]
+
+    with pytest.raises(ValidationError):
+        handlers.handle_docs_batch_delete([])
 
 
 def test_handle_search_normalizes_non_positive_page(tmp_path: Path) -> None:

@@ -28,6 +28,26 @@ function normalizeDir(v) {
     .join("/");
 }
 
+function getKeywordUtils() {
+  if (typeof window !== "undefined" && window.IpcKeywordUtils) {
+    return window.IpcKeywordUtils;
+  }
+  return {
+    detectKeywordFlags(value) {
+      const text = (value ?? "").toString();
+      return {
+        optional: /\boptional\b/i.test(text),
+        replace: /\breplace\b/i.test(text),
+      };
+    },
+    highlightKeywords(value, escapeFn) {
+      const escaper = typeof escapeFn === "function" ? escapeFn : escapeHtml;
+      const safe = escaper((value ?? "").toString());
+      return safe.replace(/\b(optional|replace)\b/gi, (matched) => `<span class="kwHit">${matched}</span>`);
+    },
+  };
+}
+
 function searchStateFromUrl() {
   const params = new URLSearchParams(window.location.search || "");
   return {
@@ -442,6 +462,7 @@ async function initDetailPage() {
   const state = searchStateFromUrl();
   const back = $("#backToResults");
   if (back) back.href = buildSearchPageUrl(state);
+  const keywordUtils = getKeywordUtils();
 
   try {
     const data = await fetchJson(`/api/part/${id}`);
@@ -459,7 +480,29 @@ async function initDetailPage() {
     $("#srcItem").textContent = (p.fig_item || "-").toString();
     $("#srcQty").textContent = (p.units || p.units_per_assy || "-").toString();
     $("#srcEff").textContent = (p.eff || p.effectivity || "-").toString();
-    $("#partDesc").textContent = (p.nom || p.nomenclature || p.nomenclature_clean || "-").toString();
+    const descRaw = (p.nom || p.nomenclature || p.nomenclature_clean || "").toString();
+    const descText = descRaw.trim();
+    const descEl = $("#partDesc");
+    const optionalFlagEl = $("#optionalFlag");
+    const replaceFlagEl = $("#replaceFlag");
+    const flags = keywordUtils.detectKeywordFlags(descText);
+
+    if (optionalFlagEl) {
+      optionalFlagEl.textContent = flags.optional ? "是" : "否";
+      optionalFlagEl.classList.toggle("yes", Boolean(flags.optional));
+    }
+    if (replaceFlagEl) {
+      replaceFlagEl.textContent = flags.replace ? "是" : "否";
+      replaceFlagEl.classList.toggle("yes", Boolean(flags.replace));
+    }
+
+    if (descEl) {
+      if (!descText) {
+        descEl.textContent = "—";
+      } else {
+        descEl.innerHTML = keywordUtils.highlightKeywords(descText, escapeHtml);
+      }
+    }
 
     const pdfEnc = encodeURIComponent(pdf);
     const openPage = $("#openPage");
@@ -483,7 +526,12 @@ async function initDetailPage() {
     renderHierarchyLinks($("#siblings"), data?.siblings || [], state);
     renderHierarchyLinks($("#children"), data?.children || [], state);
   } catch (e) {
-    $("#partDesc").textContent = `加载失败：${e?.message || e}`;
+    const descEl = $("#partDesc");
+    if (descEl) descEl.textContent = `加载失败：${e?.message || e}`;
+    const optionalFlagEl = $("#optionalFlag");
+    const replaceFlagEl = $("#replaceFlag");
+    if (optionalFlagEl) optionalFlagEl.textContent = "否";
+    if (replaceFlagEl) replaceFlagEl.textContent = "否";
   }
 }
 
@@ -509,29 +557,62 @@ function formatJobStatus(job) {
 async function initDbPage() {
   const statusEl = $("#dbStatus");
   const crumbEl = $("#pathCrumb");
-  const dirList = $("#dirList");
-  const fileList = $("#fileList");
+  const treeRoot = $("#treeRoot");
+  const fileBody = $("#dbFilesBody");
+  const emptyEl = $("#dbEmpty");
+  const actionResultEl = $("#dbActionResult");
+  const selectAllBox = $("#selectAllFiles");
+  const btnDeleteSelected = $("#btnDeleteSelected");
+  const btnUpload = $("#btnUpload");
+  const uploadFiles = $("#uploadFiles");
+  const btnRefresh = $("#btnRefresh");
+  const btnRefreshTree = $("#btnRefreshTree");
+  const btnRescan = $("#btnRescan");
   const folderForm = $("#folderForm");
   const folderName = $("#folderName");
-  const uploadForm = $("#uploadForm");
-  const uploadFiles = $("#uploadFiles");
   const jobsList = $("#jobsList");
-  const btnRescan = $("#btnRescan");
 
-  if (!statusEl || !crumbEl || !dirList || !fileList || !folderForm || !folderName || !uploadForm || !uploadFiles || !jobsList) {
+  if (
+    !statusEl
+    || !crumbEl
+    || !treeRoot
+    || !fileBody
+    || !emptyEl
+    || !actionResultEl
+    || !selectAllBox
+    || !btnDeleteSelected
+    || !btnUpload
+    || !uploadFiles
+    || !btnRefresh
+    || !btnRefreshTree
+    || !btnRescan
+    || !folderForm
+    || !folderName
+    || !jobsList
+  ) {
     return;
   }
 
   let currentPath = normalizeDbPathFromUrl();
+  let currentFiles = [];
+  const selectedPaths = new Set();
+  const treeCache = new Map();
+  const expandedDirs = new Set([""]);
   const activeImportJobs = new Set();
-  let pollTimer = null;
   let activeScanJobId = "";
+  const jobStatusByPath = new Map();
+  let pollTimer = null;
 
   function setStatus(text) {
     statusEl.textContent = text;
   }
 
-  function addJobRow(job, kind = "import") {
+  function setActionResult(text, isError = false) {
+    actionResultEl.textContent = text || "";
+    actionResultEl.classList.toggle("actionResultBad", Boolean(isError));
+  }
+
+  function upsertJobRow(job, kind = "import") {
     const rowId = `${kind}-${job.job_id}`;
     let row = document.getElementById(rowId);
     if (!row) {
@@ -542,13 +623,251 @@ async function initDbPage() {
     }
 
     const status = formatJobStatus(job);
+    const pathText = (job.relative_path || job.filename || job.path || "-").toString();
+    const err = (job.error || "").toString();
+    if (kind === "import" && pathText && pathText !== "-") {
+      jobStatusByPath.set(pathText, status);
+    }
     row.innerHTML = `
       <div>
-        <div class="mono">${escapeHtml(job.relative_path || job.filename || job.path || "-")}</div>
+        <div class="mono">${escapeHtml(pathText)}</div>
         <div class="muted">${escapeHtml(kind)} · ${escapeHtml(status)}</div>
+        ${err ? `<div class="muted">${escapeHtml(err)}</div>` : ""}
       </div>
       <span class="badge ${status === "success" ? "ok" : status === "failed" ? "bad" : ""}">${escapeHtml(status)}</span>
     `;
+  }
+
+  async function ensureTreeNode(path, force = false) {
+    const key = normalizeDir(path || "");
+    if (!force && treeCache.has(key)) {
+      return treeCache.get(key);
+    }
+    const payload = await fetchJson(`/api/docs/tree?path=${encodeURIComponent(key)}`);
+    const node = {
+      path: normalizeDir(payload?.path || key),
+      directories: Array.isArray(payload?.directories) ? payload.directories : [],
+      files: Array.isArray(payload?.files) ? payload.files : [],
+    };
+    treeCache.set(node.path, node);
+    if (node.path !== key) {
+      treeCache.set(key, node);
+    }
+    return node;
+  }
+
+  async function preloadPathChain(path, force = false) {
+    const target = normalizeDir(path || "");
+    await ensureTreeNode("", force);
+    if (!target) return;
+    let acc = "";
+    for (const seg of target.split("/")) {
+      acc = acc ? `${acc}/${seg}` : seg;
+      await ensureTreeNode(acc, force);
+    }
+  }
+
+  function pruneSelection(files) {
+    const visible = new Set(
+      (Array.isArray(files) ? files : []).map((f) => normalizeDir((f?.relative_path || f?.name || "").toString()))
+    );
+    for (const path of Array.from(selectedPaths.values())) {
+      if (!visible.has(path)) {
+        selectedPaths.delete(path);
+      }
+    }
+  }
+
+  function updateSelectSummary() {
+    const count = selectedPaths.size;
+    btnDeleteSelected.disabled = count === 0;
+    btnDeleteSelected.textContent = count > 0 ? `删除所选 (${count})` : "删除所选";
+  }
+
+  function toggleSelection(path) {
+    const rel = normalizeDir(path || "");
+    if (!rel) return;
+    if (selectedPaths.has(rel)) {
+      selectedPaths.delete(rel);
+    } else {
+      selectedPaths.add(rel);
+    }
+    renderFileTable(currentFiles);
+  }
+
+  function toggleSelectAll(checked) {
+    if (checked) {
+      for (const f of currentFiles) {
+        const rel = normalizeDir((f?.relative_path || f?.name || "").toString());
+        if (rel) selectedPaths.add(rel);
+      }
+    } else {
+      selectedPaths.clear();
+    }
+    renderFileTable(currentFiles);
+  }
+
+  function renderFileTable(files) {
+    currentFiles = Array.isArray(files) ? files : [];
+    pruneSelection(currentFiles);
+    fileBody.innerHTML = "";
+    emptyEl.hidden = currentFiles.length > 0;
+
+    if (currentFiles.length === 0) {
+      selectAllBox.checked = false;
+      selectAllBox.disabled = true;
+      updateSelectSummary();
+      return;
+    }
+
+    selectAllBox.disabled = false;
+    const checkedCount = currentFiles.filter((f) => {
+      const rel = normalizeDir((f?.relative_path || f?.name || "").toString());
+      return rel && selectedPaths.has(rel);
+    }).length;
+    selectAllBox.checked = checkedCount > 0 && checkedCount === currentFiles.length;
+
+    for (const f of currentFiles) {
+      const rel = normalizeDir((f?.relative_path || f?.name || "").toString());
+      const indexed = Boolean(f?.indexed);
+      const taskStatus = jobStatusByPath.get(rel) || "-";
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><input type="checkbox" ${selectedPaths.has(rel) ? "checked" : ""} ${rel ? "" : "disabled"} /></td>
+        <td class="filePath">${escapeHtml(rel || "-")}</td>
+        <td><span class="badge ${indexed ? "ok" : ""}">${indexed ? "indexed" : "pending"}</span></td>
+        <td><span class="badge ${taskStatus === "success" ? "ok" : taskStatus === "failed" ? "bad" : ""}">${escapeHtml(taskStatus)}</span></td>
+        <td><button class="btn ghost" type="button" ${rel ? "" : "disabled"}>删除</button></td>
+      `;
+      tr.querySelector('input[type="checkbox"]')?.addEventListener("change", () => toggleSelection(rel));
+      tr.querySelector("button")?.addEventListener("click", async () => {
+        if (!rel) return;
+        await deleteSelected([rel]);
+      });
+      fileBody.appendChild(tr);
+    }
+    updateSelectSummary();
+  }
+
+  function renderCrumb(path) {
+    const parts = path ? path.split("/") : [];
+    const nodes = ['<a href="/db" data-path="">/</a>'];
+    let acc = "";
+    for (const part of parts) {
+      acc = acc ? `${acc}/${part}` : part;
+      nodes.push(`<span>/</span><a href="${buildDbUrl(acc)}" data-path="${escapeHtml(acc)}">${escapeHtml(part)}</a>`);
+    }
+    crumbEl.innerHTML = nodes.join("");
+    crumbEl.querySelectorAll("a[data-path]").forEach((a) => {
+      a.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        const next = normalizeDir(a.getAttribute("data-path") || "");
+        void loadDirectory(next, { push: true, force: false });
+      });
+    });
+  }
+
+  function appendPdfLeaves(path, depth) {
+    const node = treeCache.get(path);
+    if (!node) return;
+    for (const f of node.files || []) {
+      const rel = (f?.relative_path || f?.name || "").toString();
+      const leaf = document.createElement("div");
+      leaf.className = "treeLeaf";
+      leaf.style.paddingLeft = `${depth * 14}px`;
+      leaf.textContent = `📄 ${rel || "-"}`;
+      treeRoot.appendChild(leaf);
+    }
+  }
+
+  function renderTreeNode(path, depth) {
+    const node = treeCache.get(path);
+    if (!node) return;
+    for (const d of node.directories || []) {
+      const dirPath = normalizeDir(d?.path || "");
+      const expanded = expandedDirs.has(dirPath);
+      const row = document.createElement("div");
+      row.className = `treeRow ${dirPath === currentPath ? "active" : ""}`;
+      row.style.paddingLeft = `${depth * 14}px`;
+      row.innerHTML = `
+        <button class="treeToggle" type="button">${expanded ? "▾" : "▸"}</button>
+        <button class="treeDirBtn" type="button">📁 ${escapeHtml((d?.name || dirPath || "").toString())}</button>
+      `;
+      row.querySelector(".treeToggle")?.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        if (expandedDirs.has(dirPath)) {
+          expandedDirs.delete(dirPath);
+          renderTree();
+          return;
+        }
+        expandedDirs.add(dirPath);
+        try {
+          await ensureTreeNode(dirPath);
+          renderTree();
+        } catch (e) {
+          setStatus(`目录加载失败：${e?.message || e}`);
+        }
+      });
+      row.querySelector(".treeDirBtn")?.addEventListener("click", () => {
+        void loadDirectory(dirPath, { push: true, force: false });
+      });
+      treeRoot.appendChild(row);
+
+      if (expandedDirs.has(dirPath)) {
+        appendPdfLeaves(dirPath, depth + 1);
+        renderTreeNode(dirPath, depth + 1);
+      }
+    }
+  }
+
+  function renderTree() {
+    treeRoot.innerHTML = "";
+    const rootRow = document.createElement("div");
+    rootRow.className = `treeRow ${currentPath === "" ? "active" : ""}`;
+    rootRow.style.paddingLeft = "0px";
+    rootRow.innerHTML = `<button class="treeDirBtn" type="button">📁 /</button>`;
+    rootRow.querySelector(".treeDirBtn")?.addEventListener("click", () => {
+      void loadDirectory("", { push: true, force: false });
+    });
+    treeRoot.appendChild(rootRow);
+
+    appendPdfLeaves("", 1);
+    renderTreeNode("", 1);
+  }
+
+  async function loadDirectory(path, options = {}) {
+    const { push = false, force = false } = options;
+    const target = normalizeDir(path || "");
+    setStatus("加载中...");
+    try {
+      await preloadPathChain(target, force);
+      const payload = await ensureTreeNode(target, force);
+      currentPath = normalizeDir(payload?.path || target);
+
+      expandedDirs.add("");
+      if (currentPath) {
+        let acc = "";
+        for (const seg of currentPath.split("/")) {
+          acc = acc ? `${acc}/${seg}` : seg;
+          expandedDirs.add(acc);
+        }
+      }
+
+      renderCrumb(currentPath);
+      renderTree();
+      renderFileTable(payload?.files || []);
+      if (push) {
+        history.pushState({}, "", buildDbUrl(currentPath));
+      }
+      setStatus(`目录 ${currentPath || "/"} · 文件 ${currentFiles.length}`);
+    } catch (e) {
+      setStatus(`加载失败：${e?.message || e}`);
+      renderFileTable([]);
+    }
+  }
+
+  async function refreshCurrentDirectory() {
+    await loadDirectory(currentPath, { push: false, force: true });
   }
 
   function ensurePolling() {
@@ -558,7 +877,7 @@ async function initDbPage() {
       for (const jobId of activeImportJobs.values()) {
         try {
           const job = await fetchJson(`/api/import/${encodeURIComponent(jobId)}`);
-          addJobRow(job, "import");
+          upsertJobRow(job, "import");
           if (["success", "failed"].includes(job.status || "")) {
             done.push(jobId);
           }
@@ -571,7 +890,7 @@ async function initDbPage() {
       if (activeScanJobId) {
         try {
           const scanJob = await fetchJson(`/api/scan/${encodeURIComponent(activeScanJobId)}`);
-          addJobRow(scanJob, "scan");
+          upsertJobRow(scanJob, "scan");
           if (["success", "failed"].includes(scanJob.status || "")) {
             activeScanJobId = "";
           }
@@ -580,110 +899,125 @@ async function initDbPage() {
         }
       }
 
+      renderFileTable(currentFiles);
       if (activeImportJobs.size === 0 && !activeScanJobId) {
         clearInterval(pollTimer);
         pollTimer = null;
-        await loadTree(currentPath);
+        await refreshCurrentDirectory();
       }
     }, 1500);
   }
 
-  function renderCrumb(path) {
-    const parts = path ? path.split("/") : [];
-    const nodes = ['<a href="/db">/</a>'];
-    let acc = "";
-    for (const part of parts) {
-      acc = acc ? `${acc}/${part}` : part;
-      nodes.push(`<span>/</span><a href="${buildDbUrl(acc)}">${escapeHtml(part)}</a>`);
-    }
-    crumbEl.innerHTML = nodes.join("");
-    crumbEl.querySelectorAll("a").forEach((a) => {
-      a.addEventListener("click", (ev) => {
-        ev.preventDefault();
-        const href = a.getAttribute("href") || "/db";
-        history.pushState({}, "", href);
-        currentPath = normalizeDbPathFromUrl();
-        loadTree(currentPath);
-      });
-    });
+  function formatFailedSummary(payload) {
+    const results = Array.isArray(payload?.results) ? payload.results : [];
+    const failed = results.filter((r) => !r?.ok);
+    if (failed.length === 0) return "";
+    const sample = failed.slice(0, 3).map((r) => `${r.path || "-"}: ${r.error || "unknown error"}`);
+    return sample.join(" | ");
   }
 
-  async function loadTree(path) {
-    setStatus("加载中...");
+  async function deleteSelected(paths) {
+    const list = Array.isArray(paths) ? paths.map((p) => normalizeDir(p || "")).filter(Boolean) : [];
+    if (list.length === 0) return;
+    const sample = list.slice(0, 5).join("\n");
+    const tail = list.length > 5 ? "\n..." : "";
+    const ok = window.confirm(
+      `确认删除 ${list.length} 个文件？\n将删除数据库记录和磁盘文件。\n\n示例路径：\n${sample}${tail}`
+    );
+    if (!ok) return;
+
+    setStatus(`正在删除 ${list.length} 个文件...`);
+    setActionResult("");
     try {
-      const payload = await fetchJson(`/api/docs/tree?path=${encodeURIComponent(path || "")}`);
-      currentPath = normalizeDir(payload?.path || "");
-      renderCrumb(currentPath);
-
-      const dirs = Array.isArray(payload?.directories) ? payload.directories : [];
-      const files = Array.isArray(payload?.files) ? payload.files : [];
-
-      dirList.innerHTML = "";
-      if (dirs.length) {
-        for (const d of dirs) {
-          const row = document.createElement("div");
-          row.className = "dirRow";
-          row.innerHTML = `
-            <div class="pathLink">📁 ${escapeHtml(d.name || "")}</div>
-            <button class="btn ghost" type="button">进入</button>
-          `;
-          row.querySelector("button")?.addEventListener("click", () => {
-            const next = normalizeDir(d.path || "");
-            history.pushState({}, "", buildDbUrl(next));
-            loadTree(next);
-          });
-          dirList.appendChild(row);
-        }
-      } else {
-        dirList.innerHTML = '<div class="muted">无子目录</div>';
-      }
-
-      fileList.innerHTML = "";
-      if (files.length) {
-        for (const f of files) {
-          const row = document.createElement("div");
-          row.className = "fileRow";
-          const indexed = Boolean(f.indexed);
-          row.innerHTML = `
-            <div>
-              <div class="pathLink">${escapeHtml(f.relative_path || f.name || "")}</div>
-              <div class="muted">${indexed ? "已入库" : "未入库"}</div>
-            </div>
-            <div class="row gap">
-              <span class="badge ${indexed ? "ok" : ""}">${indexed ? "indexed" : "pending"}</span>
-              <button class="btn ghost" type="button">删除</button>
-            </div>
-          `;
-          const delBtn = row.querySelector("button");
-          delBtn?.addEventListener("click", async () => {
-            const rel = (f.relative_path || f.name || "").toString();
-            if (!rel) return;
-            const ok = window.confirm(`确认删除 ${rel} ?\n将删除数据库记录和磁盘文件。`);
-            if (!ok) return;
-            try {
-              await fetchJson(`/api/docs?name=${encodeURIComponent(rel)}`, { method: "DELETE" });
-              await loadTree(currentPath);
-            } catch (e) {
-              setStatus(`删除失败：${e?.message || e}`);
-            }
-          });
-          fileList.appendChild(row);
-        }
-      } else {
-        fileList.innerHTML = '<div class="muted">无 PDF 文件</div>';
-      }
-
-      setStatus(`目录 ${currentPath || "/"} · 文件 ${files.length}`);
+      const payload = await fetchJson("/api/docs/batch-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paths: list }),
+      });
+      const failedSummary = formatFailedSummary(payload);
+      setActionResult(
+        failedSummary
+          ? `删除完成：成功 ${payload.deleted}/${payload.total}，失败 ${payload.failed}（${failedSummary}）`
+          : `删除完成：成功 ${payload.deleted}/${payload.total}，失败 ${payload.failed}`
+      );
+      selectedPaths.clear();
+      await refreshCurrentDirectory();
     } catch (e) {
-      setStatus(`加载失败：${e?.message || e}`);
-      dirList.innerHTML = "";
-      fileList.innerHTML = "";
+      setActionResult(`删除失败：${e?.message || e}`, true);
+      setStatus(`删除失败：${e?.message || e}`);
     }
+  }
+
+  async function submitUploads(files) {
+    if (!Array.isArray(files) || files.length === 0) {
+      setStatus("请选择 PDF 文件");
+      return;
+    }
+    setStatus(`准备上传 ${files.length} 个文件...`);
+    setActionResult("");
+
+    for (const file of files) {
+      try {
+        const res = await fetch(
+          `/api/import?filename=${encodeURIComponent(file.name)}&target_dir=${encodeURIComponent(currentPath)}`,
+          {
+            method: "POST",
+            headers: {
+              Accept: "application/json",
+              "Content-Type": file.type || "application/pdf",
+              "X-File-Name": file.name,
+              "X-Target-Dir": currentPath,
+            },
+            body: file,
+          }
+        );
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.message || `${res.status} ${res.statusText}`);
+        activeImportJobs.add(String(data.job_id));
+        upsertJobRow(data, "import");
+      } catch (e) {
+        const fakeJob = {
+          job_id: `error-${Date.now()}`,
+          filename: file.name,
+          status: "failed",
+          error: String(e?.message || e),
+        };
+        upsertJobRow(fakeJob, "import");
+      }
+    }
+
+    uploadFiles.value = "";
+    ensurePolling();
   }
 
   window.addEventListener("popstate", () => {
-    currentPath = normalizeDbPathFromUrl();
-    loadTree(currentPath);
+    const next = normalizeDbPathFromUrl();
+    void loadDirectory(next, { push: false, force: false });
+  });
+
+  selectAllBox.addEventListener("change", () => {
+    toggleSelectAll(Boolean(selectAllBox.checked));
+  });
+
+  btnDeleteSelected.addEventListener("click", async () => {
+    await deleteSelected(Array.from(selectedPaths.values()));
+  });
+
+  btnUpload.addEventListener("click", () => {
+    uploadFiles.click();
+  });
+
+  uploadFiles.addEventListener("change", async () => {
+    const files = Array.from(uploadFiles.files || []);
+    await submitUploads(files);
+  });
+
+  btnRefresh.addEventListener("click", async () => {
+    await refreshCurrentDirectory();
+  });
+
+  btnRefreshTree.addEventListener("click", async () => {
+    await refreshCurrentDirectory();
   });
 
   folderForm.addEventListener("submit", async (ev) => {
@@ -697,50 +1031,10 @@ async function initDbPage() {
         body: JSON.stringify({ path: currentPath, name }),
       });
       folderName.value = "";
-      await loadTree(currentPath);
+      await refreshCurrentDirectory();
     } catch (e) {
       setStatus(`创建失败：${e?.message || e}`);
     }
-  });
-
-  uploadForm.addEventListener("submit", async (ev) => {
-    ev.preventDefault();
-    const files = Array.from(uploadFiles.files || []);
-    if (files.length === 0) {
-      setStatus("请选择 PDF 文件");
-      return;
-    }
-    setStatus(`准备上传 ${files.length} 个文件...`);
-
-    for (const file of files) {
-      try {
-        const res = await fetch(`/api/import?filename=${encodeURIComponent(file.name)}&target_dir=${encodeURIComponent(currentPath)}`, {
-          method: "POST",
-          headers: {
-            Accept: "application/json",
-            "Content-Type": file.type || "application/pdf",
-            "X-File-Name": file.name,
-            "X-Target-Dir": currentPath,
-          },
-          body: file,
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data?.message || `${res.status} ${res.statusText}`);
-        activeImportJobs.add(String(data.job_id));
-        addJobRow(data, "import");
-      } catch (e) {
-        const fakeJob = {
-          job_id: `error-${Date.now()}`,
-          filename: file.name,
-          status: "failed",
-          error: String(e?.message || e),
-        };
-        addJobRow(fakeJob, "import");
-      }
-    }
-
-    uploadFiles.value = "";
-    ensurePolling();
   });
 
   btnRescan?.addEventListener("click", async () => {
@@ -748,7 +1042,7 @@ async function initDbPage() {
       const job = await fetchJson(`/api/scan?path=${encodeURIComponent(currentPath)}`, { method: "POST" });
       activeScanJobId = String(job.job_id || "");
       if (activeScanJobId) {
-        addJobRow(job, "scan");
+        upsertJobRow(job, "scan");
         ensurePolling();
       }
     } catch (e) {
@@ -756,7 +1050,7 @@ async function initDbPage() {
     }
   });
 
-  await loadTree(currentPath);
+  await loadDirectory(currentPath, { push: false, force: true });
 }
 
 function bootstrap() {
