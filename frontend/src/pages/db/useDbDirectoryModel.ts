@@ -25,13 +25,8 @@ export function useDbDirectoryModel({ initialPath }: UseDbDirectoryModelParams) 
   const [directories, setDirectories] = useState<DocsTreeDirectory[]>([]);
   const [files, setFiles] = useState<DocsTreeFile[]>([]);
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(() => new Set());
-  const [status, setStatus] = useState("加载中...");
+  const [status, setStatus] = useState("");
   const treeCacheRef = useRef(treeCache);
-
-  const selectAllChecked = useMemo(() => {
-    if (files.length === 0) return false;
-    return files.every((file) => selectedPaths.has(normalizeDir(file.relative_path || file.name || "")));
-  }, [files, selectedPaths]);
 
   const knownDirectories = useMemo(() => {
     const out = new Set<string>([""]);
@@ -117,7 +112,7 @@ export function useDbDirectoryModel({ initialPath }: UseDbDirectoryModelParams) 
         });
 
         if (push) history.pushState({}, "", buildDbUrl(resolvedPath));
-        setStatus(`目录 ${resolvedPath || "/"} · 文件 ${(payload.files || []).length}`);
+        setStatus("");
       } catch (error) {
         setStatus(`加载失败：${String((error as Error)?.message || error)}`);
         setDirectories([]);
@@ -131,32 +126,14 @@ export function useDbDirectoryModel({ initialPath }: UseDbDirectoryModelParams) 
     await loadDirectory(currentPath, { force: true, push: false });
   }, [currentPath, loadDirectory]);
 
-  const toggleSelect = useCallback((path: string) => {
-    const normalized = normalizeDir(path || "");
-    if (!normalized) return;
-    setSelectedPaths((prev) => {
-      const next = new Set(prev);
-      if (next.has(normalized)) next.delete(normalized);
-      else next.add(normalized);
-      return next;
-    });
+  const setSelection = useCallback((paths: string[]) => {
+    const next = new Set<string>();
+    for (const raw of paths) {
+      const normalized = normalizeDir(raw || "");
+      if (normalized) next.add(normalized);
+    }
+    setSelectedPaths(next);
   }, []);
-
-  const toggleSelectAll = useCallback(
-    (checked: boolean) => {
-      if (!checked) {
-        setSelectedPaths(new Set());
-        return;
-      }
-      const next = new Set<string>();
-      files.forEach((file) => {
-        const normalized = normalizeDir(file.relative_path || file.name || "");
-        if (normalized) next.add(normalized);
-      });
-      setSelectedPaths(next);
-    },
-    [files]
-  );
 
   const clearSelection = useCallback(() => {
     setSelectedPaths(new Set());
@@ -179,17 +156,15 @@ export function useDbDirectoryModel({ initialPath }: UseDbDirectoryModelParams) 
     files,
     selectedPaths,
     status,
-    selectAllChecked,
     knownDirectories,
     selectedCount,
     breadcrumbParts,
     setStatus,
+    setSelection,
     loadDirectory,
     refreshCurrentDirectory,
     ensureTreeNode,
     toggleExpandDir,
-    toggleSelect,
-    toggleSelectAll,
     clearSelection,
   };
 }

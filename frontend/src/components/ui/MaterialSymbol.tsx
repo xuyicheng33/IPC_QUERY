@@ -1,5 +1,6 @@
 import React from "react";
 import { Box, type BoxProps } from "@mui/material";
+import { cn } from "@/lib/cn";
 
 type MaterialSymbolProps = {
   name: string;
@@ -7,13 +8,14 @@ type MaterialSymbolProps = {
 } & Omit<BoxProps<"span">, "children">;
 
 export function MaterialSymbol({ name, size = 20, sx, ...props }: MaterialSymbolProps) {
+  const { className, ...restProps } = props;
   return (
     <Box
       component="span"
       aria-hidden="true"
-      className="material-symbols-rounded"
+      className={cn("material-symbols-rounded", className)}
       sx={{ fontSize: size, ...sx }}
-      {...props}
+      {...restProps}
     >
       {name}
     </Box>
