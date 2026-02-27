@@ -487,7 +487,7 @@ export function DbPage() {
 
   return (
     <AppShell actions={[{ href: "/search", label: "搜索" }]}>
-      <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
         <Card className="grid gap-3">
           <div className="flex items-center justify-between">
             <div className="text-sm font-medium">目录树</div>
@@ -521,7 +521,7 @@ export function DbPage() {
           </div>
         </Card>
 
-        <Card className="grid gap-3">
+        <Card className="grid min-w-0 gap-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="font-mono text-xs">
               <a

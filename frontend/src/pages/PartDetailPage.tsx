@@ -140,7 +140,7 @@ export function PartDetailPage() {
             </p>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             <Meta label="来源" value={sourcePath || "-"} />
             <Meta label="页码" value={pageEnd !== page ? `${page}~${pageEnd}` : String(page)} />
             <Meta label="图号" value={String(part.fig || part.figure_code || "-")} />
@@ -175,7 +175,7 @@ export function PartDetailPage() {
             <Layers className="h-4 w-4 text-muted" aria-hidden="true" />
             层级关系
           </div>
-          <div className="grid gap-3 lg:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             <HierLinks title="父辈" items={payload?.parents || []} state={searchState} />
             <HierLinks title="平辈" items={payload?.siblings || []} state={searchState} />
             <HierLinks title="子辈" items={payload?.children || []} state={searchState} />

@@ -212,7 +212,7 @@ export function SearchPage() {
 
   return (
     <AppShell>
-      <div className="grid gap-4">
+      <div className="grid gap-4 min-w-0">
         <Card>
           <form className="grid gap-3" onSubmit={submit}>
             <div className="flex items-center gap-3">
@@ -229,7 +229,7 @@ export function SearchPage() {
               </Button>
             </div>
 
-            <div className="grid grid-cols-4 gap-3 xl:grid-cols-5">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
               <label className="grid gap-1 text-xs text-muted">
                 匹配模式
                 <Select
@@ -286,7 +286,7 @@ export function SearchPage() {
                 包含备注行
               </label>
 
-              <div className="flex items-end justify-end">
+              <div className="flex items-end justify-start xl:justify-end">
                 <Badge variant="neutral" className="h-10 items-center">
                   <Filter className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
                   总计 {total} 条
@@ -350,9 +350,9 @@ export function SearchPage() {
                           </button>
                         </TD>
                         <TD className="font-mono text-[13px]">{pn}</TD>
-                        <TD>{source}</TD>
+                        <TD className="max-w-[320px] whitespace-nowrap overflow-hidden text-ellipsis">{source}</TD>
                         <TD className="font-mono text-[13px]">{page}</TD>
-                        <TD className="max-w-[520px] truncate">{nom}</TD>
+                        <TD className="max-w-[520px] whitespace-nowrap overflow-hidden text-ellipsis">{nom}</TD>
                       </tr>
                     );
                   })}

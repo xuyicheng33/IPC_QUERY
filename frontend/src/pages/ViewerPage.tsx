@@ -50,7 +50,7 @@ export function ViewerPage() {
   return (
     <div className="min-h-screen bg-bg text-text">
       <header className="sticky top-0 z-20 border-b border-border bg-surface">
-        <div className="mx-auto flex min-h-16 w-full max-w-[1240px] flex-wrap items-center justify-between gap-3 px-6 py-2">
+        <div className="mx-auto flex min-h-16 w-full max-w-[1360px] flex-wrap items-center justify-between gap-3 px-4 py-2 md:px-6">
           <div className="text-sm font-medium">{hasPdf ? `页预览：${pdf}` : "页预览（缺少 pdf 参数）"}</div>
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="ghost" className="gap-1.5" disabled={!hasPdf} onClick={() => setPage((prev) => Math.max(1, prev - 1))}>
@@ -94,7 +94,7 @@ export function ViewerPage() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-[1240px] px-6 py-6">
+      <main className="mx-auto w-full max-w-[1360px] px-4 py-6 md:px-6">
         <Card>
           {!hasPdf ? (
             <div className="rounded-md border border-dashed border-border bg-surface-soft px-6 py-8 text-sm text-muted">
