@@ -150,6 +150,17 @@ export function DbFileTable({
                   setActiveDirectoryPath(rel);
                 }
               }}
+              onDoubleClick={(event) => {
+                const target = event.target as HTMLElement;
+                if (target.closest("button, input, select, a")) return;
+                if (!rel || actionState.mode !== "normal") return;
+                if (isDirectory) {
+                  event.preventDefault();
+                  onOpenDirectory(rel);
+                  return;
+                }
+                window.open(previewHref, "_blank", "noopener,noreferrer");
+              }}
               onKeyDown={(event) => {
                 if (isDirectory) {
                   if (event.key === "Enter") {
