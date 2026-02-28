@@ -64,8 +64,7 @@ export function SearchPage() {
   };
 
   const loadFilters = async () => {
-    const payload = await fetchJson<DocumentItem[] | { documents?: DocumentItem[] }>("/api/docs");
-    const documents = Array.isArray(payload) ? payload : payload.documents || [];
+    const documents = await fetchJson<DocumentItem[]>("/api/docs");
     setDocs(documents);
 
     setState((prev) => {
