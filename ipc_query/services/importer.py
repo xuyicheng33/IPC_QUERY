@@ -914,19 +914,18 @@ class ImportService:
         safe_identifier: str,
         safe_name: str,
     ) -> sqlite3.Row | None:
-        if "/" in safe_identifier:
-            rows = conn.execute(
-                """
-                SELECT id, pdf_name, relative_path, pdf_path
-                FROM documents
-                WHERE relative_path = ?
-                ORDER BY id
-                LIMIT 2
-                """,
-                (safe_identifier,),
-            ).fetchall()
-            if not rows:
-                return None
+        # 先按 relative_path 精确匹配：即使是根目录文件（无 /）也应当优先按完整路径删除。
+        rows = conn.execute(
+            """
+            SELECT id, pdf_name, relative_path, pdf_path
+            FROM documents
+            WHERE relative_path = ?
+            ORDER BY id
+            LIMIT 2
+            """,
+            (safe_identifier,),
+        ).fetchall()
+        if rows:
             if len(rows) > 1:
                 candidates = sorted(
                     str(r["relative_path"] or r["pdf_name"] or safe_identifier)
@@ -941,6 +940,7 @@ class ImportService:
                 )
             return cast(sqlite3.Row, rows[0])
 
+        # 兼容旧行为：当调用者只给 basename 且不存在同名 relative_path 时，退回 pdf_name 匹配。
         rows = conn.execute(
             """
             SELECT id, pdf_name, relative_path, pdf_path

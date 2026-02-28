@@ -245,6 +245,37 @@ def test_delete_document_by_relative_path_is_exact(tmp_path: Path) -> None:
         service.stop()
 
 
+def test_delete_document_prefers_exact_root_relative_path(tmp_path: Path) -> None:
+    db_path = tmp_path / "db.sqlite"
+    pdf_dir = tmp_path / "pdfs"
+    upload_dir = tmp_path / "uploads"
+    (pdf_dir / "test").mkdir(parents=True, exist_ok=True)
+
+    with sqlite3.connect(str(db_path)) as conn:
+        ensure_schema(conn)
+        conn.execute(
+            "INSERT INTO documents(pdf_name, relative_path, pdf_path, miner_dir, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
+            ("same.pdf", "same.pdf", "same.pdf", "{}"),
+        )
+        conn.execute(
+            "INSERT INTO documents(pdf_name, relative_path, pdf_path, miner_dir, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
+            ("same.pdf", "test/same.pdf", "test/same.pdf", "{}"),
+        )
+        conn.commit()
+
+    (pdf_dir / "same.pdf").write_bytes(_PDF_PAYLOAD)
+    (pdf_dir / "test" / "same.pdf").write_bytes(_PDF_PAYLOAD)
+    service = ImportService(db_path=db_path, pdf_dir=pdf_dir, upload_dir=upload_dir)
+    try:
+        result = service.delete_document("same.pdf")
+        assert result["deleted"] is True
+        assert result["relative_path"] == "same.pdf"
+        assert not (pdf_dir / "same.pdf").exists()
+        assert (pdf_dir / "test" / "same.pdf").exists()
+    finally:
+        service.stop()
+
+
 def test_delete_document_basename_conflict_raises(tmp_path: Path) -> None:
     db_path = tmp_path / "db.sqlite"
     pdf_dir = tmp_path / "pdfs"
