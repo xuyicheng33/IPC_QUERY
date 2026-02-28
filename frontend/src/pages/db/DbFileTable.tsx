@@ -1,6 +1,5 @@
 import React, { KeyboardEvent, MouseEvent, useEffect, useMemo, useState } from "react";
-import { Box, CircularProgress } from "@mui/material";
-import { Button } from "@/components/ui/Button";
+import { CircularProgress } from "@mui/material";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
@@ -101,6 +100,12 @@ export function DbFileTable({
   if (items.length === 0) {
     return <EmptyState title="空目录" />;
   }
+
+  const actionWrapClass =
+    "pointer-events-none flex items-center justify-end gap-3 text-xs text-muted opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100";
+  const actionTextClass =
+    "whitespace-nowrap bg-transparent p-0 text-xs text-muted hover:text-accent focus-visible:outline-none focus-visible:text-accent disabled:cursor-not-allowed disabled:text-muted/60";
+  const actionSplitClass = "text-border";
 
   return (
     <div className="overflow-hidden rounded-md border border-border bg-surface">
@@ -222,9 +227,9 @@ export function DbFileTable({
                           disabled={pending}
                           autoFocus
                         />
-                        <Button
-                          variant="ghost"
-                          className="h-8 min-w-8 px-2 text-xs"
+                        <button
+                          type="button"
+                          className={actionTextClass}
                           onClick={(event) => {
                             stopRowEvent(event);
                             onApplyDirectoryRename(rel);
@@ -232,11 +237,19 @@ export function DbFileTable({
                           disabled={pending}
                           aria-label={pending ? "正在改名" : "确认改名"}
                           title={pending ? "正在改名" : "确认改名"}
-                          startIcon={pending ? <CircularProgress size={14} /> : <MaterialSymbol name="check" size={16} />}
-                        />
-                        <Button
-                          variant="ghost"
-                          className="h-8 min-w-8 px-2 text-xs"
+                        >
+                          {pending ? (
+                            <span className="inline-flex items-center gap-1">
+                              <CircularProgress size={12} />
+                              处理中
+                            </span>
+                          ) : (
+                            "确认"
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          className={actionTextClass}
                           onClick={(event) => {
                             stopRowEvent(event);
                             onClearRowActionState(rel);
@@ -244,18 +257,18 @@ export function DbFileTable({
                           disabled={pending}
                           aria-label="取消改名"
                           title="取消改名"
-                          startIcon={<MaterialSymbol name="close" size={16} />}
-                        />
+                        >
+                          取消
+                        </button>
                       </div>
                       {actionState.error ? <div className="text-xs text-danger">{actionState.error}</div> : null}
                     </div>
                   ) : (
-                    <div className="flex h-8 items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        className="h-8 gap-1 px-2.5 text-xs"
+                    <div className={actionWrapClass}>
+                      <button
+                        type="button"
+                        className={actionTextClass}
                         disabled={!rel}
-                        startIcon={<MaterialSymbol name="chevron_right" size={16} />}
                         onClick={(event) => {
                           stopRowEvent(event);
                           if (!rel) return;
@@ -263,33 +276,33 @@ export function DbFileTable({
                         }}
                       >
                         进入
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className="h-8 gap-1 px-2.5 text-xs"
+                      </button>
+                      <span className={actionSplitClass}>|</span>
+                      <button
+                        type="button"
+                        className={actionTextClass}
                         disabled={!rel || !capabilitiesImportEnabled}
                         title={capabilitiesImportEnabled ? undefined : importDisabledReason}
-                        startIcon={<MaterialSymbol name="edit" size={16} />}
                         onClick={(event) => {
                           stopRowEvent(event);
                           onBeginDirectoryRename(rel);
                         }}
                       >
                         改名
-                      </Button>
-                      <Button
-                        variant="danger"
-                        className="h-8 gap-1 px-2.5 text-xs"
+                      </button>
+                      <span className={actionSplitClass}>|</span>
+                      <button
+                        type="button"
+                        className={actionTextClass}
                         disabled={!rel || !capabilitiesImportEnabled}
                         title={capabilitiesImportEnabled ? undefined : importDisabledReason}
-                        startIcon={<MaterialSymbol name="delete" size={16} />}
                         onClick={(event) => {
                           stopRowEvent(event);
                           onDeleteDirectory(rel);
                         }}
                       >
                         删除
-                      </Button>
+                      </button>
                     </div>
                 )) : actionState.mode === "renaming" ? (
                   <div className="grid w-full gap-1">
@@ -317,9 +330,9 @@ export function DbFileTable({
                         disabled={pending}
                         autoFocus
                       />
-                      <Button
-                        variant="ghost"
-                        className="h-8 min-w-8 px-2 text-xs"
+                      <button
+                        type="button"
+                        className={actionTextClass}
                         onClick={(event) => {
                           stopRowEvent(event);
                           onApplyRename(rel);
@@ -327,11 +340,19 @@ export function DbFileTable({
                         disabled={pending}
                         aria-label={pending ? "正在改名" : "确认改名"}
                         title={pending ? "正在改名" : "确认改名"}
-                        startIcon={pending ? <CircularProgress size={14} /> : <MaterialSymbol name="check" size={16} />}
-                      />
-                      <Button
-                        variant="ghost"
-                        className="h-8 min-w-8 px-2 text-xs"
+                      >
+                        {pending ? (
+                          <span className="inline-flex items-center gap-1">
+                            <CircularProgress size={12} />
+                            处理中
+                          </span>
+                        ) : (
+                          "确认"
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className={actionTextClass}
                         onClick={(event) => {
                           stopRowEvent(event);
                           onClearRowActionState(rel);
@@ -339,8 +360,9 @@ export function DbFileTable({
                         disabled={pending}
                         aria-label="取消改名"
                         title="取消改名"
-                        startIcon={<MaterialSymbol name="close" size={16} />}
-                      />
+                      >
+                        取消
+                      </button>
                     </div>
                     {actionState.error ? <div className="text-xs text-danger">{actionState.error}</div> : null}
                   </div>
@@ -377,9 +399,9 @@ export function DbFileTable({
                           </option>
                         ))}
                       </Select>
-                      <Button
-                        variant="ghost"
-                        className="h-8 min-w-8 px-2 text-xs"
+                      <button
+                        type="button"
+                        className={actionTextClass}
                         onClick={(event) => {
                           stopRowEvent(event);
                           onApplyMove(rel);
@@ -387,11 +409,19 @@ export function DbFileTable({
                         disabled={pending}
                         aria-label={pending ? "正在移动" : "确认移动"}
                         title={pending ? "正在移动" : "确认移动"}
-                        startIcon={pending ? <CircularProgress size={14} /> : <MaterialSymbol name="check" size={16} />}
-                      />
-                      <Button
-                        variant="ghost"
-                        className="h-8 min-w-8 px-2 text-xs"
+                      >
+                        {pending ? (
+                          <span className="inline-flex items-center gap-1">
+                            <CircularProgress size={12} />
+                            处理中
+                          </span>
+                        ) : (
+                          "确认"
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className={actionTextClass}
                         onClick={(event) => {
                           stopRowEvent(event);
                           onClearRowActionState(rel);
@@ -399,25 +429,18 @@ export function DbFileTable({
                         disabled={pending}
                         aria-label="取消移动"
                         title="取消移动"
-                        startIcon={<MaterialSymbol name="close" size={16} />}
-                      />
+                      >
+                        取消
+                      </button>
                     </div>
                     {actionState.error ? <div className="text-xs text-danger">{actionState.error}</div> : null}
                   </div>
                 ) : (
-                  <Box
-                    display="flex"
-                    justifyContent="flex-end"
-                    alignItems="center"
-                    flexWrap="nowrap"
-                    gap={0.5}
-                    className="w-full opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
-                  >
-                    <Button
-                      variant="ghost"
-                      className="h-8 gap-1 px-2.5 text-xs"
+                  <div className={actionWrapClass}>
+                    <button
+                      type="button"
+                      className={actionTextClass}
                       disabled={!rel}
-                      startIcon={<MaterialSymbol name="open_in_new" size={16} />}
                       onClick={(event) => {
                         stopRowEvent(event);
                         if (!rel) return;
@@ -425,47 +448,47 @@ export function DbFileTable({
                       }}
                     >
                       预览
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      className="h-8 gap-1 px-2.5 text-xs"
+                    </button>
+                    <span className={actionSplitClass}>|</span>
+                    <button
+                      type="button"
+                      className={actionTextClass}
                       disabled={!rel || !capabilitiesImportEnabled}
                       title={capabilitiesImportEnabled ? undefined : importDisabledReason}
-                      startIcon={<MaterialSymbol name="edit" size={16} />}
                       onClick={(event) => {
                         stopRowEvent(event);
                         onBeginRename(rel);
                       }}
                     >
                       改名
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      className="h-8 gap-1 px-2.5 text-xs"
+                    </button>
+                    <span className={actionSplitClass}>|</span>
+                    <button
+                      type="button"
+                      className={actionTextClass}
                       disabled={!rel || !capabilitiesImportEnabled}
                       title={capabilitiesImportEnabled ? undefined : importDisabledReason}
-                      startIcon={<MaterialSymbol name="drive_file_move" size={16} />}
                       onClick={(event) => {
                         stopRowEvent(event);
                         onBeginMove(rel);
                       }}
                     >
                       移动
-                    </Button>
-                    <Button
-                      variant="danger"
-                      className="h-8 gap-1 px-2.5 text-xs"
+                    </button>
+                    <span className={actionSplitClass}>|</span>
+                    <button
+                      type="button"
+                      className={actionTextClass}
                       disabled={!rel || !capabilitiesImportEnabled}
                       title={capabilitiesImportEnabled ? undefined : importDisabledReason}
-                      startIcon={<MaterialSymbol name="delete" size={16} />}
                       onClick={(event) => {
                         stopRowEvent(event);
                         onDeleteSingle(rel);
                       }}
                     >
                       删除
-                    </Button>
-                  </Box>
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

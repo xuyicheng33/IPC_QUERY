@@ -88,7 +88,6 @@ export function DbPage() {
     startImportJob: polling.startImportJob,
     startScanJob: polling.startScanJob,
   });
-  const deletePreview = useMemo(() => deleteTargets.slice(0, 6), [deleteTargets]);
 
   const requestDelete = useCallback((targets: DeleteTarget[]) => {
     const list = targets
@@ -200,18 +199,6 @@ export function DbPage() {
         <DialogContent>
           <div className="mt-1 text-sm text-text">
             将删除 {deleteTargets.length} 个条目（目录会递归删除），对应数据库记录和磁盘文件都会被移除。
-          </div>
-          <div className="mt-3 rounded-md border border-border bg-surface-soft px-3 py-2">
-            <div className="text-xs text-muted">示例路径：</div>
-            <ul className="mt-1 space-y-1 text-xs text-text">
-              {deletePreview.map((target) => (
-                <li key={`${target.kind}:${target.path}`} className="font-mono">
-                  {target.kind === "directory" ? "[目录] " : "[文件] "}
-                  {target.path}
-                </li>
-              ))}
-              {deleteTargets.length > deletePreview.length ? <li className="text-muted">...</li> : null}
-            </ul>
           </div>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5 }}>
