@@ -1,4 +1,5 @@
 import React, { FormEvent, useEffect, useMemo, useState } from "react";
+import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
@@ -151,12 +152,14 @@ export function SearchPage() {
           </form>
 
           <div className="justify-self-end">
-            <a
+            <Button
+              component="a"
               href="/db"
-              className="inline-flex h-10 items-center justify-center rounded-full border border-border bg-surface px-5 text-sm font-semibold text-text transition-colors hover:bg-surface-soft"
+              variant="ghost"
+              className="h-10 px-5"
             >
               数据库
-            </a>
+            </Button>
           </div>
         </div>
       </header>

@@ -1,12 +1,10 @@
 import React from "react";
 import { Button } from "@/components/ui/Button";
-import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import { cn } from "@/lib/cn";
 
 export type DesktopShellAction = {
   href: string;
   label: string;
-  icon?: React.ReactNode;
 };
 
 export type DesktopShellProps = {
@@ -44,8 +42,8 @@ export function DesktopShell({
     actions && actions.length > 0
       ? actions
       : [
-          { href: "/search", label: "搜索", icon: <MaterialSymbol name="search" size={18} /> },
-          { href: "/db", label: "数据库", icon: <MaterialSymbol name="database" size={18} /> },
+          { href: "/search", label: "搜索" },
+          { href: "/db", label: "数据库" },
         ];
 
   return (
@@ -67,8 +65,7 @@ export function DesktopShell({
             {showBack ? (
               <Button
                 variant="ghost"
-                className="h-10 gap-1.5 px-4"
-                startIcon={<MaterialSymbol name="arrow_back" size={18} />}
+                className="h-10 px-5"
                 onClick={() => handleBack(backHref)}
               >
                 {backLabel}
@@ -81,8 +78,7 @@ export function DesktopShell({
                 component="a"
                 href={item.href}
                 variant="ghost"
-                className="h-10 gap-1.5 px-4"
-                startIcon={item.icon}
+                className="h-10 px-5"
               >
                 {item.label}
               </Button>

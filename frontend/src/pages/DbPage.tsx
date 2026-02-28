@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Snackbar } from "@mui/material";
 import { DesktopShell } from "@/components/layout/DesktopShell";
 import { Card } from "@/components/ui/Card";
-import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import { fetchJson } from "@/lib/api";
 import type { CapabilitiesResponse, DbListItem } from "@/lib/types";
 import { dbPathFromUrl } from "@/lib/urlState";
@@ -104,7 +103,7 @@ export function DbPage() {
   }, []);
 
   return (
-    <DesktopShell actions={[{ href: "/search", label: "搜索", icon: <MaterialSymbol name="search" size={18} /> }]} hideHeaderTitle>
+    <DesktopShell actions={[{ href: "/search", label: "搜索" }]} hideHeaderTitle>
       <div className="grid gap-4">
         <Card className="grid min-w-0 gap-4 p-4">
           <DbToolbarPanel

@@ -34,8 +34,7 @@ export function HomePage() {
             component="a"
             href="/db"
             variant="ghost"
-            className="h-10 gap-1.5 px-5"
-            startIcon={<MaterialSymbol name="database" size={18} />}
+            className="h-10 px-5"
           >
             数据库
           </Button>
