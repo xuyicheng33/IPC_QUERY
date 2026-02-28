@@ -19,7 +19,6 @@ export default defineConfig({
         search: path.resolve(__dirname, "search.html"),
         part: path.resolve(__dirname, "part.html"),
         db: path.resolve(__dirname, "db.html"),
-        viewer: path.resolve(__dirname, "viewer.html"),
       },
       output: {
         entryFileNames: "assets/[name].js",

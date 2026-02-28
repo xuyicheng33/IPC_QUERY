@@ -531,26 +531,6 @@ class ApiHandlers:
 
         return HTTPStatus.OK, cache_path, "image/png"
 
-    def handle_pdf_meta(self, pdf_name: str) -> tuple[int, bytes, str]:
-        """
-        处理 PDF 元信息请求
-
-        GET /api/pdf/meta?pdf=...
-        """
-        name = (pdf_name or "").strip()
-        if not name:
-            raise ValidationError("Missing pdf")
-
-        page_count = int(self._render.get_page_count(name))
-        if page_count <= 0:
-            raise NotFoundError(f"PDF not found: {name}")
-
-        payload = {
-            "pdf": name,
-            "page_count": page_count,
-        }
-        return HTTPStatus.OK, _json_bytes(payload), "application/json; charset=utf-8"
-
     def handle_pdf(self, pdf_name: str, range_header: str | None) -> tuple[int, bytes | Path, str, dict[str, str]]:
         """
         处理PDF文件请求

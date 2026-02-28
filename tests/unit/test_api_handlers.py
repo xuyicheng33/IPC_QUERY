@@ -495,27 +495,6 @@ def test_handle_render_propagates_scale(tmp_path: Path) -> None:
     handlers._render.render_page.assert_called_once_with("sample.pdf", 1, scale=1.5)
 
 
-def test_handle_pdf_meta_returns_page_count(tmp_path: Path) -> None:
-    handlers = _make_handlers(tmp_path / "sample.pdf")
-    handlers._render.get_page_count.return_value = 12
-
-    status, body, content_type = handlers.handle_pdf_meta("sample.pdf")
-
-    assert status == HTTPStatus.OK
-    assert content_type == "application/json; charset=utf-8"
-    payload = json.loads(body.decode("utf-8"))
-    assert payload["pdf"] == "sample.pdf"
-    assert payload["page_count"] == 12
-
-
-def test_handle_pdf_meta_not_found_when_count_zero(tmp_path: Path) -> None:
-    handlers = _make_handlers(tmp_path / "sample.pdf")
-    handlers._render.get_page_count.return_value = 0
-
-    with pytest.raises(NotFoundError):
-        handlers.handle_pdf_meta("missing.pdf")
-
-
 def test_handle_folder_create_creates_dir(tmp_path: Path) -> None:
     pdf_root = tmp_path / "pdfs"
     pdf_root.mkdir(parents=True)
