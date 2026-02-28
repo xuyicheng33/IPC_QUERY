@@ -33,7 +33,7 @@ export function DesktopShell({
   actions,
   showBack = true,
   backHref = "/",
-  backLabel = "返回上一级",
+  backLabel = "返回",
   children,
   contentClassName,
 }: DesktopShellProps) {
@@ -42,33 +42,32 @@ export function DesktopShell({
   const nav =
     actions && actions.length > 0
       ? actions
-      : [
-          { href: "/search.html", label: "搜索" },
-          { href: "/db.html", label: "数据库" },
-        ];
+      : [{ href: "/db.html", label: "数据库" }];
 
   return (
     <main className="min-h-screen bg-bg text-text">
       <header className="border-b border-border bg-surface/95">
-        <div className="mx-auto flex h-16 w-full max-w-[1360px] items-center justify-between gap-4 px-6">
-          {hideHeaderTitle ? (
-            <div />
-          ) : (
-            <a
-              href="/"
-              className="inline-flex items-center rounded-full px-1 py-0.5 text-sm font-semibold text-text transition-colors hover:text-accent"
-            >
-              {title}
-            </a>
-          )}
-
-          <nav className="ml-auto flex flex-wrap items-center justify-end gap-5" aria-label="主导航">
+        <div className="mx-auto grid h-16 w-full max-w-[1360px] grid-cols-[200px_minmax(0,1fr)_200px] items-center gap-4 px-6">
+          <div className="justify-self-start">
             {showBack ? (
               <button type="button" className={topNavLinkClass} onClick={() => handleBack(backHref)}>
                 {backLabel}
               </button>
             ) : null}
+          </div>
 
+          <div className="min-w-0 justify-self-center">
+            {hideHeaderTitle ? null : (
+              <a
+                href="/"
+                className="inline-flex items-center rounded-full px-1 py-0.5 text-sm font-semibold text-text transition-colors hover:text-accent"
+              >
+                {title}
+              </a>
+            )}
+          </div>
+
+          <nav className="flex items-center justify-end gap-5" aria-label="主导航">
             {nav.map((item) => (
               <a key={item.href} href={item.href} className={topNavLinkClass}>
                 {item.label}

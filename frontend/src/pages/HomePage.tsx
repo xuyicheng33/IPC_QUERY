@@ -1,21 +1,15 @@
-import React, { FormEvent, useRef, useState } from "react";
+import React, { FormEvent, useState } from "react";
+import { DesktopShell } from "@/components/layout/DesktopShell";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 
 export function HomePage() {
   const [query, setQuery] = useState("");
-  const [showEmptyHint, setShowEmptyHint] = useState(false);
-  const inputRef = useRef<HTMLInputElement | null>(null);
   const canSubmit = query.trim().length > 0;
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const q = query.trim();
-    if (!q) {
-      setShowEmptyHint(true);
-      inputRef.current?.focus();
-      return;
-    }
-    setShowEmptyHint(false);
+    if (!q) return;
     const params = new URLSearchParams();
     params.set("q", q);
     params.set("match", "pn");
@@ -24,22 +18,10 @@ export function HomePage() {
   };
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-bg text-text">
+    <DesktopShell actions={[{ href: "/db.html", label: "数据库" }]} contentClassName="relative overflow-hidden">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(255,255,255,0.9),rgba(247,249,252,0.95)_45%,#f7f9fc_78%)]" />
-
-      <header className="absolute inset-x-0 top-0 z-20 border-b border-border/80 bg-surface/70 backdrop-blur">
-        <div className="mx-auto flex h-16 w-full max-w-[1360px] items-center justify-end px-6">
-          <a
-            href="/db.html"
-            className="inline-flex h-10 items-center justify-center px-2 text-sm font-semibold text-text transition-colors hover:text-accent"
-          >
-            数据库
-          </a>
-        </div>
-      </header>
-
-      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1360px] items-center justify-center px-6 md:px-10">
-        <section className="w-full max-w-[860px] -translate-y-10">
+      <section className="relative z-10 mx-auto flex min-h-[calc(100vh-170px)] w-full max-w-[860px] items-center justify-center">
+        <div className="w-full -translate-y-10">
           <h1 className="mb-10 text-center text-[44px] font-semibold tracking-tight text-text sm:text-5xl lg:text-6xl">IPC 查询系统</h1>
           <form
             onSubmit={submit}
@@ -47,19 +29,13 @@ export function HomePage() {
           >
             <MaterialSymbol name="search" size={24} className="text-muted" />
             <input
-              ref={inputRef}
+              id="home-search-input"
+              name="q"
               value={query}
-              onChange={(event) => {
-                const next = event.target.value;
-                setQuery(next);
-                if (showEmptyHint && next.trim()) {
-                  setShowEmptyHint(false);
-                }
-              }}
+              onChange={(event) => setQuery(event.target.value)}
               className="h-full w-full min-w-0 border-none bg-transparent text-base text-text placeholder:text-muted focus:outline-none sm:text-lg lg:text-xl"
               placeholder="输入件号 / 术语..."
               aria-label="搜索关键字"
-              aria-invalid={showEmptyHint ? true : undefined}
             />
             <button
               type="submit"
@@ -70,9 +46,8 @@ export function HomePage() {
               <MaterialSymbol name="arrow_forward" size={22} />
             </button>
           </form>
-          {showEmptyHint ? <p className="mt-3 text-center text-sm text-danger">请输入件号或术语后再搜索</p> : null}
-        </section>
-      </div>
-    </main>
+        </div>
+      </section>
+    </DesktopShell>
   );
 }

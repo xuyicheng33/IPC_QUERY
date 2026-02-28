@@ -1,4 +1,5 @@
 import React, { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { DesktopShell } from "@/components/layout/DesktopShell";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
@@ -47,6 +48,7 @@ export function SearchPage() {
 
   const totalPages = useMemo(() => computeTotalPages(total, effectivePageSize), [total, effectivePageSize]);
   const pageWindow = useMemo(() => buildPageNumberWindow(state.page, totalPages, 10), [state.page, totalPages]);
+  const canSubmit = state.q.trim().length > 0;
 
   const syncUrl = (nextState: SearchState) => {
     const url = buildSearchUrl(nextState, PAGE_SIZE);
@@ -54,6 +56,11 @@ export function SearchPage() {
   };
 
   const runSearch = async (nextState: SearchState) => {
+    const normalizedQuery = nextState.q.trim();
+    if (normalizedQuery !== nextState.q) {
+      nextState = { ...nextState, q: normalizedQuery };
+    }
+
     const requestId = requestSeqRef.current + 1;
     requestSeqRef.current = requestId;
     abortRef.current?.abort();
@@ -133,7 +140,9 @@ export function SearchPage() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    const nextState = { ...state, q: state.q.trim(), page: 1 };
+    const normalizedQuery = state.q.trim();
+    if (!normalizedQuery) return;
+    const nextState = { ...state, q: normalizedQuery, page: 1 };
     await runSearch(nextState);
   };
 
@@ -147,41 +156,29 @@ export function SearchPage() {
   };
 
   return (
-    <main className="min-h-screen bg-bg text-text">
-      <header className="border-b border-border bg-surface">
-        <div className="mx-auto grid h-16 w-full max-w-[1360px] grid-cols-[1fr_minmax(0,760px)_1fr] items-center gap-5 px-6">
-          <div />
+    <DesktopShell actions={[{ href: "/db.html", label: "数据库" }]} contentClassName="py-8">
+      <div className="grid gap-6">
+        <form onSubmit={submit} className="mx-auto flex h-11 w-full max-w-[760px] min-w-0 items-center rounded-full border border-border bg-surface px-3">
+          <input
+            id="search-query-input"
+            name="q"
+            value={state.q}
+            onChange={(event) => setState((prev) => ({ ...prev, q: event.target.value }))}
+            className="h-full min-w-0 flex-1 border-none bg-transparent px-2 text-base text-text placeholder:text-muted focus:outline-none"
+            placeholder="输入件号 / 术语..."
+            aria-label="搜索关键字"
+          />
+          <button
+            type="submit"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-white transition-colors hover:bg-accent-hover"
+            aria-label="开始搜索"
+            disabled={!canSubmit || loading}
+          >
+            <MaterialSymbol name="search" size={18} />
+          </button>
+        </form>
 
-          <form onSubmit={submit} className="flex h-11 min-w-0 items-center rounded-full border border-border bg-surface px-3">
-            <input
-              value={state.q}
-              onChange={(event) => setState((prev) => ({ ...prev, q: event.target.value }))}
-              className="h-full min-w-0 flex-1 border-none bg-transparent px-2 text-base text-text placeholder:text-muted focus:outline-none"
-              placeholder="输入件号 / 术语..."
-              aria-label="搜索关键字"
-            />
-            <button
-              type="submit"
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-white transition-colors hover:bg-accent-hover"
-              aria-label="开始搜索"
-              disabled={loading}
-            >
-              <MaterialSymbol name="search" size={18} />
-            </button>
-          </form>
-
-          <div className="justify-self-end">
-            <a
-              href="/db.html"
-              className="inline-flex h-10 items-center justify-center px-2 text-sm font-semibold text-text transition-colors hover:text-accent"
-            >
-              数据库
-            </a>
-          </div>
-        </div>
-      </header>
-
-      <div className="mx-auto grid w-full max-w-[1360px] grid-cols-[250px_minmax(0,1fr)] gap-8 px-6 py-8">
+        <div className="grid w-full grid-cols-[250px_minmax(0,1fr)] gap-8">
         <aside className="pt-1">
           <div className="mb-3 text-sm font-semibold text-text">查询模式</div>
           <div className="grid gap-2">
@@ -234,7 +231,14 @@ export function SearchPage() {
             </div>
           </div>
 
-          {error ? (
+          {loading && results.length === 0 && !error ? (
+            <div className="rounded-md border border-border bg-surface px-4 py-8 text-sm text-muted">
+              <span className="inline-flex items-center gap-2">
+                <MaterialSymbol name="progress_activity" size={18} className="animate-spin" />
+                正在加载结果...
+              </span>
+            </div>
+          ) : error ? (
             <ErrorState message={error} />
           ) : results.length === 0 ? (
             <EmptyState title={state.q ? "暂无结果" : "请输入查询词"} />
@@ -294,7 +298,8 @@ export function SearchPage() {
           )}
         </section>
       </div>
-    </main>
+      </div>
+    </DesktopShell>
   );
 }
 
@@ -320,12 +325,12 @@ function ResultRow({ row, state }: { row: SearchResultItem; state: SearchState }
 
   return (
     <a href={href} className="block px-4 py-4 transition-colors hover:bg-surface-soft">
-      <div className="mb-2 font-mono text-[26px] text-base font-semibold text-text">{pn}</div>
+      <div className="mb-2 font-mono text-[26px] font-semibold text-text">{pn}</div>
 
       <p className="mb-2 max-h-[5.4rem] overflow-hidden text-sm leading-6 text-text">
         {segments.map((segment, index) =>
           segment.hit ? (
-            <mark key={index} className="rounded bg-accent-soft px-1 text-text">
+            <mark key={index} className="kw-hit">
               {segment.text}
             </mark>
           ) : (
