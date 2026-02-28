@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   ipc-query:
     build:
@@ -13,19 +11,20 @@ services:
       # Persist database
       - ./data:/app/data:rw
       # PDF files mount mode: ro (query-only) | rw (enable import/delete/scan)
-      - ${PDF_DIR:-./pdfs}:/app/pdfs:${PDF_MOUNT_MODE:-ro}
+      - ${PDF_HOST_DIR:-./data/pdfs}:/app/pdfs:${PDF_MOUNT_MODE:-ro}
       # Cache directory
       - ipc_cache:/app/cache
     environment:
-      - DATABASE_PATH=/app/data/ipc.sqlite
+      - DATABASE_PATH=${DATABASE_PATH:-/app/data/ipc.sqlite}
       - HOST=0.0.0.0
       - PORT=8791
       - PDF_DIR=/app/pdfs
+      - UPLOAD_DIR=/app/pdfs
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - LOG_FORMAT=${LOG_FORMAT:-json}
       - CACHE_SIZE=${CACHE_SIZE:-1000}
       - CACHE_TTL=${CACHE_TTL:-300}
-      - IMPORT_MODE=${IMPORT_MODE:-disabled}
+      - IMPORT_MODE=${IMPORT_MODE:-auto}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8791/api/health', timeout=2).read()"]

@@ -10,7 +10,7 @@ WORKDIR /build
 RUN pip install --no-cache-dir build wheel setuptools
 
 # Copy project files
-COPY pyproject.toml ./
+COPY pyproject.toml README.md LICENSE ./
 COPY build_db.py ./
 COPY ipc_query/ ./ipc_query/
 COPY cli/ ./cli/
@@ -38,6 +38,8 @@ COPY web/ ./web/
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     DATABASE_PATH=/app/data/ipc.sqlite \
+    PDF_DIR=/app/pdfs \
+    UPLOAD_DIR=/app/pdfs \
     LOG_LEVEL=INFO \
     LOG_FORMAT=json
 

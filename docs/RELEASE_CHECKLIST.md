@@ -16,11 +16,13 @@ pytest
 node --test tests/web/*.test.mjs
 npm --prefix frontend run typecheck
 npm --prefix frontend run build
+python3 -m mypy ipc_query cli
+python3 -m pip wheel . -w ./dist --no-deps
 ```
 
 ## 3. 变更确认
 
-- `README.md` 与 `docs/` 文档已同步到当前行为。
+- `README.md` 与 `docs/` 文档已同步到当前行为（尤其 `docs/DEPLOYMENT.md`）。
 - `web/` 已由最新 `frontend/` 源码重新构建。
 - `git status` 无意外临时文件。
 

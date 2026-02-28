@@ -9,6 +9,8 @@
 - `scripts/`：QA 与工具脚本
 - `data/fixtures/`：可提交的固定样本数据
 - `docs/`：当前维护文档
+- `.github/workflows/`：CI 工作流
+- `LICENSE`：开源许可证文本
 
 ## 根目录收敛原则
 

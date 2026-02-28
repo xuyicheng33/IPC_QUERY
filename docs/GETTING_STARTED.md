@@ -1,64 +1,56 @@
-# IPC_QUERY 快速落地指南（从零跑通）
+# IPC_QUERY 快速上手（本地）
 
-本指南按“明天要演示给老师”的标准编排，跟着做即可完整跑通。
+本指南用于在开发机上完成最小可运行闭环。
 
-## 1. 前置准备
+如果你是要部署到云服务器，请直接阅读 [DEPLOYMENT.md](DEPLOYMENT.md)。
 
-### 1.1 必备环境
+## 1. 前置要求
 
 - Python 3.10+
 - Node.js 18+（推荐 20+）
 - npm 9+
-- macOS / Linux / Windows 均可（命令以 macOS/Linux 为例）
 
-### 1.2 拉代码
+## 2. 获取代码
 
 ```bash
 git clone git@github.com:xuyicheng33/IPC_QUERY.git
 cd IPC_QUERY
 ```
 
-## 2. 初始化依赖
-
-### 2.1 Python 依赖
+## 3. 安装依赖
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -U pip
 pip install -e ".[dev]"
-```
-
-### 2.2 前端依赖
-
-```bash
 npm --prefix frontend install
 ```
 
-## 3. 构建前端
+## 4. 构建前端资源
 
 ```bash
 npm --prefix frontend run typecheck
 npm --prefix frontend run build
 ```
 
-完成后会生成/更新 `web/` 目录下静态资源。
+构建产物会输出到 `web/`，由后端服务直接托管。
 
-## 4. 准备数据与数据库
+## 5. 准备数据
 
-### 4.1 准备 PDF
+### 5.1 准备 PDF
 
-将要检索的 IPC PDF 放到 `data/pdfs/`（可自行新建）。
+将 IPC PDF 放入 `data/pdfs/`（可自行创建目录）。
 
-### 4.2 首次建库
+### 5.2 首次建库
 
 ```bash
-python3 -m ipc_query build --pdf-dir ./data/pdfs --output ./data/ipc.sqlite
+python3 -m ipc_query build \
+  --pdf-dir ./data/pdfs \
+  --output ./data/ipc.sqlite
 ```
 
-如果你已经有可用的 `data/ipc.sqlite`，可跳过建库步骤。
-
-## 5. 启动服务
+## 6. 启动服务
 
 ```bash
 python3 -m ipc_query serve \
@@ -69,46 +61,45 @@ python3 -m ipc_query serve \
   --upload-dir ./data/pdfs
 ```
 
-打开浏览器：`http://127.0.0.1:8791`
+浏览器访问：`http://127.0.0.1:8791`
 
-## 6. 演示建议路径
+## 7. 功能走查建议
 
-按以下顺序最稳：
+1. 首页 `/`：输入件号或术语进行搜索。
+2. 搜索页 `/search`：验证分页、排序、筛选。
+3. 详情页 `/part/{id}`：验证层级关系、预览图、PDF 跳转。
+4. 文档页 `/db`：验证目录管理与文档管理能力。
 
-1. 首页 `/`：输入件号检索。
-2. 搜索页 `/search`：展示分页与排序。
-3. 详情页 `/part/{id}`：展示层级关系、术语高亮、PDF 跳转。
-4. 文档页 `/db`：展示目录与文件管理能力。
+## 8. 常见问题
 
-## 7. 常见问题
+### 8.1 上传/扫描能力不可用
 
-### 7.1 详情页预览加载失败
+检查 `GET /api/capabilities`：
+- `import_enabled`
+- `scan_enabled`
+- `import_reason`
+- `scan_reason`
 
-- 先确认 `source_relative_path` 对应的 PDF 在 `--pdf-dir` 下存在。
-- 直接访问 `/pdf/{relative_path}` 验证文件是否可读。
+### 8.2 详情页 PDF 无法打开
 
-### 7.2 上传/扫描按钮不可用
+检查：
+- 文档对应文件是否真实存在于 `--pdf-dir` 下
+- 直接访问 `/pdf/{relative_path}` 是否返回文件
 
-- 查看 `/api/capabilities` 返回字段：
-  - `import_enabled`
-  - `scan_enabled`
-  - `import_reason`
-  - `scan_reason`
-- 常见原因是目录不可写或 `IMPORT_MODE=disabled`。
+### 8.3 修改前端后页面不生效
 
-### 7.3 修改了前端但页面没变化
-
-需要重新执行：
+重新执行：
 
 ```bash
 npm --prefix frontend run build
 ```
 
-## 8. 提交前最小验证
+## 9. 提交前最小检查
 
 ```bash
 pytest
 node --test tests/web/*.test.mjs
 npm --prefix frontend run typecheck
 npm --prefix frontend run build
+python3 -m mypy ipc_query cli
 ```

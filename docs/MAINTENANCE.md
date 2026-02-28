@@ -21,6 +21,7 @@
 
 - `README.md`：确保新同学 10 分钟内可跑通系统。
 - `docs/README.md`：维护文档入口，不保留失效链接。
+- `docs/DEPLOYMENT.md`：云服务器部署步骤要与 `docker-compose.yml` 和 `.env.example` 保持一致。
 - 前端行为变化后，同步更新 `docs/frontend/FRONTEND_HANDOFF_V4.md`。
 - 每次版本发布前，更新 `docs/RELEASE_CHECKLIST.md` 的版本区段。
 

@@ -11,6 +11,9 @@ __pycache__/
 # Local runtime temp files
 tmp/
 frontend/node_modules/
+build/
+dist/
+*.egg-info/
 
 # SQLite runtime sidecar files
 *.sqlite-wal
