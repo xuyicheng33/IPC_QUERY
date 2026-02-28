@@ -1,4 +1,4 @@
-import React, { KeyboardEvent, MouseEvent, useMemo, useState } from "react";
+import React, { KeyboardEvent, MouseEvent, useEffect, useMemo, useState } from "react";
 import { Box, CircularProgress } from "@mui/material";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -44,13 +44,33 @@ export function DbFileTable({
   onOpenDirectory,
 }: DbFileTableProps) {
   const [anchorPath, setAnchorPath] = useState("");
+  const [activeDirectoryPath, setActiveDirectoryPath] = useState("");
   const orderedFilePaths = useMemo(
     () => items.filter((item) => !item.is_dir).map((item) => normalizeDir(item.relative_path || item.name || "")).filter(Boolean),
     [items]
   );
+  const orderedDirectoryPaths = useMemo(
+    () => items.filter((item) => item.is_dir).map((item) => normalizeDir(item.relative_path || item.name || "")).filter(Boolean),
+    [items]
+  );
+
+  useEffect(() => {
+    if (!activeDirectoryPath) return;
+    if (orderedDirectoryPaths.includes(activeDirectoryPath)) return;
+    setActiveDirectoryPath("");
+  }, [activeDirectoryPath, orderedDirectoryPaths]);
 
   const pushOrderedSelection = (next: Set<string>) => {
     onSelectionChange(orderedFilePaths.filter((path) => next.has(path)));
+  };
+
+  const toggleFileSelection = (rel: string) => {
+    if (!rel) return;
+    const next = new Set<string>(selectedPaths);
+    if (next.has(rel)) next.delete(rel);
+    else next.add(rel);
+    setAnchorPath(rel);
+    pushOrderedSelection(next);
   };
 
   const applyFileSelection = (
@@ -111,6 +131,7 @@ export function DbFileTable({
           const pending = actionState.phase === "pending";
           const isDirectory = item.is_dir;
           const isSelected = !isDirectory && selectedPaths.has(rel);
+          const isActiveDirectory = isDirectory && activeDirectoryPath === rel;
           const displayName = String(item.name || rel || "-");
           const showRelativePath = Boolean(rel && rel !== displayName);
           const actionAreaClass = "w-[180px] md:w-[332px]";
@@ -148,29 +169,59 @@ export function DbFileTable({
             <div
               key={rel || item.name}
               role={isDirectory ? "button" : undefined}
-              aria-label={isDirectory ? `目录 ${displayName}` : `${displayName}${isSelected ? "（已选）" : ""}`}
+              aria-label={
+                isDirectory ? `目录 ${displayName}${isActiveDirectory ? "（已选）" : ""}` : `${displayName}${isSelected ? "（已选）" : ""}`
+              }
               tabIndex={0}
-              className={`group grid cursor-pointer grid-cols-[28px_minmax(0,1fr)_180px] items-center gap-2 border-b border-border px-3 py-2 last:border-b-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent md:grid-cols-[28px_minmax(0,1fr)_332px] ${
-                isSelected ? "bg-accent-soft" : "hover:bg-surface-soft"
+              className={`group grid cursor-pointer grid-cols-[36px_28px_minmax(0,1fr)_180px] items-center gap-2 border-b border-border px-3 py-2 last:border-b-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent md:grid-cols-[36px_28px_minmax(0,1fr)_332px] ${
+                isSelected || isActiveDirectory ? "bg-accent-soft" : "hover:bg-surface-soft"
               }`}
               onClick={(event) => {
                 if (isDirectory) {
-                  onOpenDirectory(rel);
+                  setActiveDirectoryPath(rel);
                   return;
                 }
                 handleFileClick(event);
               }}
+              onDoubleClick={() => {
+                if (!isDirectory) return;
+                if (!rel) return;
+                onOpenDirectory(rel);
+              }}
               onKeyDown={(event) => {
                 if (isDirectory) {
-                  if (event.key === "Enter" || event.key === " ") {
+                  if (event.key === "Enter") {
                     event.preventDefault();
                     onOpenDirectory(rel);
+                  } else if (event.key === " ") {
+                    event.preventDefault();
+                    setActiveDirectoryPath(rel);
                   }
                   return;
                 }
                 handleFileKeyDown(event);
               }}
             >
+              <div className="flex w-9 items-center justify-center">
+                {isDirectory ? (
+                  <span className="h-4 w-4" />
+                ) : (
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    aria-label={`${displayName}${isSelected ? "已选中" : "未选中"}`}
+                    className="h-4 w-4"
+                    style={{ accentColor: "var(--color-accent)" }}
+                    onClick={(event) => {
+                      stopRowEvent(event);
+                    }}
+                    onChange={() => {
+                      toggleFileSelection(rel);
+                    }}
+                  />
+                )}
+              </div>
+
               <div className="flex w-7 items-center justify-center">
                 <MaterialSymbol name={isDirectory ? "folder" : "description"} size={20} className={isDirectory ? "text-accent" : "text-muted"} />
               </div>
@@ -348,8 +399,8 @@ export function DbFileTable({
                       移动
                     </Button>
                     <Button
-                      variant="ghost"
-                      className="h-8 gap-1 border-danger px-2.5 text-xs text-danger hover:bg-[#fff5f5]"
+                      variant="danger"
+                      className="h-8 gap-1 px-2.5 text-xs"
                       disabled={!rel || !capabilitiesImportEnabled}
                       title={capabilitiesImportEnabled ? undefined : importDisabledReason}
                       startIcon={<MaterialSymbol name="delete" size={16} />}

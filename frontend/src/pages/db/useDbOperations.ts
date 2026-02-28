@@ -155,13 +155,6 @@ export function useDbOperations({
       const list = paths.map((path) => normalizeDir(path || "")).filter(Boolean);
       if (list.length === 0) return;
 
-      const sample = list.slice(0, 5).join("\n");
-      const tail = list.length > 5 ? "\n..." : "";
-      const ok = window.confirm(
-        `确认删除 ${list.length} 个文件？\n将删除数据库记录和磁盘文件。\n\n示例路径：\n${sample}${tail}`
-      );
-      if (!ok) return;
-
       const pendingText = `正在删除 ${list.length} 个文件...`;
       updateGlobalAction("batchDelete", "pending", pendingText);
       setStatus(pendingText);

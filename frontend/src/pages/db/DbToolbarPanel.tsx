@@ -102,7 +102,7 @@ export function DbToolbarPanel({
 
         <div className="flex flex-wrap items-center gap-2 lg:justify-end">
           <Button
-            variant="ghost"
+            variant="primary"
             className="h-10 gap-1.5 px-4"
             disabled={!capabilities.import_enabled}
             title={capabilities.import_enabled ? "上传 PDF" : importDisabledReason}
@@ -136,8 +136,8 @@ export function DbToolbarPanel({
           </Button>
 
           <Button
-            variant="ghost"
-            className="h-10 gap-1.5 border-danger px-4 text-danger hover:bg-[#fff5f5]"
+            variant="danger"
+            className="h-10 gap-1.5 px-4"
             disabled={!allowBatchDelete}
             title={capabilities.import_enabled ? undefined : importDisabledReason}
             startIcon={<MaterialSymbol name="delete" size={16} />}
@@ -154,7 +154,7 @@ export function DbToolbarPanel({
 
       {status ? <div className="rounded-md border border-border bg-surface-soft px-3 py-2 text-xs text-muted">{status}</div> : null}
 
-      <p className="text-xs text-muted">提示：目录支持单击进入；文件支持 Shift / Cmd(Ctrl) 多选。</p>
+      <p className="text-xs text-muted">提示：目录单击高亮、双击进入；文件支持 Shift / Cmd(Ctrl) 多选。</p>
 
       <Dialog
         open={createDialogOpen}
@@ -162,11 +162,6 @@ export function DbToolbarPanel({
         fullWidth
         maxWidth="xs"
         aria-labelledby="db-create-folder-title"
-        BackdropProps={{
-          sx: {
-            backgroundColor: "transparent",
-          },
-        }}
       >
         <form onSubmit={submitCreateFolder}>
           <DialogTitle id="db-create-folder-title">新建子目录</DialogTitle>

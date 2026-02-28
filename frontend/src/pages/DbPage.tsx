@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Snackbar } from "@mui/material";
+import { Alert, Dialog, DialogActions, DialogContent, DialogTitle, Snackbar } from "@mui/material";
+import { Button } from "@/components/ui/Button";
 import { DesktopShell } from "@/components/layout/DesktopShell";
 import { Card } from "@/components/ui/Card";
 import { fetchJson } from "@/lib/api";
@@ -14,6 +15,8 @@ import { useDbOperations } from "@/pages/db/useDbOperations";
 export function DbPage() {
   const [folderName, setFolderName] = useState("");
   const [toastOpen, setToastOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteTargets, setDeleteTargets] = useState<string[]>([]);
   const [capabilities, setCapabilities] = useState<CapabilitiesResponse>({
     import_enabled: true,
     scan_enabled: true,
@@ -79,6 +82,26 @@ export function DbPage() {
     }));
     return [...directoryItems, ...fileItems];
   }, [directory.directories, directory.files]);
+  const deletePreview = useMemo(() => deleteTargets.slice(0, 6), [deleteTargets]);
+
+  const requestDelete = useCallback((paths: string[]) => {
+    const list = paths.map((path) => String(path || "").trim()).filter(Boolean);
+    if (list.length === 0) return;
+    setDeleteTargets(list);
+    setDeleteDialogOpen(true);
+  }, []);
+
+  const closeDeleteDialog = useCallback(() => {
+    setDeleteDialogOpen(false);
+    setDeleteTargets([]);
+  }, []);
+
+  const confirmDelete = useCallback(async () => {
+    const paths = [...deleteTargets];
+    closeDeleteDialog();
+    if (paths.length === 0) return;
+    await operations.deleteSelected(paths);
+  }, [closeDeleteDialog, deleteTargets, operations]);
 
   useEffect(() => {
     if (operations.actionFeedback?.message) {
@@ -119,7 +142,7 @@ export function DbPage() {
             importDisabledReason={importDisabledReason}
             onNavigate={(path) => void directory.loadDirectory(path, { push: true, force: false })}
             onUploadFiles={(selected) => void operations.submitUploads(selected)}
-            onDeleteSelected={() => void operations.deleteSelected(Array.from(directory.selectedPaths))}
+            onDeleteSelected={() => requestDelete(Array.from(directory.selectedPaths))}
             onRefresh={() => void directory.refreshCurrentDirectory()}
             onCreateFolder={() =>
               void operations.createFolder(folderName, () => {
@@ -142,11 +165,36 @@ export function DbPage() {
             onBeginMove={operations.rowActions.beginMove}
             onApplyRename={(path) => void operations.rowActions.applyRename(path)}
             onApplyMove={(path) => void operations.rowActions.applyMove(path)}
-            onDeleteSingle={(path) => void operations.deleteSelected([path])}
+            onDeleteSingle={(path) => requestDelete([path])}
             onOpenDirectory={(path) => void directory.loadDirectory(path, { push: true, force: false })}
           />
         </Card>
       </div>
+      <Dialog open={deleteDialogOpen} onClose={closeDeleteDialog} fullWidth maxWidth="sm" aria-labelledby="db-delete-dialog-title">
+        <DialogTitle id="db-delete-dialog-title">确认删除</DialogTitle>
+        <DialogContent>
+          <div className="mt-1 text-sm text-text">将删除 {deleteTargets.length} 个文件，对应数据库记录和磁盘文件都会被移除。</div>
+          <div className="mt-3 rounded-md border border-border bg-surface-soft px-3 py-2">
+            <div className="text-xs text-muted">示例路径：</div>
+            <ul className="mt-1 space-y-1 text-xs text-text">
+              {deletePreview.map((path) => (
+                <li key={path} className="font-mono">
+                  {path}
+                </li>
+              ))}
+              {deleteTargets.length > deletePreview.length ? <li className="text-muted">...</li> : null}
+            </ul>
+          </div>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button variant="ghost" onClick={closeDeleteDialog}>
+            取消
+          </Button>
+          <Button variant="danger" onClick={() => void confirmDelete()}>
+            确认删除
+          </Button>
+        </DialogActions>
+      </Dialog>
       <Snackbar
         open={toastOpen}
         autoHideDuration={2800}
