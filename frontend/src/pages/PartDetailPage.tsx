@@ -137,7 +137,6 @@ export function PartDetailPage() {
   const figureLabel = displayValue(part.figure_label);
   const dateText = displayValue(part.date_text);
   const pageToken = displayValue(part.page_token);
-  const rfText = String(part.rf_text || "").trim();
   const pdfEncoded = encodeURIComponent(sourcePathRaw);
   const pdfHref = `/pdf/${pdfEncoded}#page=${page}`;
   const canOpenPdf = Boolean(sourcePathRaw);
@@ -151,7 +150,6 @@ export function PartDetailPage() {
     { label: "页脚图标", value: figureLabel },
     { label: "页脚日期", value: dateText },
     { label: "页脚 PAGE", value: pageToken },
-    { label: "RF", value: displayValue(rfText) },
     { label: "是否含 optional", value: flags.optional ? "是" : "否" },
     { label: "是否含 replace", value: flags.replace ? "是" : "否" },
   ];
