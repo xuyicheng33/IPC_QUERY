@@ -56,8 +56,11 @@ def sample_db(temp_db_path: Path) -> Generator[sqlite3.Connection, None, None]:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             document_id INTEGER NOT NULL,
             page_num INTEGER NOT NULL,
+            figure_code TEXT,
             figure_label TEXT,
             date_text TEXT,
+            page_token TEXT,
+            rf_text TEXT,
             FOREIGN KEY (document_id) REFERENCES documents(id)
         );
 

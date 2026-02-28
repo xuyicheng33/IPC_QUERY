@@ -379,6 +379,10 @@ class TestPartRepositoryGetDetail:
         assert detail.part.part_number_canonical == "113A4200-1"
         payload = detail.part.to_api_dict()
         assert payload["source_relative_path"] == "test_doc.pdf"
+        assert payload["figure_label"] == "FIG 1"
+        assert payload["date_text"] == "2024-01-01"
+        assert payload["page_token"] is None
+        assert payload["rf_text"] is None
 
     def test_get_detail_not_found(
         self, part_repo: PartRepository, sample_db: sqlite3.Connection

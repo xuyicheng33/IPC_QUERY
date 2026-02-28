@@ -84,6 +84,13 @@ def test_part_detail_includes_source_relative_path(tmp_path: Path) -> None:
             (doc_id, 1, 1, "pdf_coords", "part", "P-1", "P-1", 0, "DESC", "DESC"),
         )
         part_id = int(cur.lastrowid)
+        conn.execute(
+            """
+            INSERT INTO pages(document_id, page_num, figure_code, figure_label, date_text, page_token, rf_text)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (doc_id, 1, "11-36-01-79E", "FIG. 79E", "APR 15/21", "PAGE 1", "RF 11-36-01"),
+        )
         conn.commit()
 
     server = create_server(cfg)
@@ -93,6 +100,10 @@ def test_part_detail_includes_source_relative_path(tmp_path: Path) -> None:
         assert status == 200
         assert body["part"]["pdf"] == "a.pdf"
         assert body["part"]["source_relative_path"] == "sub/a.pdf"
+        assert body["part"]["figure_label"] == "FIG. 79E"
+        assert body["part"]["date_text"] == "APR 15/21"
+        assert body["part"]["page_token"] == "PAGE 1"
+        assert body["part"]["rf_text"] == "RF 11-36-01"
     finally:
         server.stop()
         thread.join(timeout=3.0)
@@ -138,6 +149,10 @@ def test_part_detail_children_include_source_relative_path(tmp_path: Path) -> No
     try:
         status, body = _request_json(port, "GET", f"/api/part/{parent_id}")
         assert status == 200
+        assert body["part"]["figure_label"] is None
+        assert body["part"]["date_text"] is None
+        assert body["part"]["page_token"] is None
+        assert body["part"]["rf_text"] is None
         assert len(body["children"]) == 1
         assert body["children"][0]["pdf"] == "a.pdf"
         assert body["children"][0]["source_relative_path"] == "sub/a.pdf"
