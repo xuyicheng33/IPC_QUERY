@@ -84,6 +84,10 @@ export type PartPayload = {
   units_per_assy?: string;
   eff?: string;
   effectivity?: string;
+  figure_label?: string;
+  date_text?: string;
+  page_token?: string;
+  rf_text?: string;
   nom?: string;
   nomenclature?: string;
   nomenclature_clean?: string;

@@ -124,6 +124,10 @@ class Part:
     effectivity: str | None = None
     units_per_assy: str | None = None
     miner_table_img_path: str | None = None
+    figure_label: str | None = None
+    date_text: str | None = None
+    page_token: str | None = None
+    rf_text: str | None = None
 
     # 关联数据（非数据库字段）
     pdf_name: str | None = None
@@ -162,6 +166,10 @@ class Part:
             effectivity=row.get("effectivity"),
             units_per_assy=row.get("units_per_assy"),
             miner_table_img_path=row.get("miner_table_img_path"),
+            figure_label=row.get("figure_label"),
+            date_text=row.get("date_text"),
+            page_token=row.get("page_token"),
+            rf_text=row.get("rf_text"),
             pdf_name=row.get("pdf_name"),
             source_relative_path=row.get("source_relative_path") or row.get("relative_path"),
         )
@@ -184,6 +192,10 @@ class Part:
             "nomenclature_clean": self.nomenclature_clean,
             "effectivity": self.effectivity,
             "units_per_assy": self.units_per_assy,
+            "figure_label": self.figure_label,
+            "date_text": self.date_text,
+            "page_token": self.page_token,
+            "rf_text": self.rf_text,
             "pdf_name": self.pdf_name,
             "source_relative_path": self.source_relative_path,
         }
@@ -203,6 +215,10 @@ class Part:
             "eff": self.effectivity,
             "units": self.units_per_assy,
             "page": self.page_num,
+            "figure_label": self.figure_label,
+            "date_text": self.date_text,
+            "page_token": self.page_token,
+            "rf_text": self.rf_text,
             "pdf": self.pdf_name,
             "source_relative_path": self.source_relative_path or self.pdf_name,
         }

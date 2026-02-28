@@ -694,6 +694,8 @@ class PartRepository:
                   p.figure_code,
                   pg.figure_label,
                   pg.date_text,
+                  pg.page_token,
+                  pg.rf_text,
                   p.row_kind,
                   p.fig_item_raw,
                   p.fig_item_no,
