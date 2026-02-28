@@ -75,6 +75,19 @@ npm run build
 | `/api/health` | GET | 健康检查 |
 | `/api/metrics` | GET | 运行指标 |
 
+### `/api/part/{id}` 字段补充（桌面端 UI 整改）
+
+`part` 对象新增以下可选字段（仅新增，不破坏旧字段）：
+
+- `figure_label: string | null`
+- `date_text: string | null`
+- `page_token: string | null`
+- `rf_text: string | null`
+
+兼容说明：
+- 旧前端即使不读取这些字段，也不会影响原有页面行为。
+- 字段无值时返回 `null`，前端可按需显示 `-` 或隐藏该项（例如 `rf_text`）。
+
 ## 仓库结构（简版）
 
 ```text

@@ -208,6 +208,8 @@ release3 结构：
 2. `DocsTreeResponse`：目录树接口返回合同。
 3. `DbListItem`：release3 列表统一渲染项（目录+文件）。
 4. `DbRowActionState`：行内改名/移动状态机合同。
+5. `PartPayload`（详情页）新增页脚元信息字段：`figure_label`、`date_text`、`page_token`、`rf_text`。
+6. 新增字段为向后兼容扩展：无值可为 `null/undefined`，其中 `rf_text` 建议“无值不渲染该项”。
 
 ## 7. 完全重构时的必守兼容项
 
