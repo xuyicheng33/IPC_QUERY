@@ -38,6 +38,7 @@ export function DesktopShell({
   children,
   contentClassName,
 }: DesktopShellProps) {
+  const topNavButtonClass = "h-10 min-w-[120px] justify-center px-5 text-center";
   const nav =
     actions && actions.length > 0
       ? actions
@@ -65,7 +66,7 @@ export function DesktopShell({
             {showBack ? (
               <Button
                 variant="ghost"
-                className="h-10 px-5"
+                className={topNavButtonClass}
                 onClick={() => handleBack(backHref)}
               >
                 {backLabel}
@@ -78,7 +79,7 @@ export function DesktopShell({
                 component="a"
                 href={item.href}
                 variant="ghost"
-                className="h-10 px-5"
+                className={topNavButtonClass}
               >
                 {item.label}
               </Button>

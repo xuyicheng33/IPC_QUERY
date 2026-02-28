@@ -156,7 +156,7 @@ export function SearchPage() {
               component="a"
               href="/db"
               variant="ghost"
-              className="h-10 px-5"
+              className="h-10 min-w-[120px] justify-center px-5 text-center"
             >
               数据库
             </Button>
