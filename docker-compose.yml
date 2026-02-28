@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ipc_query:2.0.0
+    image: ipc_query:4.0.0
     container_name: ipc-query
     ports:
       - "${PORT:-8791}:8791"

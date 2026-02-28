@@ -1,124 +1,176 @@
-# IPC_QUERY
+# IPC_QUERY（v4.0.0）
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://python.org)
 [![License](https://img.shields.io/badge/License-MIT-green)](https://opensource.org/licenses/MIT)
 
-IPC_QUERY 是一个面向 IPC (Illustrated Parts Catalog) PDF 的零件查询系统：
-- 从 PDF 提取零件、层级与交叉引用信息
-- 提供 Web 页面和 API 查询
-- 支持在 `/db` 页面上传、删除、改名、移动、刷新 PDF
+IPC_QUERY 是一个面向 IPC（Illustrated Parts Catalog）PDF 的零件查询系统，提供：
 
-## 1 分钟上手
+- PDF 数据抽取与 SQLite 建库
+- Web 端检索（件号 / 术语 / 详情 / 层级关系）
+- `/db` 页面文件管理（导入、删除、改名、移动、扫描）
+- 后端 API（供前端或其他系统二次集成）
 
-```bash
-# 1) 安装
-pip install -e .
+---
 
-# 2) 启动服务（默认使用 data/ipc.sqlite）
-python3 -m ipc_query serve --db ./data/ipc.sqlite --port 8791
+## 1. 你明天要演示：最快启动方式
 
-# 3) 打开
-# http://127.0.0.1:8791
-```
+### 1.1 环境要求
 
-常用页面：
-- `/`：首页
-- `/search`：搜索页（件号/术语/来源过滤）
-- `/part/{id}`：零件详情页（层级关系、xref、页预览）
-- `/db`：PDF 文件管理页（极简 Finder 风格，上传/删除/改名/移动/刷新）
+- Python 3.10+
+- Node.js 18+（推荐 20+）
+- npm 9+
 
-## 常用操作
-
-### 构建数据库
+### 1.2 一次性安装依赖
 
 ```bash
-# 推荐入口
-python3 -m ipc_query build --pdf-dir ./pdfs --output ./data/ipc.sqlite
+# 在项目根目录执行
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -U pip
+pip install -e ".[dev]"
 
-# 兼容入口（壳文件）
-python3 build_db.py --output ./data/ipc.sqlite
+# 前端依赖
+npm --prefix frontend install
 ```
 
-### 运行测试
+### 1.3 构建前端静态资源
 
 ```bash
-pytest
-node --test tests/web/*.test.mjs
+npm --prefix frontend run typecheck
+npm --prefix frontend run build
 ```
 
-### 前端构建（React + Vite）
+前端构建产物会输出到 `web/`，由 Python 服务直接托管。
+
+### 1.4 准备数据库（第一次需要）
 
 ```bash
-cd frontend
-npm install
-npm run typecheck
-npm run build
+# 方式 A：从你的 PDF 目录构建
+python3 -m ipc_query build --pdf-dir ./data/pdfs --output ./data/ipc.sqlite
+
+# 方式 B：如果仓库里已有可用 data/ipc.sqlite，可跳过构建
 ```
 
-说明：前端产物输出到 `web/`，由 Python 服务继续托管。
+### 1.5 启动服务
 
-## API 概览
+```bash
+python3 -m ipc_query serve \
+  --db ./data/ipc.sqlite \
+  --host 127.0.0.1 \
+  --port 8791 \
+  --pdf-dir ./data/pdfs \
+  --upload-dir ./data/pdfs
+```
+
+浏览器打开：`http://127.0.0.1:8791`
+
+---
+
+## 2. 页面与路由说明
+
+- `/`：首页（快速查询入口）
+- `/search`：搜索页（件号 / 术语 / 分页 / 排序）
+- `/part/{id}`：零件详情（来源、页脚元数据、术语高亮、层级关系、页预览）
+- `/db`：文档管理页（目录与 PDF 管理）
+
+> 说明：旧版 `/viewer.html` 已下线，统一使用浏览器原生 PDF 查看路径 `/pdf/{relative_path}#page={n}`。
+
+---
+
+## 3. API 一览
 
 | 端点 | 方法 | 说明 |
 |---|---|---|
 | `/api/search` | GET | 搜索零件 |
 | `/api/part/{id}` | GET | 获取零件详情 |
-| `/api/docs` | GET | 列出文档 |
-| `/api/docs/tree?path={dir}` | GET | 目录树 + 文件状态 |
+| `/api/docs` | GET | 列出已入库文档 |
+| `/api/docs/tree?path={dir}` | GET | 查询目录树及文件状态 |
 | `/api/import` | POST | 上传 PDF（创建导入任务） |
 | `/api/import/jobs` | GET | 查询导入任务列表 |
 | `/api/import/{job_id}` | GET | 查询导入任务状态 |
 | `/api/docs?name={pdf_name}` | DELETE | 删除单个 PDF |
 | `/api/docs/batch-delete` | POST | 批量删除 PDF |
-| `/api/scan` | POST | 触发增量重扫 |
-| `/api/scan/{job_id}` | GET | 查询重扫状态 |
+| `/api/docs/rename` | POST | 重命名 PDF |
+| `/api/docs/move` | POST | 移动 PDF |
+| `/api/docs/folder/create` | POST | 新建目录 |
+| `/api/docs/folder/rename` | POST | 重命名目录 |
+| `/api/docs/folder/delete` | POST | 删除目录 |
+| `/api/scan` | POST | 触发增量扫描 |
+| `/api/scan/{job_id}` | GET | 查询扫描任务状态 |
+| `/api/capabilities` | GET | 前端能力开关（导入/扫描可用性） |
 | `/api/health` | GET | 健康检查 |
 | `/api/metrics` | GET | 运行指标 |
 
-### `/api/part/{id}` 字段补充（桌面端 UI 整改）
+`/api/part/{id}` 中 `part` 对象包含以下页脚元字段（可为空）：
 
-`part` 对象新增以下可选字段（仅新增，不破坏旧字段）：
+- `figure_label`
+- `date_text`
+- `page_token`
+- `rf_text`
 
-- `figure_label: string | null`
-- `date_text: string | null`
-- `page_token: string | null`
-- `rf_text: string | null`
+---
 
-兼容说明：
-- 旧前端即使不读取这些字段，也不会影响原有页面行为。
-- 字段无值时返回 `null`，前端可按需显示 `-` 或隐藏该项（例如 `rf_text`）。
+## 4. 常用开发命令
 
-## 仓库结构（简版）
+```bash
+# 后端测试
+pytest
+
+# 前端纯逻辑测试
+node --test tests/web/*.test.mjs
+
+# 前端类型与构建
+npm --prefix frontend run typecheck
+npm --prefix frontend run build
+
+# Python 包打包（wheel）
+python3 -m pip wheel . -w ./dist --no-deps
+```
+
+---
+
+## 5. Docker 运行（可选）
+
+```bash
+docker compose up --build
+```
+
+默认端口：`8791`。  
+需要让容器可写导入时，请确保挂载目录具备写权限并配置 `IMPORT_MODE=enabled` 或 `auto`。
+
+---
+
+## 6. 仓库结构（简版）
 
 ```text
 ipc_query/      # 后端核心（api/services/db/config）
 frontend/       # React + Vite 源码
-web/            # 前端构建产物（服务静态托管）
+web/            # 前端构建产物（运行时静态资源）
 tests/          # 单元/集成/前端测试
-scripts/        # QA 与工具脚本
-docs/           # 文档（维护规范、结构说明、归档）
-legacy/         # 历史入口归档（不建议新功能继续使用）
+scripts/        # QA/工具脚本
+docs/           # 项目文档
 ```
 
-详细文档见：[docs/README.md](docs/README.md)。
+更多文档见：`docs/README.md`。
 
-## 发布（GitHub）
+---
 
-项目当前版本：`v3.0.0`（release3）。
-
-建议流程：
-1. 合并变更到 `main`
-2. 打 tag（例如 `release3` 或 `v3.0.0`）
-3. 推送 `main` 与 tag
-4. 在 GitHub Releases 页面基于 tag 发布 release
-
-示例命令：
+## 7. v4.0 发布流程（建议）
 
 ```bash
 git checkout main
 git pull --ff-only
 
-git tag -a release3 -m "Release release3 (v3.0.0)"
+# 质量门禁
+pytest
+node --test tests/web/*.test.mjs
+npm --prefix frontend run typecheck
+npm --prefix frontend run build
+
+# 版本标签
+git tag -a v4.0.0 -m "Release v4.0.0"
 git push origin main
-git push origin release3
+git push origin v4.0.0
 ```
+
+然后在 GitHub Releases 基于 `v4.0.0` 创建 release（标题可写 `v4.0`）。
