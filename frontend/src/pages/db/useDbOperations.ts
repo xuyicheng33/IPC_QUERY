@@ -297,7 +297,7 @@ export function useDbOperations({
         await refreshCurrentDirectory();
         const message = `创建目录成功：${normalizeDir(currentPath) || "/"} / ${name}`;
         updateGlobalAction("createFolder", "success", message);
-        setStatus(message);
+        setStatus("");
       } catch (error) {
         const message = String((error as Error)?.message || error);
         updateGlobalAction("createFolder", "error", `创建失败：${message}`, message);

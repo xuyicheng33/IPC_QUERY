@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
-import { Select } from "@/components/ui/Select";
 import { fetchJson } from "@/lib/api";
 import { parseSafeReturnTo } from "@/lib/urlState";
 
@@ -13,19 +12,17 @@ function toPositiveInt(value: string | null, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function toPositiveFloat(value: string | null, fallback: number): number {
-  const parsed = Number.parseFloat(String(value || ""));
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+function clampPreviewSize(value: number): number {
+  if (!Number.isFinite(value)) return 100;
+  return Math.min(180, Math.max(60, Math.round(value)));
 }
 
-const SCALE_OPTIONS = [1, 1.5, 2, 3, 4] as const;
-
 type ViewerStatus = "idle" | "loading" | "ready" | "error";
-type ViewerFitMode = "fit-width" | "natural";
 type PdfMetaResponse = {
   pdf: string;
   page_count: number;
 };
+const FIXED_RENDER_SCALE = 3;
 
 export function ViewerPage() {
   const query = useMemo(() => new URLSearchParams(window.location.search || ""), []);
@@ -35,18 +32,20 @@ export function ViewerPage() {
   const backHref = useMemo(() => parseSafeReturnTo(window.location.search, "/search.html"), []);
 
   const [page, setPage] = useState(() => toPositiveInt(query.get("page"), 1));
-  const [scale, setScale] = useState(() => toPositiveFloat(query.get("scale"), 2));
+  const [previewSize, setPreviewSize] = useState(() => clampPreviewSize(toPositiveInt(query.get("size"), 100)));
   const [status, setStatus] = useState<ViewerStatus>(hasPdf ? "loading" : "idle");
   const [statusText, setStatusText] = useState("");
   const [totalPages, setTotalPages] = useState(0);
   const [metaError, setMetaError] = useState("");
-  const [fitMode, setFitMode] = useState<ViewerFitMode>("fit-width");
   const [reloadTick, setReloadTick] = useState(0);
 
   const pageDisplay = totalPages > 0 ? `${page}/${totalPages}` : `${page}/?`;
   const canGoPrev = hasPdf && page > 1;
   const canGoNext = hasPdf && (totalPages <= 0 || page < totalPages);
-  const imageClass = fitMode === "fit-width" ? "block w-full bg-surface" : "block w-auto max-w-none bg-surface";
+  const imageStyle: React.CSSProperties = {
+    width: `${previewSize}%`,
+    maxWidth: "none",
+  };
   const textActionClass =
     "inline-flex items-center gap-1 whitespace-nowrap bg-transparent p-0 text-xs font-medium text-muted transition-colors hover:text-accent focus-visible:outline-none focus-visible:text-accent disabled:cursor-not-allowed disabled:text-muted/50";
 
@@ -86,10 +85,10 @@ export function ViewerPage() {
     const params = new URLSearchParams();
     if (pdf) params.set("pdf", pdf);
     params.set("page", String(page));
-    if (scale !== 2) params.set("scale", String(scale));
+    if (previewSize !== 100) params.set("size", String(previewSize));
     if (backHref) params.set("return_to", backHref);
     history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
-  }, [backHref, pdf, page, scale]);
+  }, [backHref, pdf, page, previewSize]);
 
   useEffect(() => {
     if (!hasPdf) {
@@ -98,8 +97,8 @@ export function ViewerPage() {
       return;
     }
     setStatus("loading");
-    setStatusText(`正在加载第 ${pageDisplay} 页（x${scale}）...`);
-  }, [hasPdf, pageDisplay, scale, reloadTick]);
+    setStatusText(`正在加载第 ${pageDisplay} 页...`);
+  }, [hasPdf, pageDisplay, reloadTick]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -118,7 +117,7 @@ export function ViewerPage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [canGoNext, hasPdf]);
 
-  const imageUrl = `/render/${encodedPdf}/${page}.png?scale=${encodeURIComponent(String(scale))}&t=${reloadTick}`;
+  const imageUrl = `/render/${encodedPdf}/${page}.png?scale=${FIXED_RENDER_SCALE}&t=${reloadTick}`;
 
   return (
     <DesktopShell backHref={backHref} contentClassName="py-6">
@@ -162,44 +161,17 @@ export function ViewerPage() {
           <div className="h-5 w-px bg-border" />
 
           <div className="inline-flex items-center gap-2">
-            <span className="text-xs text-muted">缩放</span>
-            <Select
-              className="w-[104px]"
-              value={String(scale)}
-              onChange={(event) => setScale(toPositiveFloat(event.target.value, 2))}
+            <span className="text-xs text-muted">预览大小</span>
+            <Input
+              type="number"
+              inputProps={{ min: 60, max: 180, step: 5 }}
+              className="w-[92px]"
+              value={previewSize}
+              onChange={(event) => setPreviewSize(clampPreviewSize(toPositiveInt(event.target.value, previewSize)))}
               disabled={!hasPdf}
-              aria-label="缩放"
-            >
-              {SCALE_OPTIONS.map((value) => (
-                <option key={value} value={value}>
-                  x{value}
-                </option>
-              ))}
-            </Select>
-          </div>
-
-          <div className="h-5 w-px bg-border" />
-
-          <div className="inline-flex items-center gap-2">
-            <button
-              type="button"
-              className={textActionClass}
-              disabled={!hasPdf}
-              onClick={() => setFitMode("fit-width")}
-              aria-pressed={fitMode === "fit-width"}
-            >
-              适应宽度
-            </button>
-            <span className="text-border">|</span>
-            <button
-              type="button"
-              className={textActionClass}
-              disabled={!hasPdf}
-              onClick={() => setFitMode("natural")}
-              aria-pressed={fitMode === "natural"}
-            >
-              原始尺寸
-            </button>
+              aria-label="预览大小百分比"
+            />
+            <span className="text-xs text-muted">%</span>
           </div>
 
           <div className="h-5 w-px bg-border" />
@@ -223,23 +195,26 @@ export function ViewerPage() {
         ) : (
           <>
             <div className="overflow-auto rounded-md border border-border">
-              <img
-                src={imageUrl}
-                alt="PDF page preview"
-                className={imageClass}
-                onLoad={() => {
-                  setStatus("ready");
-                  setStatusText(`${pdf} · 第 ${pageDisplay} 页 · x${scale}`);
-                }}
-                onError={() => {
-                  setStatus("error");
-                  if (totalPages > 0 && page > totalPages) {
-                    setStatusText(`预览加载失败：当前页超出范围（1-${totalPages}）`);
-                    return;
-                  }
-                  setStatusText("预览加载失败：可能页码超出范围，或 PDF 未找到");
-                }}
-              />
+              <div className="flex min-w-full justify-center">
+                <img
+                  src={imageUrl}
+                  alt="PDF page preview"
+                  className="block bg-surface"
+                  style={imageStyle}
+                  onLoad={() => {
+                    setStatus("ready");
+                    setStatusText(`${pdf} · 第 ${pageDisplay} 页`);
+                  }}
+                  onError={() => {
+                    setStatus("error");
+                    if (totalPages > 0 && page > totalPages) {
+                      setStatusText(`预览加载失败：当前页超出范围（1-${totalPages}）`);
+                      return;
+                    }
+                    setStatusText("预览加载失败：可能页码超出范围，或 PDF 未找到");
+                  }}
+                />
+              </div>
             </div>
 
             <div className="flex items-center justify-between gap-3 text-sm text-muted">
@@ -257,6 +232,20 @@ export function ViewerPage() {
                   重试
                 </Button>
               ) : null}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-center gap-3 rounded-md border border-border bg-surface-soft px-3 py-2">
+              <button type="button" className={textActionClass} disabled={!canGoPrev} onClick={() => setPage((prev) => Math.max(1, prev - 1))}>
+                <MaterialSymbol name="chevron_left" size={16} />
+                上一页
+              </button>
+              <span className="text-border">|</span>
+              <span className="text-xs text-muted">第 {pageDisplay} 页</span>
+              <span className="text-border">|</span>
+              <button type="button" className={textActionClass} disabled={!canGoNext} onClick={() => setPage((prev) => prev + 1)}>
+                下一页
+                <MaterialSymbol name="chevron_right" size={16} />
+              </button>
             </div>
           </>
         )}
