@@ -1,5 +1,4 @@
 import React from "react";
-import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
 
 export type DesktopShellAction = {
@@ -38,7 +37,8 @@ export function DesktopShell({
   children,
   contentClassName,
 }: DesktopShellProps) {
-  const topNavButtonClass = "h-10 min-w-[120px] justify-center px-5 text-center";
+  const topNavLinkClass =
+    "inline-flex h-10 items-center justify-center px-2 text-sm font-semibold text-text transition-colors hover:text-accent";
   const nav =
     actions && actions.length > 0
       ? actions
@@ -62,27 +62,17 @@ export function DesktopShell({
             </a>
           )}
 
-          <nav className="ml-auto flex flex-wrap items-center justify-end gap-2" aria-label="主导航">
+          <nav className="ml-auto flex flex-wrap items-center justify-end gap-5" aria-label="主导航">
             {showBack ? (
-              <Button
-                variant="ghost"
-                className={topNavButtonClass}
-                onClick={() => handleBack(backHref)}
-              >
+              <button type="button" className={topNavLinkClass} onClick={() => handleBack(backHref)}>
                 {backLabel}
-              </Button>
+              </button>
             ) : null}
 
             {nav.map((item) => (
-              <Button
-                key={item.href}
-                component="a"
-                href={item.href}
-                variant="ghost"
-                className={topNavButtonClass}
-              >
+              <a key={item.href} href={item.href} className={topNavLinkClass}>
                 {item.label}
-              </Button>
+              </a>
             ))}
           </nav>
         </div>

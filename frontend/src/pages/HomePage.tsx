@@ -1,5 +1,4 @@
 import React, { FormEvent, useRef, useState } from "react";
-import { Button } from "@/components/ui/Button";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 
 export function HomePage() {
@@ -30,14 +29,12 @@ export function HomePage() {
 
       <header className="absolute inset-x-0 top-0 z-20 border-b border-border/80 bg-surface/70 backdrop-blur">
         <div className="mx-auto flex h-16 w-full max-w-[1360px] items-center justify-end px-6">
-          <Button
-            component="a"
+          <a
             href="/db"
-            variant="ghost"
-            className="h-10 min-w-[120px] justify-center px-5 text-center"
+            className="inline-flex h-10 items-center justify-center px-2 text-sm font-semibold text-text transition-colors hover:text-accent"
           >
             数据库
-          </Button>
+          </a>
         </div>
       </header>
 
