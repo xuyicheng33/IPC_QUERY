@@ -164,19 +164,3 @@ export type DbRowActionState = {
   error: string;
   phase: DbActionPhase;
 };
-
-export type LegacyHistoryItem = {
-  q: string;
-  match: MatchMode;
-  include_notes: boolean;
-  source_dir: string;
-  source_pdf: string;
-  ts: number;
-};
-
-export type LegacyFavoriteItem = {
-  id: number;
-  pn: string;
-  source: string;
-  page: number;
-};
