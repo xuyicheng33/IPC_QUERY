@@ -4,12 +4,12 @@
 [![License](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
 [![CI](https://github.com/xuyicheng33/IPC_QUERY/actions/workflows/ci.yml/badge.svg)](https://github.com/xuyicheng33/IPC_QUERY/actions/workflows/ci.yml)
 
-IPC_QUERY 是一个面向 IPC（Illustrated Parts Catalog）PDF 的工程化查询系统，覆盖“建库、检索、详情预览、文档运维”全链路能力，适用于课程项目演示、团队内部知识检索和轻量生产部署。
+IPC_QUERY 是一个面向 IPC（Illustrated Parts Catalog）PDF 的工程化查询系统，覆盖“建库、检索、详情预览、文档运维”全链路能力，适用于企业客户件号检索、内部维保知识查询和轻量生产部署。
 
 ## 核心能力
 
 - PDF 抽取建库：将 IPC PDF 解析并写入 SQLite。
-- 多维搜索：支持按件号、术语、综合模式检索，并支持分页、排序、上下文回放。
+- 多维搜索：支持按件号、术语、综合模式检索，并支持分页、排序与查询状态保持（搜索页与详情页切换后可恢复原筛选条件）。
 - 零件详情：展示层级关系、来源文档、页码与关键元数据。
 - 文档运维：`/db` 页面支持导入、删除、重命名、移动、目录管理与增量扫描。
 - API 集成：对外提供稳定 HTTP API，便于前端或第三方系统接入。
@@ -19,7 +19,7 @@ IPC_QUERY 是一个面向 IPC（Illustrated Parts Catalog）PDF 的工程化查�
 - 后端：Python 3.10+（标准库 HTTP Server + SQLite + PyMuPDF）
 - 前端：React + TypeScript + Vite，构建产物输出到 `web/`
 - 数据层：SQLite 单文件数据库（默认 `data/ipc.sqlite`）
-- 运行模式：本地直接运行 / Docker Compose / 云服务器反向代理部署
+- 运行模式：本地直接运行 / Docker Compose / 云服务器直连或反向代理部署
 
 ## 快速开始（本地）
 
@@ -78,14 +78,14 @@ docker compose up -d --build
 
 ## 云服务器部署
 
-生产部署建议使用 Linux + Docker Compose + Nginx（HTTPS）。
+生产部署建议使用 Linux + Docker Compose。Nginx 与 HTTPS 在公网场景强烈建议启用，在内网场景可按需启用。
 
 完整步骤见：[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 
 该文档包含：
 - Docker Compose 生产部署（推荐）
 - systemd 原生部署（备选）
-- Nginx 反向代理与 TLS
+- Nginx 反向代理与 TLS（按需）
 - 备份、升级、回滚与排障
 
 ## API 概览

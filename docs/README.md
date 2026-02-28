@@ -9,7 +9,7 @@
    本地从零跑通（安装、建库、启动、常见问题）。
 
 3. [DEPLOYMENT.md](DEPLOYMENT.md)
-   云服务器部署手册（Docker Compose / systemd / Nginx / HTTPS / 运维）。
+   云服务器部署手册（Docker Compose / systemd / Nginx/HTTPS 按需启用 / 运维）。
 
 4. [STRUCTURE.md](STRUCTURE.md)
    目录结构规范与新文件放置约定。

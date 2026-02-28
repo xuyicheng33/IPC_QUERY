@@ -157,9 +157,14 @@ sudo systemctl enable --now ipc-query
 sudo systemctl status ipc-query
 ```
 
-## 4. Nginx 反向代理与 HTTPS
+## 4. Nginx 反向代理与 HTTPS（按需）
 
-建议通过 Nginx 对外暴露 `80/443`，应用仅监听本地回环地址 `127.0.0.1:8791`。
+Nginx 与 HTTPS 不是所有场景都必须，但在公网部署时强烈建议启用。
+
+建议如下：
+- 公网可访问（Internet 暴露）：建议使用 Nginx + HTTPS，应用仅监听 `127.0.0.1:8791`。
+- 内网专线 / VPN 场景：可先不启用 Nginx，由应用直接监听内网地址与端口。
+- 安全合规要求明确规定加密传输：必须启用 HTTPS。
 
 示例 `/etc/nginx/conf.d/ipc-query.conf`：
 
