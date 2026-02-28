@@ -12,11 +12,16 @@ import { useDbDirectoryModel } from "@/pages/db/useDbDirectoryModel";
 import { useDbJobsPolling } from "@/pages/db/useDbJobsPolling";
 import { useDbOperations } from "@/pages/db/useDbOperations";
 
+type DeleteTarget = {
+  path: string;
+  kind: "file" | "directory";
+};
+
 export function DbPage() {
   const [folderName, setFolderName] = useState("");
   const [toastOpen, setToastOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deleteTargets, setDeleteTargets] = useState<string[]>([]);
+  const [deleteTargets, setDeleteTargets] = useState<DeleteTarget[]>([]);
   const [capabilities, setCapabilities] = useState<CapabilitiesResponse>({
     import_enabled: true,
     scan_enabled: true,
@@ -53,19 +58,6 @@ export function DbPage() {
     },
   });
 
-  const operations = useDbOperations({
-    currentPath: directory.currentPath,
-    visibleFiles: directory.files,
-    capabilities,
-    importDisabledReason,
-    scanDisabledReason,
-    refreshCurrentDirectory: directory.refreshCurrentDirectory,
-    clearSelection: directory.clearSelection,
-    setStatus: directory.setStatus,
-    upsertJob: polling.upsertJob,
-    startImportJob: polling.startImportJob,
-    startScanJob: polling.startScanJob,
-  });
   const listItems = useMemo<DbListItem[]>(() => {
     const directoryItems = directory.directories.map((dir) => {
       const name = String(dir.name || dir.path || "").split("/").pop() || dir.path || "-";
@@ -82,10 +74,29 @@ export function DbPage() {
     }));
     return [...directoryItems, ...fileItems];
   }, [directory.directories, directory.files]);
+
+  const operations = useDbOperations({
+    currentPath: directory.currentPath,
+    visiblePaths: listItems.map((item) => item.relative_path),
+    capabilities,
+    importDisabledReason,
+    scanDisabledReason,
+    refreshCurrentDirectory: directory.refreshCurrentDirectory,
+    clearSelection: directory.clearSelection,
+    setStatus: directory.setStatus,
+    upsertJob: polling.upsertJob,
+    startImportJob: polling.startImportJob,
+    startScanJob: polling.startScanJob,
+  });
   const deletePreview = useMemo(() => deleteTargets.slice(0, 6), [deleteTargets]);
 
-  const requestDelete = useCallback((paths: string[]) => {
-    const list = paths.map((path) => String(path || "").trim()).filter(Boolean);
+  const requestDelete = useCallback((targets: DeleteTarget[]) => {
+    const list = targets
+      .map((target) => ({
+        path: String(target.path || "").trim(),
+        kind: target.kind,
+      }))
+      .filter((target) => Boolean(target.path));
     if (list.length === 0) return;
     setDeleteTargets(list);
     setDeleteDialogOpen(true);
@@ -97,10 +108,17 @@ export function DbPage() {
   }, []);
 
   const confirmDelete = useCallback(async () => {
-    const paths = [...deleteTargets];
+    const targets = [...deleteTargets];
     closeDeleteDialog();
-    if (paths.length === 0) return;
-    await operations.deleteSelected(paths);
+    if (targets.length === 0) return;
+    const filePaths = targets.filter((target) => target.kind === "file").map((target) => target.path);
+    const folderPaths = targets.filter((target) => target.kind === "directory").map((target) => target.path);
+    if (filePaths.length > 0) {
+      await operations.deleteSelected(filePaths);
+    }
+    if (folderPaths.length > 0) {
+      await operations.deleteFolders(folderPaths);
+    }
   }, [closeDeleteDialog, deleteTargets, operations]);
 
   useEffect(() => {
@@ -126,7 +144,11 @@ export function DbPage() {
   }, []);
 
   return (
-    <DesktopShell actions={[{ href: "/search.html", label: "搜索" }]} hideHeaderTitle>
+    <DesktopShell
+      actions={[{ href: "/search.html", label: "搜索" }]}
+      hideHeaderTitle
+      backHref={directory.currentPath ? "/db.html" : "/"}
+    >
       <div className="grid gap-4">
         <Card className="grid min-w-0 gap-4 p-4">
           <DbToolbarPanel
@@ -142,7 +164,7 @@ export function DbPage() {
             importDisabledReason={importDisabledReason}
             onNavigate={(path) => void directory.loadDirectory(path, { push: true, force: false })}
             onUploadFiles={(selected) => void operations.submitUploads(selected)}
-            onDeleteSelected={() => requestDelete(Array.from(directory.selectedPaths))}
+            onDeleteSelected={() => requestDelete(Array.from(directory.selectedPaths).map((path) => ({ path, kind: "file" })))}
             onRefresh={() => void directory.refreshCurrentDirectory()}
             onCreateFolder={() =>
               void operations.createFolder(folderName, () => {
@@ -164,8 +186,11 @@ export function DbPage() {
             onBeginRename={operations.rowActions.beginRename}
             onBeginMove={operations.rowActions.beginMove}
             onApplyRename={(path) => void operations.rowActions.applyRename(path)}
+            onBeginDirectoryRename={operations.rowActions.beginFolderRename}
+            onApplyDirectoryRename={(path) => void operations.rowActions.applyFolderRename(path)}
             onApplyMove={(path) => void operations.rowActions.applyMove(path)}
-            onDeleteSingle={(path) => requestDelete([path])}
+            onDeleteSingle={(path) => requestDelete([{ path, kind: "file" }])}
+            onDeleteDirectory={(path) => requestDelete([{ path, kind: "directory" }])}
             onOpenDirectory={(path) => void directory.loadDirectory(path, { push: true, force: false })}
           />
         </Card>
@@ -173,13 +198,16 @@ export function DbPage() {
       <Dialog open={deleteDialogOpen} onClose={closeDeleteDialog} fullWidth maxWidth="sm" aria-labelledby="db-delete-dialog-title">
         <DialogTitle id="db-delete-dialog-title">确认删除</DialogTitle>
         <DialogContent>
-          <div className="mt-1 text-sm text-text">将删除 {deleteTargets.length} 个文件，对应数据库记录和磁盘文件都会被移除。</div>
+          <div className="mt-1 text-sm text-text">
+            将删除 {deleteTargets.length} 个条目（目录会递归删除），对应数据库记录和磁盘文件都会被移除。
+          </div>
           <div className="mt-3 rounded-md border border-border bg-surface-soft px-3 py-2">
             <div className="text-xs text-muted">示例路径：</div>
             <ul className="mt-1 space-y-1 text-xs text-text">
-              {deletePreview.map((path) => (
-                <li key={path} className="font-mono">
-                  {path}
+              {deletePreview.map((target) => (
+                <li key={`${target.kind}:${target.path}`} className="font-mono">
+                  {target.kind === "directory" ? "[目录] " : "[文件] "}
+                  {target.path}
                 </li>
               ))}
               {deleteTargets.length > deletePreview.length ? <li className="text-muted">...</li> : null}

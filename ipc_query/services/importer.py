@@ -370,6 +370,212 @@ class ImportService:
         target_rel = f"{safe_target_dir}/{filename}" if safe_target_dir else filename
         return self._relocate_document(source_rel=source_rel, target_rel=target_rel)
 
+    def rename_folder(self, path: str, new_name: str) -> dict[str, Any]:
+        source_dir = self._normalize_folder_path(path, allow_empty=False)
+        target_name = self._normalize_folder_name(new_name)
+        target_dir = target_name
+        source_path = self._pdf_dir / source_dir
+        target_path = self._pdf_dir / target_dir
+
+        self._assert_folder_not_busy(source_dir)
+        self._assert_folder_not_busy(target_dir)
+
+        if source_dir == target_dir:
+            if not source_path.exists() or not source_path.is_dir():
+                return {
+                    "updated": False,
+                    "old_path": source_dir,
+                    "new_path": target_dir,
+                    "renamed_docs": 0,
+                }
+            return {
+                "updated": True,
+                "old_path": source_dir,
+                "new_path": target_dir,
+                "renamed_docs": 0,
+            }
+
+        if not source_path.exists() or not source_path.is_dir():
+            return {
+                "updated": False,
+                "old_path": source_dir,
+                "new_path": target_dir,
+                "renamed_docs": 0,
+            }
+        if target_path.exists():
+            raise ConflictError(
+                "Target folder already exists",
+                details={"path": target_dir},
+            )
+
+        moved = False
+        doc_updated = 0
+        source_like = self._like_prefix(source_dir)
+        target_like = self._like_prefix(target_dir)
+        with self._db_write_lock:
+            with sqlite3.connect(str(self._db_path), timeout=60.0) as conn:
+                conn.row_factory = sqlite3.Row
+                conn.execute("PRAGMA foreign_keys=ON")
+
+                existing_target = int(
+                    conn.execute(
+                        "SELECT COUNT(1) FROM documents WHERE relative_path LIKE ? ESCAPE '\\'",
+                        (target_like,),
+                    ).fetchone()[0]
+                )
+                if existing_target > 0:
+                    raise ConflictError(
+                        "Target folder path already exists in database",
+                        details={"path": target_dir},
+                    )
+
+                source_path.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    source_path.replace(target_path)
+                except OSError:
+                    shutil.move(str(source_path), str(target_path))
+                moved = True
+
+                prefix_offset = len(source_dir) + 1
+                try:
+                    cur = conn.execute(
+                        """
+                        UPDATE documents
+                        SET relative_path = ? || SUBSTR(relative_path, ?),
+                            pdf_path = ? || SUBSTR(relative_path, ?)
+                        WHERE relative_path LIKE ? ESCAPE '\\'
+                        """,
+                        (target_dir, prefix_offset, target_dir, prefix_offset, source_like),
+                    )
+                    doc_updated = int(cur.rowcount or 0)
+                    conn.execute(
+                        "DELETE FROM scan_state WHERE relative_path LIKE ? ESCAPE '\\'",
+                        (target_like,),
+                    )
+                    conn.execute(
+                        """
+                        UPDATE scan_state
+                        SET relative_path = ? || SUBSTR(relative_path, ?)
+                        WHERE relative_path LIKE ? ESCAPE '\\'
+                        """,
+                        (target_dir, prefix_offset, source_like),
+                    )
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    if moved:
+                        try:
+                            target_path.replace(source_path)
+                        except OSError:
+                            shutil.move(str(target_path), str(source_path))
+                    raise
+
+        if self._on_success:
+            try:
+                self._on_success()
+            except Exception:
+                logger.exception("Rename folder success callback failed")
+
+        logger.info(
+            "Folder renamed",
+            extra_fields={
+                "old_path": source_dir,
+                "new_path": target_dir,
+                "renamed_docs": doc_updated,
+            },
+        )
+        return {
+            "updated": True,
+            "old_path": source_dir,
+            "new_path": target_dir,
+            "renamed_docs": doc_updated,
+        }
+
+    def delete_folder(self, path: str, recursive: bool = True) -> dict[str, Any]:
+        folder = self._normalize_folder_path(path, allow_empty=False)
+        folder_path = self._pdf_dir / folder
+        self._assert_folder_not_busy(folder)
+
+        if not folder_path.exists() or not folder_path.is_dir():
+            return {
+                "deleted": False,
+                "path": folder,
+                "recursive": bool(recursive),
+                "deleted_docs": 0,
+                "deleted_scan_state": 0,
+                "folder_deleted": False,
+            }
+
+        if not recursive and any(folder_path.iterdir()):
+            raise ValidationError("Folder is not empty")
+
+        source_like = self._like_prefix(folder)
+        deleted_docs = 0
+        deleted_scan_state = 0
+        with self._db_write_lock:
+            with sqlite3.connect(str(self._db_path), timeout=60.0) as conn:
+                conn.row_factory = sqlite3.Row
+                conn.execute("PRAGMA foreign_keys=ON")
+                deleted_docs = int(
+                    conn.execute(
+                        "SELECT COUNT(1) FROM documents WHERE relative_path LIKE ? ESCAPE '\\'",
+                        (source_like,),
+                    ).fetchone()[0]
+                )
+                deleted_scan_state = int(
+                    conn.execute(
+                        "SELECT COUNT(1) FROM scan_state WHERE relative_path LIKE ? ESCAPE '\\'",
+                        (source_like,),
+                    ).fetchone()[0]
+                )
+                conn.execute(
+                    "DELETE FROM documents WHERE relative_path LIKE ? ESCAPE '\\'",
+                    (source_like,),
+                )
+                conn.execute(
+                    "DELETE FROM scan_state WHERE relative_path LIKE ? ESCAPE '\\'",
+                    (source_like,),
+                )
+                conn.commit()
+
+        folder_deleted = False
+        try:
+            if recursive:
+                shutil.rmtree(folder_path)
+            else:
+                folder_path.rmdir()
+            folder_deleted = True
+        except Exception:
+            logger.warning(
+                "Failed to delete folder from file system",
+                extra_fields={"path": str(folder_path)},
+            )
+
+        if self._on_success:
+            try:
+                self._on_success()
+            except Exception:
+                logger.exception("Delete folder success callback failed")
+
+        logger.info(
+            "Folder deleted",
+            extra_fields={
+                "path": folder,
+                "recursive": bool(recursive),
+                "deleted_docs": deleted_docs,
+                "deleted_scan_state": deleted_scan_state,
+                "folder_deleted": folder_deleted,
+            },
+        )
+        return {
+            "deleted": True,
+            "path": folder,
+            "recursive": bool(recursive),
+            "deleted_docs": deleted_docs,
+            "deleted_scan_state": deleted_scan_state,
+            "folder_deleted": folder_deleted,
+        }
+
     def _relocate_document(self, source_rel: str, target_rel: str) -> dict[str, Any]:
         source_rel = self._normalize_pdf_identifier(source_rel)
         target_rel = self._normalize_pdf_identifier(target_rel)
@@ -504,6 +710,19 @@ class ImportService:
                 if job.relative_path() == relative_path and job.status in {"queued", "running"}:
                     raise ValidationError("Document is being imported, please retry later")
 
+    def _assert_folder_not_busy(self, folder_path: str) -> None:
+        folder = self._normalize_folder_path(folder_path, allow_empty=False)
+        with self._lock:
+            for job_id in self._job_order:
+                job = self._jobs.get(job_id)
+                if not job:
+                    continue
+                if job.status not in {"queued", "running"}:
+                    continue
+                target_dir = self._normalize_target_dir(job.target_dir)
+                if target_dir == folder or target_dir.startswith(f"{folder}/"):
+                    raise ValidationError("Folder is being imported, please retry later")
+
     def _normalize_new_filename(self, filename: str) -> str:
         raw = (filename or "").replace("\\", "/").strip()
         if not raw:
@@ -516,6 +735,34 @@ class ImportService:
         if not safe_name.lower().endswith(".pdf"):
             raise ValidationError("Only .pdf files are supported")
         return safe_name
+
+    def _normalize_folder_path(self, path: str, *, allow_empty: bool) -> str:
+        raw = (path or "").replace("\\", "/").strip().strip("/")
+        if not raw:
+            if allow_empty:
+                return ""
+            raise ValidationError("Missing folder path")
+        parts = [p for p in raw.split("/") if p]
+        if any(p in {".", ".."} for p in parts):
+            raise ValidationError("Invalid folder path")
+        if len(parts) != 1:
+            raise ValidationError("Only top-level folders are supported")
+        return parts[0]
+
+    def _normalize_folder_name(self, name: str) -> str:
+        raw = (name or "").replace("\\", "/").strip().strip("/")
+        if not raw:
+            raise ValidationError("Missing folder name")
+        if "/" in raw:
+            raise ValidationError("Folder name must not contain '/'")
+        if raw in {".", ".."}:
+            raise ValidationError("Invalid folder name")
+        return raw
+
+    @staticmethod
+    def _like_prefix(path: str) -> str:
+        escaped = path.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        return f"{escaped}/%"
 
     def _resolve_document_row_by_relative_path(self, conn: sqlite3.Connection, relative_path: str) -> sqlite3.Row | None:
         rows = conn.execute(

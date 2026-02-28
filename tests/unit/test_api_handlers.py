@@ -478,6 +478,7 @@ def test_handle_docs_tree_does_not_match_indexed_file_by_name_only(tmp_path: Pat
     assert row["relative_path"] == "1/dup.pdf"
     assert row["indexed"] is False
     assert row["document"] is None
+    assert payload["directories"] == []
 
 
 def test_handle_render_propagates_scale(tmp_path: Path) -> None:
@@ -506,6 +507,54 @@ def test_handle_folder_create_creates_dir(tmp_path: Path) -> None:
     payload = json.loads(body.decode("utf-8"))
     assert payload["created"] is True
     assert (pdf_root / "engine").exists()
+
+
+def test_handle_folder_create_only_allows_root(tmp_path: Path) -> None:
+    pdf_root = tmp_path / "pdfs"
+    (pdf_root / "engine").mkdir(parents=True)
+    handlers = _make_handlers(tmp_path / "sample.pdf")
+    handlers._config = Config(pdf_dir=pdf_root)
+
+    with pytest.raises(ValidationError):
+        handlers.handle_folder_create(path="engine", name="sub")
+
+
+def test_handle_folder_rename_success(tmp_path: Path) -> None:
+    handlers = _make_handlers(tmp_path / "sample.pdf")
+    handlers._import = MagicMock()
+    handlers._import.rename_folder.return_value = {
+        "updated": True,
+        "old_path": "engine",
+        "new_path": "engine-new",
+        "renamed_docs": 2,
+    }
+
+    status, body, content_type = handlers.handle_folder_rename(path="engine", new_name="engine-new")
+
+    assert status == HTTPStatus.OK
+    assert content_type == "application/json; charset=utf-8"
+    payload = json.loads(body.decode("utf-8"))
+    assert payload["updated"] is True
+    assert payload["new_path"] == "engine-new"
+
+
+def test_handle_folder_delete_batch_success(tmp_path: Path) -> None:
+    handlers = _make_handlers(tmp_path / "sample.pdf")
+    handlers._import = MagicMock()
+    handlers._import.delete_folder.side_effect = [
+        {"deleted": True, "path": "a", "deleted_docs": 2},
+        {"deleted": True, "path": "b", "deleted_docs": 0},
+    ]
+
+    status, body, content_type = handlers.handle_folder_delete(paths=["a", "b"], recursive=True)
+
+    assert status == HTTPStatus.OK
+    assert content_type == "application/json; charset=utf-8"
+    payload = json.loads(body.decode("utf-8"))
+    assert payload["total"] == 2
+    assert payload["deleted"] == 2
+    assert payload["failed"] == 0
+    assert all(item["ok"] is True for item in payload["results"])
 
 
 def test_handle_scan_submit_calls_scan_service(tmp_path: Path) -> None:

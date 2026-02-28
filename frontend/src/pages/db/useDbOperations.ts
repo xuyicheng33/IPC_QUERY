@@ -6,7 +6,6 @@ import type {
   DbGlobalActionKey,
   DbGlobalActionState,
   DbRowActionState,
-  DocsTreeFile,
   ImportJob,
   MoveDocResponse,
   RenameDocResponse,
@@ -34,7 +33,7 @@ type ActionFeedback = {
 
 type UseDbOperationsParams = {
   currentPath: string;
-  visibleFiles: DocsTreeFile[];
+  visiblePaths: string[];
   capabilities: CapabilitiesResponse;
   importDisabledReason: string;
   scanDisabledReason: string;
@@ -67,7 +66,7 @@ function baseActionState(mode: DbRowActionState["mode"], value = ""): DbRowActio
 
 export function useDbOperations({
   currentPath,
-  visibleFiles,
+  visiblePaths,
   capabilities,
   importDisabledReason,
   scanDisabledReason,
@@ -83,7 +82,7 @@ export function useDbOperations({
   const [actionFeedback, setActionFeedback] = useState<ActionFeedback | null>(null);
 
   useEffect(() => {
-    const visible = new Set(visibleFiles.map((file) => normalizeDir(file.relative_path || file.name || "")));
+    const visible = new Set(visiblePaths.map((value) => normalizeDir(value || "")).filter(Boolean));
     setRowActionStates((prev) => {
       const next: Record<string, DbRowActionState> = {};
       for (const [path, state] of Object.entries(prev)) {
@@ -91,7 +90,7 @@ export function useDbOperations({
       }
       return next;
     });
-  }, [visibleFiles]);
+  }, [visiblePaths]);
 
   const updateGlobalAction = useCallback((key: DbGlobalActionKey, phase: DbActionPhase, message: string, error?: string) => {
     setGlobalActionState((prev) => ({
@@ -308,6 +307,101 @@ export function useDbOperations({
     [capabilities.import_enabled, currentPath, importDisabledReason, refreshCurrentDirectory, setStatus, updateGlobalAction]
   );
 
+  const beginFolderRename = useCallback(
+    (path: string) => {
+      const folderName = normalizeDir(path).split("/").pop() || path;
+      setRowActionState(path, baseActionState("renaming", folderName));
+    },
+    [setRowActionState]
+  );
+
+  const applyFolderRename = useCallback(
+    async (path: string) => {
+      if (!capabilities.import_enabled) {
+        const message = importDisabledReason || "导入服务不可用";
+        setRowActionState(path, { ...baseActionState("renaming"), error: message, phase: "error" });
+        return;
+      }
+
+      const state = getRowActionState(path);
+      const newName = state.value.trim();
+      if (!newName) {
+        setRowActionState(path, { ...state, error: "请输入新目录名", phase: "error" });
+        return;
+      }
+      if (newName.includes("/") || newName === "." || newName === "..") {
+        setRowActionState(path, { ...state, error: "目录名不合法", phase: "error" });
+        return;
+      }
+
+      setRowActionState(path, { ...state, error: "", phase: "pending" });
+      try {
+        const result = await fetchJson<{ updated: boolean; old_path: string; new_path: string }>("/api/folders/rename", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ path, new_name: newName }),
+        });
+        setRowActionState(path, { ...state, phase: "success" });
+        clearRowActionState(path);
+        setStatus(`目录改名成功：${result.old_path} -> ${result.new_path}`);
+        await refreshCurrentDirectory();
+      } catch (error) {
+        const message = String((error as Error)?.message || error);
+        setRowActionState(path, { ...state, error: message, phase: "error" });
+      }
+    },
+    [
+      capabilities.import_enabled,
+      clearRowActionState,
+      getRowActionState,
+      importDisabledReason,
+      refreshCurrentDirectory,
+      setRowActionState,
+      setStatus,
+    ]
+  );
+
+  const deleteFolders = useCallback(
+    async (paths: string[]) => {
+      if (!capabilities.import_enabled) {
+        const message = importDisabledReason || "导入服务不可用";
+        updateGlobalAction("batchDelete", "error", `删除不可用：${message}`, message);
+        setStatus(`删除不可用：${message}`);
+        return;
+      }
+
+      const list = paths.map((path) => normalizeDir(path || "")).filter(Boolean);
+      if (list.length === 0) return;
+
+      const pendingText = `正在删除 ${list.length} 个目录...`;
+      updateGlobalAction("batchDelete", "pending", pendingText);
+      setStatus(pendingText);
+
+      try {
+        const payload = await fetchJson<BatchDeleteResult>("/api/folders/delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ paths: list, recursive: true }),
+        });
+
+        const summary = formatFailedSummary(payload);
+        const message = summary
+          ? `目录删除完成：成功 ${payload.deleted}/${payload.total}，失败 ${payload.failed}（${summary}）`
+          : `目录删除完成：成功 ${payload.deleted}/${payload.total}，失败 ${payload.failed}`;
+        const phase: DbActionPhase = payload.failed > 0 ? "error" : "success";
+
+        updateGlobalAction("batchDelete", phase, message, payload.failed > 0 ? summary || "partial failed" : undefined);
+        setStatus(message);
+        await refreshCurrentDirectory();
+      } catch (error) {
+        const message = String((error as Error)?.message || error);
+        updateGlobalAction("batchDelete", "error", `目录删除失败：${message}`, message);
+        setStatus(`目录删除失败：${message}`);
+      }
+    },
+    [capabilities.import_enabled, formatFailedSummary, importDisabledReason, refreshCurrentDirectory, setStatus, updateGlobalAction]
+  );
+
   const triggerRescan = useCallback(async () => {
     if (!capabilities.scan_enabled) {
       const message = scanDisabledReason || "重扫服务不可用";
@@ -438,11 +532,23 @@ export function useDbOperations({
       setRowActionState,
       clearRowActionState,
       beginRename,
+      beginFolderRename,
       beginMove,
       applyRename,
+      applyFolderRename,
       applyMove,
     }),
-    [applyMove, applyRename, beginMove, beginRename, clearRowActionState, getRowActionState, setRowActionState]
+    [
+      applyFolderRename,
+      applyMove,
+      applyRename,
+      beginFolderRename,
+      beginMove,
+      beginRename,
+      clearRowActionState,
+      getRowActionState,
+      setRowActionState,
+    ]
   );
 
   return {
@@ -450,6 +556,7 @@ export function useDbOperations({
     actionFeedback,
     rowActions,
     deleteSelected,
+    deleteFolders,
     submitUploads,
     createFolder,
     triggerRescan,

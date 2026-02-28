@@ -631,6 +631,111 @@ def test_move_document_updates_file_and_db(tmp_path: Path) -> None:
         service.stop()
 
 
+def test_rename_folder_updates_files_db_and_scan_state(tmp_path: Path) -> None:
+    db_path = tmp_path / "db.sqlite"
+    pdf_dir = tmp_path / "pdfs"
+    upload_dir = tmp_path / "uploads"
+    (pdf_dir / "engine").mkdir(parents=True, exist_ok=True)
+
+    with sqlite3.connect(str(db_path)) as conn:
+        ensure_schema(conn)
+        conn.execute(
+            "INSERT INTO documents(pdf_name, relative_path, pdf_path, miner_dir, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
+            ("a.pdf", "engine/a.pdf", "engine/a.pdf", "{}"),
+        )
+        conn.execute(
+            "INSERT INTO scan_state(relative_path, size, mtime, content_hash, updated_at) VALUES (?, ?, ?, ?, datetime('now'))",
+            ("engine/a.pdf", 1, 1.0, "h1"),
+        )
+        conn.commit()
+
+    (pdf_dir / "engine" / "a.pdf").write_bytes(_PDF_PAYLOAD)
+    service = ImportService(db_path=db_path, pdf_dir=pdf_dir, upload_dir=upload_dir)
+    try:
+        result = service.rename_folder("engine", "engine-new")
+        assert result["updated"] is True
+        assert result["old_path"] == "engine"
+        assert result["new_path"] == "engine-new"
+        assert (pdf_dir / "engine-new" / "a.pdf").exists()
+        assert not (pdf_dir / "engine").exists()
+
+        with sqlite3.connect(str(db_path)) as conn:
+            row = conn.execute(
+                "SELECT pdf_name, relative_path, pdf_path FROM documents WHERE relative_path = ?",
+                ("engine-new/a.pdf",),
+            ).fetchone()
+            assert row is not None
+            assert row[0] == "a.pdf"
+            assert row[1] == "engine-new/a.pdf"
+            assert row[2] == "engine-new/a.pdf"
+            assert conn.execute(
+                "SELECT COUNT(1) FROM scan_state WHERE relative_path = ?",
+                ("engine-new/a.pdf",),
+            ).fetchone()[0] == 1
+    finally:
+        service.stop()
+
+
+def test_delete_folder_recursive_removes_db_and_files(tmp_path: Path) -> None:
+    db_path = tmp_path / "db.sqlite"
+    pdf_dir = tmp_path / "pdfs"
+    upload_dir = tmp_path / "uploads"
+    (pdf_dir / "engine").mkdir(parents=True, exist_ok=True)
+    (pdf_dir / "engine" / "a.pdf").write_bytes(_PDF_PAYLOAD)
+    (pdf_dir / "engine" / "b.pdf").write_bytes(_PDF_PAYLOAD)
+
+    with sqlite3.connect(str(db_path)) as conn:
+        ensure_schema(conn)
+        conn.execute(
+            "INSERT INTO documents(pdf_name, relative_path, pdf_path, miner_dir, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
+            ("a.pdf", "engine/a.pdf", "engine/a.pdf", "{}"),
+        )
+        conn.execute(
+            "INSERT INTO documents(pdf_name, relative_path, pdf_path, miner_dir, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
+            ("b.pdf", "engine/b.pdf", "engine/b.pdf", "{}"),
+        )
+        conn.execute(
+            "INSERT INTO scan_state(relative_path, size, mtime, content_hash, updated_at) VALUES (?, ?, ?, ?, datetime('now'))",
+            ("engine/a.pdf", 1, 1.0, "h1"),
+        )
+        conn.execute(
+            "INSERT INTO scan_state(relative_path, size, mtime, content_hash, updated_at) VALUES (?, ?, ?, ?, datetime('now'))",
+            ("engine/b.pdf", 1, 1.0, "h2"),
+        )
+        conn.commit()
+
+    service = ImportService(db_path=db_path, pdf_dir=pdf_dir, upload_dir=upload_dir)
+    try:
+        result = service.delete_folder("engine", recursive=True)
+        assert result["deleted"] is True
+        assert result["path"] == "engine"
+        assert result["deleted_docs"] == 2
+        assert result["deleted_scan_state"] == 2
+        assert result["folder_deleted"] is True
+        assert not (pdf_dir / "engine").exists()
+
+        with sqlite3.connect(str(db_path)) as conn:
+            assert conn.execute("SELECT COUNT(1) FROM documents").fetchone()[0] == 0
+            assert conn.execute("SELECT COUNT(1) FROM scan_state").fetchone()[0] == 0
+    finally:
+        service.stop()
+
+
+def test_folder_ops_only_allow_top_level_path(tmp_path: Path) -> None:
+    service = ImportService(
+        db_path=tmp_path / "db.sqlite",
+        pdf_dir=tmp_path / "pdfs",
+        upload_dir=tmp_path / "uploads",
+    )
+    try:
+        with pytest.raises(ValidationError, match="top-level"):
+            service.rename_folder("a/b", "x")
+        with pytest.raises(ValidationError, match="top-level"):
+            service.delete_folder("a/b", recursive=True)
+    finally:
+        service.stop()
+
+
 def test_rename_document_conflict_raises(tmp_path: Path) -> None:
     db_path = tmp_path / "db.sqlite"
     pdf_dir = tmp_path / "pdfs"

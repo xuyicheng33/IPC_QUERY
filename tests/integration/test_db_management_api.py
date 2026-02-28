@@ -131,6 +131,7 @@ def test_folders_tree_import_and_scan(tmp_path: Path, monkeypatch) -> None:
 
         status_tree, tree = _request_json(port, "GET", "/api/docs/tree?path=engine")
         assert status_tree == 200
+        assert tree["directories"] == []
         assert any(f["name"] == "part.pdf" for f in tree["files"])
 
         # 新文件写入后触发手动扫描
@@ -155,6 +156,94 @@ def test_scan_disabled_when_import_mode_is_disabled(tmp_path: Path) -> None:
         assert status_scan == 400
         assert scan_body["error"] == "VALIDATION_ERROR"
         assert "not enabled" in scan_body["message"].lower()
+    finally:
+        server.stop()
+        thread.join(timeout=3.0)
+
+
+def test_folder_rename_and_recursive_delete(tmp_path: Path) -> None:
+    db_path = tmp_path / "data.sqlite"
+    cfg = _make_config(tmp_path, db_path)
+    server = create_server(cfg)
+    thread, port = _start_server(server)
+    try:
+        status_folder, _ = _request_json(
+            port,
+            "POST",
+            "/api/folders",
+            body=json.dumps({"path": "", "name": "engine"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        assert status_folder == 201
+
+        status_import, import_job = _request_json(
+            port,
+            "POST",
+            "/api/import?filename=part.pdf&target_dir=engine",
+            body=_PDF_PAYLOAD,
+            headers={
+                "Content-Type": "application/pdf",
+                "X-File-Name": "part.pdf",
+                "X-Target-Dir": "engine",
+            },
+        )
+        assert status_import == 202
+        import_terminal = _wait_job(port, f"/api/import/{import_job['job_id']}")
+        assert import_terminal["status"] == "success"
+        assert (cfg.pdf_dir / "engine" / "part.pdf").exists()
+
+        status_rename, rename_payload = _request_json(
+            port,
+            "POST",
+            "/api/folders/rename",
+            body=json.dumps({"path": "engine", "new_name": "engine-new"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        assert status_rename == 200
+        assert rename_payload["updated"] is True
+        assert rename_payload["new_path"] == "engine-new"
+        assert (cfg.pdf_dir / "engine-new" / "part.pdf").exists()
+
+        status_delete, delete_payload = _request_json(
+            port,
+            "POST",
+            "/api/folders/delete",
+            body=json.dumps({"paths": ["engine-new"], "recursive": True}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        assert status_delete == 200
+        assert delete_payload["deleted"] == 1
+        assert delete_payload["failed"] == 0
+        assert not (cfg.pdf_dir / "engine-new").exists()
+    finally:
+        server.stop()
+        thread.join(timeout=3.0)
+
+
+def test_create_folder_under_child_path_is_rejected(tmp_path: Path) -> None:
+    db_path = tmp_path / "data.sqlite"
+    cfg = _make_config(tmp_path, db_path)
+    server = create_server(cfg)
+    thread, port = _start_server(server)
+    try:
+        status_folder, _ = _request_json(
+            port,
+            "POST",
+            "/api/folders",
+            body=json.dumps({"path": "", "name": "engine"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        assert status_folder == 201
+
+        status_nested, body_nested = _request_json(
+            port,
+            "POST",
+            "/api/folders",
+            body=json.dumps({"path": "engine", "name": "nested"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        assert status_nested == 400
+        assert body_nested["error"] == "VALIDATION_ERROR"
     finally:
         server.stop()
         thread.join(timeout=3.0)

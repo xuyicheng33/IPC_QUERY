@@ -24,6 +24,9 @@ type DbFileTableProps = {
   onApplyMove: (path: string) => void;
   onDeleteSingle: (path: string) => void;
   onOpenDirectory: (path: string) => void;
+  onBeginDirectoryRename: (path: string) => void;
+  onApplyDirectoryRename: (path: string) => void;
+  onDeleteDirectory: (path: string) => void;
 };
 
 export function DbFileTable({
@@ -42,6 +45,9 @@ export function DbFileTable({
   onApplyMove,
   onDeleteSingle,
   onOpenDirectory,
+  onBeginDirectoryRename,
+  onApplyDirectoryRename,
+  onDeleteDirectory,
 }: DbFileTableProps) {
   const [anchorPath, setAnchorPath] = useState("");
   const [activeDirectoryPath, setActiveDirectoryPath] = useState("");
@@ -64,19 +70,7 @@ export function DbFileTable({
     onSelectionChange(orderedFilePaths.filter((path) => next.has(path)));
   };
 
-  const toggleFileSelection = (rel: string) => {
-    if (!rel) return;
-    const next = new Set<string>(selectedPaths);
-    if (next.has(rel)) next.delete(rel);
-    else next.add(rel);
-    setAnchorPath(rel);
-    pushOrderedSelection(next);
-  };
-
-  const applyFileSelection = (
-    rel: string,
-    modifier: { shift: boolean; toggle: boolean }
-  ) => {
+  const applyFileSelection = (rel: string, modifier: { shift: boolean }) => {
     if (!rel) return;
     const next = new Set<string>(selectedPaths);
 
@@ -98,16 +92,8 @@ export function DbFileTable({
       return;
     }
 
-    if (modifier.toggle) {
-      if (next.has(rel)) next.delete(rel);
-      else next.add(rel);
-      setAnchorPath(rel);
-      pushOrderedSelection(next);
-      return;
-    }
-
-    next.clear();
-    next.add(rel);
+    if (next.has(rel)) next.delete(rel);
+    else next.add(rel);
     setAnchorPath(rel);
     pushOrderedSelection(next);
   };
@@ -146,47 +132,22 @@ export function DbFileTable({
             event.stopPropagation();
           };
 
-          const handleFileClick = (event: MouseEvent<HTMLDivElement>) => {
-            if (actionState.mode !== "normal") return;
-            applyFileSelection(rel, {
-              shift: event.shiftKey,
-              toggle: event.metaKey || event.ctrlKey,
-            });
-          };
-
-          const handleFileKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-            if (actionState.mode !== "normal") return;
-            if (event.key === " " || event.key === "Enter") {
-              event.preventDefault();
-              applyFileSelection(rel, {
-                shift: event.shiftKey,
-                toggle: event.metaKey || event.ctrlKey,
-              });
-            }
-          };
-
           return (
             <div
               key={rel || item.name}
-              role={isDirectory ? "button" : undefined}
+              role={isDirectory ? "button" : "listitem"}
               aria-label={
                 isDirectory ? `目录 ${displayName}${isActiveDirectory ? "（已选）" : ""}` : `${displayName}${isSelected ? "（已选）" : ""}`
               }
-              tabIndex={0}
-              className={`group grid cursor-pointer grid-cols-[36px_28px_minmax(0,1fr)_180px] items-center gap-2 border-b border-border px-3 py-2 last:border-b-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent md:grid-cols-[36px_28px_minmax(0,1fr)_332px] ${
+              tabIndex={isDirectory ? 0 : -1}
+              className={`group grid grid-cols-[36px_28px_minmax(0,1fr)_180px] items-center gap-2 border-b border-border px-3 py-2 last:border-b-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent md:grid-cols-[36px_28px_minmax(0,1fr)_332px] ${
                 isSelected || isActiveDirectory ? "bg-accent-soft" : "hover:bg-surface-soft"
               }`}
               onClick={(event) => {
                 if (isDirectory) {
+                  event.preventDefault();
                   setActiveDirectoryPath(rel);
-                  return;
                 }
-                handleFileClick(event);
-              }}
-              onDoubleClick={() => {
-                if (!isDirectory) return;
-                if (!rel) return;
-                onOpenDirectory(rel);
               }}
               onKeyDown={(event) => {
                 if (isDirectory) {
@@ -199,7 +160,6 @@ export function DbFileTable({
                   }
                   return;
                 }
-                handleFileKeyDown(event);
               }}
             >
               <div className="flex w-9 items-center justify-center">
@@ -213,11 +173,14 @@ export function DbFileTable({
                     className="h-4 w-4"
                     style={{ accentColor: "var(--color-accent)" }}
                     onClick={(event) => {
+                      event.preventDefault();
                       stopRowEvent(event);
+                      if (actionState.mode !== "normal") return;
+                      applyFileSelection(rel, {
+                        shift: event.shiftKey,
+                      });
                     }}
-                    onChange={() => {
-                      toggleFileSelection(rel);
-                    }}
+                    onChange={() => undefined}
                   />
                 )}
               </div>
@@ -233,11 +196,102 @@ export function DbFileTable({
 
               <div className={actionAreaClass}>
                 {isDirectory ? (
-                  <div className="flex h-8 items-center justify-end gap-1 px-2.5 text-xs font-medium text-muted">
-                    <span>进入</span>
-                    <MaterialSymbol name="chevron_right" size={16} />
-                  </div>
-                ) : actionState.mode === "renaming" ? (
+                  actionState.mode === "renaming" ? (
+                    <div className="grid w-full gap-1">
+                      <div className="flex items-center gap-1">
+                        <Input
+                          name={`rename-dir-${rel}`}
+                          value={actionState.value}
+                          onChange={(event) =>
+                            onSetRowActionState(rel, { ...actionState, value: event.target.value, error: "", phase: "idle" })
+                          }
+                          onFocus={(event) => {
+                            event.target.select();
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              stopRowKeyEvent(event);
+                              onApplyDirectoryRename(rel);
+                            } else if (event.key === "Escape") {
+                              stopRowKeyEvent(event);
+                              onClearRowActionState(rel);
+                            }
+                          }}
+                          className="h-8"
+                          placeholder="新目录名"
+                          disabled={pending}
+                          autoFocus
+                        />
+                        <Button
+                          variant="ghost"
+                          className="h-8 min-w-8 px-2 text-xs"
+                          onClick={(event) => {
+                            stopRowEvent(event);
+                            onApplyDirectoryRename(rel);
+                          }}
+                          disabled={pending}
+                          aria-label={pending ? "正在改名" : "确认改名"}
+                          title={pending ? "正在改名" : "确认改名"}
+                          startIcon={pending ? <CircularProgress size={14} /> : <MaterialSymbol name="check" size={16} />}
+                        />
+                        <Button
+                          variant="ghost"
+                          className="h-8 min-w-8 px-2 text-xs"
+                          onClick={(event) => {
+                            stopRowEvent(event);
+                            onClearRowActionState(rel);
+                          }}
+                          disabled={pending}
+                          aria-label="取消改名"
+                          title="取消改名"
+                          startIcon={<MaterialSymbol name="close" size={16} />}
+                        />
+                      </div>
+                      {actionState.error ? <div className="text-xs text-danger">{actionState.error}</div> : null}
+                    </div>
+                  ) : (
+                    <div className="flex h-8 items-center justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        className="h-8 gap-1 px-2.5 text-xs"
+                        disabled={!rel}
+                        startIcon={<MaterialSymbol name="chevron_right" size={16} />}
+                        onClick={(event) => {
+                          stopRowEvent(event);
+                          if (!rel) return;
+                          onOpenDirectory(rel);
+                        }}
+                      >
+                        进入
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="h-8 gap-1 px-2.5 text-xs"
+                        disabled={!rel || !capabilitiesImportEnabled}
+                        title={capabilitiesImportEnabled ? undefined : importDisabledReason}
+                        startIcon={<MaterialSymbol name="edit" size={16} />}
+                        onClick={(event) => {
+                          stopRowEvent(event);
+                          onBeginDirectoryRename(rel);
+                        }}
+                      >
+                        改名
+                      </Button>
+                      <Button
+                        variant="danger"
+                        className="h-8 gap-1 px-2.5 text-xs"
+                        disabled={!rel || !capabilitiesImportEnabled}
+                        title={capabilitiesImportEnabled ? undefined : importDisabledReason}
+                        startIcon={<MaterialSymbol name="delete" size={16} />}
+                        onClick={(event) => {
+                          stopRowEvent(event);
+                          onDeleteDirectory(rel);
+                        }}
+                      >
+                        删除
+                      </Button>
+                    </div>
+                )) : actionState.mode === "renaming" ? (
                   <div className="grid w-full gap-1">
                     <div className="flex items-center gap-1">
                       <Input

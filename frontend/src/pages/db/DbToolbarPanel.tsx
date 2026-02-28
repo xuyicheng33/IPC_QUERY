@@ -154,8 +154,6 @@ export function DbToolbarPanel({
 
       {status ? <div className="rounded-md border border-border bg-surface-soft px-3 py-2 text-xs text-muted">{status}</div> : null}
 
-      <p className="text-xs text-muted">提示：目录单击高亮、双击进入；文件支持 Shift / Cmd(Ctrl) 多选。</p>
-
       <Dialog
         open={createDialogOpen}
         onClose={() => setCreateDialogOpen(false)}

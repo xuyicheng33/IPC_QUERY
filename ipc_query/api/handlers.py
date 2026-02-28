@@ -183,6 +183,9 @@ class ApiHandlers:
         files: list[dict[str, Any]] = []
         for child in sorted(target.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower())):
             if child.is_dir():
+                if rel:
+                    # 当前只支持一级目录：进入子目录后不再展示目录列表。
+                    continue
                 child_rel = child.resolve().relative_to(root.resolve()).as_posix()
                 dirs.append({"name": child.name, "path": child_rel})
                 continue
@@ -370,8 +373,11 @@ class ApiHandlers:
         return HTTPStatus.ACCEPTED, _json_bytes(job), "application/json; charset=utf-8"
 
     def handle_folder_create(self, path: str, name: str) -> tuple[int, bytes, str]:
-        root = self._require_pdf_root()
         parent = self._normalize_relative_dir(path, allow_empty=True)
+        if parent:
+            raise ValidationError("Only root folder supports create")
+
+        root = self._require_pdf_root()
         folder_name = self._normalize_folder_name(name)
         base = root if not parent else root / parent
         if not base.exists() or not base.is_dir():
@@ -380,6 +386,86 @@ class ApiHandlers:
         new_dir.mkdir(parents=False, exist_ok=True)
         rel = new_dir.resolve().relative_to(root.resolve()).as_posix()
         return HTTPStatus.CREATED, _json_bytes({"created": True, "path": rel}), "application/json; charset=utf-8"
+
+    def handle_folder_rename(self, path: str, new_name: str) -> tuple[int, bytes, str]:
+        if self._import is None:
+            raise ValidationError("Import service is not enabled")
+        result = self._import.rename_folder(path=path, new_name=new_name)
+        if not result.get("updated"):
+            raise NotFoundError(f"Folder not found: {path}")
+        return HTTPStatus.OK, _json_bytes(result), "application/json; charset=utf-8"
+
+    def handle_folder_delete(self, paths: list[Any], recursive: bool = True) -> tuple[int, bytes, str]:
+        if self._import is None:
+            raise ValidationError("Import service is not enabled")
+        if not isinstance(paths, list):
+            raise ValidationError("`paths` must be an array")
+        if len(paths) == 0:
+            raise ValidationError("`paths` must not be empty")
+
+        results: list[dict[str, Any]] = []
+        deleted = 0
+
+        for raw_path in paths:
+            if not isinstance(raw_path, str):
+                results.append({
+                    "path": str(raw_path),
+                    "ok": False,
+                    "error": "path must be a string",
+                    "error_code": "VALIDATION_ERROR",
+                })
+                continue
+
+            path = raw_path.strip()
+            if not path:
+                results.append({
+                    "path": path,
+                    "ok": False,
+                    "error": "Missing folder path",
+                    "error_code": "VALIDATION_ERROR",
+                })
+                continue
+
+            try:
+                detail = self._import.delete_folder(path=path, recursive=recursive)
+                if detail.get("deleted"):
+                    deleted += 1
+                    results.append({"path": path, "ok": True, "detail": detail})
+                else:
+                    results.append({
+                        "path": path,
+                        "ok": False,
+                        "error": f"Folder not found: {path}",
+                        "error_code": "NOT_FOUND",
+                    })
+            except (ValidationError, NotFoundError, ConflictError) as e:
+                item = {
+                    "path": path,
+                    "ok": False,
+                    "error": str(e),
+                    "error_code": getattr(e, "code", "VALIDATION_ERROR"),
+                }
+                details = getattr(e, "details", None)
+                if details:
+                    item["details"] = details
+                results.append(item)
+            except Exception as e:
+                logger.exception("Folder delete failed", extra_fields={"path": path})
+                results.append({
+                    "path": path,
+                    "ok": False,
+                    "error": str(e),
+                    "error_code": "INTERNAL_ERROR",
+                })
+
+        total = len(paths)
+        payload = {
+            "total": total,
+            "deleted": deleted,
+            "failed": total - deleted,
+            "results": results,
+        }
+        return HTTPStatus.OK, _json_bytes(payload), "application/json; charset=utf-8"
 
     def handle_scan_submit(self, path: str = "") -> tuple[int, bytes, str]:
         if self._scan is None:

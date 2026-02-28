@@ -366,6 +366,26 @@ class RequestHandler(BaseHTTPRequestHandler):
                 self._send(status, body, ct)
                 return
 
+            if path == "/api/folders/rename":
+                json_payload = self._read_json_body()
+                status, body, ct = self._handlers().handle_folder_rename(
+                    path=str(json_payload.get("path") or ""),
+                    new_name=str(json_payload.get("new_name") or ""),
+                )
+                self._send(status, body, ct)
+                return
+
+            if path == "/api/folders/delete":
+                json_payload = self._read_json_body()
+                raw_paths = json_payload.get("paths")
+                if not isinstance(raw_paths, list):
+                    raise ValidationError("`paths` must be an array")
+                recursive_raw = json_payload.get("recursive")
+                recursive = True if recursive_raw is None else bool(recursive_raw)
+                status, body, ct = self._handlers().handle_folder_delete(paths=raw_paths, recursive=recursive)
+                self._send(status, body, ct)
+                return
+
             if path == "/api/scan":
                 qs = parse_qs(query_string) if query_string else {}
                 path_arg = (qs.get("path") or [""])[0]
