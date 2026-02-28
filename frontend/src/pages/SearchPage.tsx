@@ -1,4 +1,4 @@
-import React, { FormEvent, useEffect, useMemo, useState } from "react";
+import React, { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
@@ -42,6 +42,8 @@ export function SearchPage() {
   const [effectivePageSize, setEffectivePageSize] = useState(PAGE_SIZE);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
+  const requestSeqRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
 
   const totalPages = useMemo(() => computeTotalPages(total, effectivePageSize), [total, effectivePageSize]);
   const pageWindow = useMemo(() => buildPageNumberWindow(state.page, totalPages, 10), [state.page, totalPages]);
@@ -52,13 +54,22 @@ export function SearchPage() {
   };
 
   const runSearch = async (nextState: SearchState) => {
+    const requestId = requestSeqRef.current + 1;
+    requestSeqRef.current = requestId;
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     syncUrl(nextState);
     setError("");
     setState(nextState);
 
     if (!nextState.q) {
+      if (requestId !== requestSeqRef.current) return;
+      setLoading(false);
       setResults([]);
       setTotal(0);
+      setEffectivePageSize(PAGE_SIZE);
       return;
     }
 
@@ -67,7 +78,8 @@ export function SearchPage() {
     try {
       const requestedPage = nextState.page;
       let params = buildSearchQuery(nextState, PAGE_SIZE);
-      let data = await fetchJson<SearchResponse>(`/api/search?${params.toString()}`);
+      let data = await fetchJson<SearchResponse>(`/api/search?${params.toString()}`, { signal: controller.signal });
+      if (requestId !== requestSeqRef.current) return;
       let found = Array.isArray(data.results) ? data.results : [];
       let totalCount = Math.max(0, Number(data.total || 0));
       let size = resolvePageSize(data.page_size, PAGE_SIZE);
@@ -78,7 +90,8 @@ export function SearchPage() {
         const clampedState = { ...nextState, page: clamped };
         syncUrl(clampedState);
         params = buildSearchQuery(clampedState, PAGE_SIZE);
-        data = await fetchJson<SearchResponse>(`/api/search?${params.toString()}`);
+        data = await fetchJson<SearchResponse>(`/api/search?${params.toString()}`, { signal: controller.signal });
+        if (requestId !== requestSeqRef.current) return;
         found = Array.isArray(data.results) ? data.results : [];
         totalCount = Math.max(0, Number(data.total || 0));
         size = resolvePageSize(data.page_size, PAGE_SIZE);
@@ -98,16 +111,23 @@ export function SearchPage() {
       setState(normalizedState);
       syncUrl(normalizedState);
     } catch (searchError) {
+      if ((searchError as { name?: string })?.name === "AbortError") return;
+      if (requestId !== requestSeqRef.current) return;
       setResults([]);
       setTotal(0);
       setError(String((searchError as Error)?.message || searchError));
     } finally {
-      setLoading(false);
+      if (requestId === requestSeqRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
     void runSearch(searchStateFromUrl(window.location.search));
+    return () => {
+      abortRef.current?.abort();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

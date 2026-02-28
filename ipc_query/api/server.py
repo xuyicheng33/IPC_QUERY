@@ -69,10 +69,6 @@ class RequestHandler(BaseHTTPRequestHandler):
     处理所有HTTP请求，路由到对应的处理器方法。
     """
 
-    # 类级别配置，在创建服务器时设置
-    config: Config
-    handlers: ApiHandlers
-
     def log_message(self, format: str, *args: object) -> None:
         """重写日志方法，使用自定义日志器"""
         logger.info(
@@ -83,6 +79,18 @@ class RequestHandler(BaseHTTPRequestHandler):
                 "status": args[1] if len(args) > 1 else None,
             },
         )
+
+    def _config(self) -> Config:
+        config = getattr(self.server, "ipc_query_config", None)
+        if isinstance(config, Config):
+            return config
+        raise RuntimeError("Request handler config is not initialized")
+
+    def _handlers(self) -> ApiHandlers:
+        handlers = getattr(self.server, "ipc_query_handlers", None)
+        if isinstance(handlers, ApiHandlers):
+            return handlers
+        raise RuntimeError("Request handler API handlers are not initialized")
 
     def _send(
         self,
@@ -123,13 +131,13 @@ class RequestHandler(BaseHTTPRequestHandler):
 
     def _handle_error(self, error: Exception) -> None:
         """处理错误"""
-        status, body, ct = self.handlers.handle_error(error)
+        status, body, ct = self._handlers().handle_error(error)
         self._send(status, body, ct)
 
     def _cleanup_request_db(self) -> None:
         """请求结束后清理当前线程数据库连接。"""
         try:
-            self.handlers._db.close()
+            self._handlers()._db.close()
         except Exception:
             pass
 
@@ -160,34 +168,34 @@ class RequestHandler(BaseHTTPRequestHandler):
 
             # 路由匹配
             if path == "/api/search":
-                status, search_body, ct = self.handlers.handle_search(query_string)
+                status, search_body, ct = self._handlers().handle_search(query_string)
                 self._send(status, search_body, ct)
 
             elif path.startswith("/api/part/"):
                 part_id = path[len("/api/part/"):]
-                status, part_body, ct = self.handlers.handle_part(part_id)
+                status, part_body, ct = self._handlers().handle_part(part_id)
                 self._send(status, part_body, ct)
 
             elif path == "/api/docs":
-                status, docs_body, ct = self.handlers.handle_docs()
+                status, docs_body, ct = self._handlers().handle_docs()
                 self._send(status, docs_body, ct)
 
             elif path == "/api/docs/tree":
                 qs = parse_qs(query_string) if query_string else {}
                 rel_path = (qs.get("path") or [""])[0]
-                status, body, ct = self.handlers.handle_docs_tree(path=rel_path)
+                status, body, ct = self._handlers().handle_docs_tree(path=rel_path)
                 self._send(status, body, ct)
 
             elif path == "/api/health":
-                status, health_body, ct = self.handlers.handle_health()
+                status, health_body, ct = self._handlers().handle_health()
                 self._send(status, health_body, ct)
 
             elif path == "/api/metrics":
-                status, metrics_body, ct = self.handlers.handle_metrics()
+                status, metrics_body, ct = self._handlers().handle_metrics()
                 self._send(status, metrics_body, ct)
 
             elif path == "/api/capabilities":
-                status, capabilities_body, ct = self.handlers.handle_capabilities()
+                status, capabilities_body, ct = self._handlers().handle_capabilities()
                 self._send(status, capabilities_body, ct)
 
             elif path == "/api/import/jobs":
@@ -197,21 +205,21 @@ class RequestHandler(BaseHTTPRequestHandler):
                     limit = max(1, min(200, int(limit_raw)))
                 except Exception:
                     limit = 20
-                status, jobs_body, ct = self.handlers.handle_import_jobs(limit=limit)
+                status, jobs_body, ct = self._handlers().handle_import_jobs(limit=limit)
                 self._send(status, jobs_body, ct)
 
             elif path.startswith("/api/import/"):
                 job_id = path[len("/api/import/") :]
                 if not job_id:
                     raise NotFoundError("Missing import job id")
-                status, job_body, ct = self.handlers.handle_import_job(job_id)
+                status, job_body, ct = self._handlers().handle_import_job(job_id)
                 self._send(status, job_body, ct)
 
             elif path.startswith("/api/scan/"):
                 job_id = path[len("/api/scan/") :]
                 if not job_id:
                     raise NotFoundError("Missing scan job id")
-                status, job_body, ct = self.handlers.handle_scan_job(job_id)
+                status, job_body, ct = self._handlers().handle_scan_job(job_id)
                 self._send(status, job_body, ct)
 
             elif path.startswith("/render/"):
@@ -222,7 +230,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                     pdf_name = unquote(pdf_name_raw)
                     qs = parse_qs(query_string) if query_string else {}
                     scale_raw = (qs.get("scale") or [""])[0]
-                    status, render_body, ct = self.handlers.handle_render(pdf_name, page, scale_raw)
+                    status, render_body, ct = self._handlers().handle_render(pdf_name, page, scale_raw)
                     if isinstance(render_body, Path):
                         # 发送图片文件
                         self.send_response(status)
@@ -244,7 +252,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             elif path.startswith("/pdf/"):
                 pdf_name = unquote(path[len("/pdf/"):])
                 range_header = self.headers.get("Range")
-                status, pdf_body, ct, extra = self.handlers.handle_pdf(pdf_name, range_header)
+                status, pdf_body, ct, extra = self._handlers().handle_pdf(pdf_name, range_header)
                 if isinstance(pdf_body, Path):
                     # 发送PDF文件
                     size = pdf_body.stat().st_size
@@ -265,7 +273,7 @@ class RequestHandler(BaseHTTPRequestHandler):
 
             else:
                 # 静态文件
-                status, static_body, ct = self.handlers.handle_static(path)
+                status, static_body, ct = self._handlers().handle_static(path)
                 if isinstance(static_body, Path):
                     size = static_body.stat().st_size
                     self.send_response(status)
@@ -301,7 +309,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             path = path or "/"
 
             if path == "/api/import":
-                if not self.handlers.import_enabled():
+                if not self._handlers().import_enabled():
                     raise ValidationError("Import service is not enabled")
                 qs = parse_qs(query_string) if query_string else {}
                 filename = (self.headers.get("X-File-Name") or (qs.get("filename") or [""])[0]).strip()
@@ -309,12 +317,12 @@ class RequestHandler(BaseHTTPRequestHandler):
                 content_type = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
                 content_length = _validated_content_length(
                     self.headers.get("Content-Length"),
-                    self.config.import_max_file_size_mb,
+                    self._config().import_max_file_size_mb,
                 )
                 payload = self.rfile.read(content_length)
                 if len(payload) != content_length:
                     raise ValidationError("Incomplete request body")
-                status, body, ct = self.handlers.handle_import_submit(
+                status, body, ct = self._handlers().handle_import_submit(
                     filename=filename,
                     payload=payload,
                     content_type=content_type,
@@ -328,13 +336,13 @@ class RequestHandler(BaseHTTPRequestHandler):
                 raw_paths = json_payload.get("paths")
                 if not isinstance(raw_paths, list):
                     raise ValidationError("`paths` must be an array")
-                status, body, ct = self.handlers.handle_docs_batch_delete(paths=raw_paths)
+                status, body, ct = self._handlers().handle_docs_batch_delete(paths=raw_paths)
                 self._send(status, body, ct)
                 return
 
             if path == "/api/docs/rename":
                 json_payload = self._read_json_body()
-                status, body, ct = self.handlers.handle_doc_rename(
+                status, body, ct = self._handlers().handle_doc_rename(
                     path=str(json_payload.get("path") or ""),
                     new_name=str(json_payload.get("new_name") or ""),
                 )
@@ -343,7 +351,7 @@ class RequestHandler(BaseHTTPRequestHandler):
 
             if path == "/api/docs/move":
                 json_payload = self._read_json_body()
-                status, body, ct = self.handlers.handle_doc_move(
+                status, body, ct = self._handlers().handle_doc_move(
                     path=str(json_payload.get("path") or ""),
                     target_dir=str(json_payload.get("target_dir") or ""),
                 )
@@ -354,7 +362,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                 json_payload = self._read_json_body()
                 parent_path = str(json_payload.get("path") or "")
                 folder_name = str(json_payload.get("name") or "")
-                status, body, ct = self.handlers.handle_folder_create(path=parent_path, name=folder_name)
+                status, body, ct = self._handlers().handle_folder_create(path=parent_path, name=folder_name)
                 self._send(status, body, ct)
                 return
 
@@ -364,7 +372,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                 if not path_arg and (self.headers.get("Content-Length") or "").strip():
                     json_payload = self._read_json_body()
                     path_arg = str(json_payload.get("path") or "")
-                status, body, ct = self.handlers.handle_scan_submit(path=path_arg)
+                status, body, ct = self._handlers().handle_scan_submit(path=path_arg)
                 self._send(status, body, ct)
                 return
 
@@ -387,13 +395,13 @@ class RequestHandler(BaseHTTPRequestHandler):
             if path == "/api/docs":
                 qs = parse_qs(query_string) if query_string else {}
                 pdf_name = (qs.get("name") or [""])[0].strip()
-                status, body, ct = self.handlers.handle_doc_delete(pdf_name)
+                status, body, ct = self._handlers().handle_doc_delete(pdf_name)
                 self._send(status, body, ct)
                 return
 
             if path.startswith("/api/docs/"):
                 pdf_name = unquote(path[len("/api/docs/"):]).strip()
-                status, body, ct = self.handlers.handle_doc_delete(pdf_name)
+                status, body, ct = self._handlers().handle_doc_delete(pdf_name)
                 self._send(status, body, ct)
                 return
 
@@ -411,7 +419,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         """处理HEAD请求"""
         try:
             path, _, _ = self.path.partition("?")
-            status, body, ct = self.handlers.handle_static(path)
+            status, body, ct = self._handlers().handle_static(path)
 
             self.send_response(status)
             self.send_header("Content-Type", ct)
@@ -465,9 +473,7 @@ class Server:
         # 创建文档仓库
         doc_repo = DocumentRepository(self._db)
 
-        # 配置请求处理器
-        RequestHandler.config = self._config
-        RequestHandler.handlers = ApiHandlers(
+        api_handlers = ApiHandlers(
             search_service=self._search,
             render_service=self._render,
             doc_repo=doc_repo,
@@ -486,6 +492,8 @@ class Server:
             (self._config.host, self._config.port),
             RequestHandler,
         )
+        setattr(self._server, "ipc_query_config", self._config)
+        setattr(self._server, "ipc_query_handlers", api_handlers)
         server_address = self._server.server_address
         if isinstance(server_address, tuple):
             host = _display_host(server_address[0])

@@ -27,6 +27,7 @@ export function useDbDirectoryModel({ initialPath }: UseDbDirectoryModelParams) 
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(() => new Set());
   const [status, setStatus] = useState("");
   const treeCacheRef = useRef(treeCache);
+  const loadSeqRef = useRef(0);
 
   const knownDirectories = useMemo(() => {
     const out = new Set<string>([""]);
@@ -88,6 +89,8 @@ export function useDbDirectoryModel({ initialPath }: UseDbDirectoryModelParams) 
 
   const loadDirectory = useCallback(
     async (path: string, options?: LoadDirectoryOptions) => {
+      const seq = loadSeqRef.current + 1;
+      loadSeqRef.current = seq;
       const push = Boolean(options?.push);
       const force = Boolean(options?.force);
       const target = toTopLevelPath(path || "");
@@ -96,6 +99,7 @@ export function useDbDirectoryModel({ initialPath }: UseDbDirectoryModelParams) 
       try {
         await preloadPathChain(target, force);
         const payload = await ensureTreeNode(target, force);
+        if (seq !== loadSeqRef.current) return;
         const resolvedPath = toTopLevelPath(payload.path || target);
         setCurrentPath(resolvedPath);
         setDirectories(resolvedPath ? [] : (payload.directories || []));
@@ -114,6 +118,7 @@ export function useDbDirectoryModel({ initialPath }: UseDbDirectoryModelParams) 
         if (push) history.pushState({}, "", buildDbUrl(resolvedPath));
         setStatus("");
       } catch (error) {
+        if (seq !== loadSeqRef.current) return;
         setStatus(`加载失败：${String((error as Error)?.message || error)}`);
         setDirectories([]);
         setFiles([]);
