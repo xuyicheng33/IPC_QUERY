@@ -155,6 +155,7 @@ class PartRepository:
         query: str,
         limit: int = 20,
         offset: int = 0,
+        sort: str = "relevance",
         include_notes: bool = False,
         enable_contains: bool = False,
         source_pdf: str = "",
@@ -167,6 +168,7 @@ class PartRepository:
             query: 查询词
             limit: 返回数量限制
             offset: 偏移量
+            sort: 排序方式（relevance/name）
             include_notes: 是否包含注释行
             enable_contains: 是否启用包含匹配
 
@@ -185,6 +187,9 @@ class PartRepository:
         contains = 1 if (enable_contains and len(q) >= 3) else 0
         q_prefix = q + "%"
         q_contains = "%" + q + "%"
+        sort_norm = (sort or "relevance").strip().lower()
+        if sort_norm not in {"relevance", "name"}:
+            sort_norm = "relevance"
 
         hits = [
             "SELECT id AS id, 0 AS rank FROM parts WHERE part_number_canonical = :q",
@@ -216,6 +221,26 @@ class PartRepository:
             SELECT id, min(rank) AS rank FROM hits GROUP BY id
         )
         """
+        snippet_expr = (
+            "CASE "
+            "WHEN :snippet_query = '' THEN substr(replace(coalesce(p.nomenclature_clean, p.nomenclature, ''), char(10), ' '), 1, 220) "
+            "WHEN instr(upper(replace(coalesce(p.nomenclature_clean, p.nomenclature, ''), char(10), ' ')), :snippet_query) <= 0 "
+            "THEN substr(replace(coalesce(p.nomenclature_clean, p.nomenclature, ''), char(10), ' '), 1, 220) "
+            "ELSE trim(substr("
+            "replace(coalesce(p.nomenclature_clean, p.nomenclature, ''), char(10), ' '), "
+            "max(instr(upper(replace(coalesce(p.nomenclature_clean, p.nomenclature, ''), char(10), ' ')), :snippet_query) - 80, 1), "
+            "260"
+            ")) END"
+        )
+        if sort_norm == "name":
+            order_by = "upper(coalesce(p.part_number_canonical, p.part_number_cell, '')), d.pdf_name, p.page_num, p.id"
+        else:
+            order_by = (
+                "best.rank, "
+                "p.pn_needs_review DESC, "
+                "coalesce(p.pn_best_similarity, 0.0) DESC, "
+                "d.pdf_name, p.figure_code, p.page_num"
+            )
 
         count_sql = f"""
         {with_cte}
@@ -259,7 +284,8 @@ class PartRepository:
           p.effectivity,
           p.units_per_assy,
           substr(replace(coalesce(p.nomenclature_clean, p.nomenclature, ''), char(10), ' '), 1, 220) AS nomenclature_preview,
-          substr(replace(coalesce(p.nomenclature, ''), char(10), ' '), 1, 220) AS nomenclature_preview_raw
+          substr(replace(coalesce(p.nomenclature, ''), char(10), ' '), 1, 220) AS nomenclature_preview_raw,
+          {snippet_expr} AS nomenclature_hit_snippet
         FROM best
         JOIN parts p ON p.id = best.id
         JOIN documents d ON d.id = p.document_id
@@ -267,13 +293,7 @@ class PartRepository:
         WHERE (:include_notes = 1 OR p.row_kind = 'part')
           AND (:source_pdf = '' OR d.pdf_name = :source_pdf OR d.relative_path = :source_pdf)
           AND (:source_dir = '' OR d.relative_path = :source_dir OR d.relative_path LIKE :source_dir_prefix)
-        ORDER BY
-          best.rank,
-          p.pn_needs_review DESC,
-          coalesce(p.pn_best_similarity, 0.0) DESC,
-          d.pdf_name,
-          p.figure_code,
-          p.page_num
+        ORDER BY {order_by}
         LIMIT :limit OFFSET :offset
         """
 
@@ -287,6 +307,7 @@ class PartRepository:
             "source_pdf": source_pdf_norm,
             "source_dir": source_dir_norm,
             "source_dir_prefix": source_dir_prefix,
+            "snippet_query": "",
         }
 
         with self._db.connection() as conn:
@@ -302,6 +323,7 @@ class PartRepository:
         query: str,
         limit: int = 20,
         offset: int = 0,
+        sort: str = "relevance",
         include_notes: bool = False,
         source_pdf: str = "",
         source_dir: str = "",
@@ -313,6 +335,7 @@ class PartRepository:
             query: 查询词
             limit: 返回数量限制
             offset: 偏移量
+            sort: 排序方式（relevance/name）
             include_notes: 是否包含注释行
 
         Returns:
@@ -328,6 +351,9 @@ class PartRepository:
         source_dir_prefix = f"{source_dir_norm}/%" if source_dir_norm else ""
         dotprefix = 1 if q.startswith(".") else 0
         term_kw = len(q) >= 3 or (len(q) >= 2 and any(ch.isdigit() for ch in q))
+        sort_norm = (sort or "relevance").strip().lower()
+        if sort_norm not in {"relevance", "name"}:
+            sort_norm = "relevance"
 
         if not dotprefix and not term_kw:
             return [], 0
@@ -361,6 +387,21 @@ class PartRepository:
             SELECT id, min(rank) AS rank FROM hits GROUP BY id
         )
         """
+        snippet_expr = (
+            "CASE "
+            "WHEN :snippet_query = '' THEN substr(replace(coalesce(p.nomenclature_clean, p.nomenclature, ''), char(10), ' '), 1, 220) "
+            "WHEN instr(upper(replace(coalesce(p.nomenclature_clean, p.nomenclature, ''), char(10), ' ')), :snippet_query) <= 0 "
+            "THEN substr(replace(coalesce(p.nomenclature_clean, p.nomenclature, ''), char(10), ' '), 1, 220) "
+            "ELSE trim(substr("
+            "replace(coalesce(p.nomenclature_clean, p.nomenclature, ''), char(10), ' '), "
+            "max(instr(upper(replace(coalesce(p.nomenclature_clean, p.nomenclature, ''), char(10), ' ')), :snippet_query) - 80, 1), "
+            "260"
+            ")) END"
+        )
+        if sort_norm == "name":
+            order_by = "upper(coalesce(p.part_number_canonical, p.part_number_cell, '')), d.pdf_name, p.page_num, p.id"
+        else:
+            order_by = "best.rank, d.pdf_name, p.figure_code, p.page_num"
 
         count_sql = f"""
         {with_cte}
@@ -404,7 +445,8 @@ class PartRepository:
           p.effectivity,
           p.units_per_assy,
           substr(replace(coalesce(p.nomenclature_clean, p.nomenclature, ''), char(10), ' '), 1, 220) AS nomenclature_preview,
-          substr(replace(coalesce(p.nomenclature, ''), char(10), ' '), 1, 220) AS nomenclature_preview_raw
+          substr(replace(coalesce(p.nomenclature, ''), char(10), ' '), 1, 220) AS nomenclature_preview_raw,
+          {snippet_expr} AS nomenclature_hit_snippet
         FROM best
         JOIN parts p ON p.id = best.id
         JOIN documents d ON d.id = p.document_id
@@ -412,11 +454,7 @@ class PartRepository:
         WHERE (:include_notes = 1 OR p.row_kind = 'part')
           AND (:source_pdf = '' OR d.pdf_name = :source_pdf OR d.relative_path = :source_pdf)
           AND (:source_dir = '' OR d.relative_path = :source_dir OR d.relative_path LIKE :source_dir_prefix)
-        ORDER BY
-          best.rank,
-          d.pdf_name,
-          p.figure_code,
-          p.page_num
+        ORDER BY {order_by}
         LIMIT :limit OFFSET :offset
         """
 
@@ -429,6 +467,7 @@ class PartRepository:
             "source_pdf": source_pdf_norm,
             "source_dir": source_dir_norm,
             "source_dir_prefix": source_dir_prefix,
+            "snippet_query": q if (term_kw and not dotprefix) else "",
         }
 
         with self._db.connection() as conn:
@@ -444,6 +483,7 @@ class PartRepository:
         query: str,
         limit: int = 20,
         offset: int = 0,
+        sort: str = "relevance",
         include_notes: bool = False,
         source_pdf: str = "",
         source_dir: str = "",
@@ -455,6 +495,7 @@ class PartRepository:
             query: 查询词
             limit: 返回数量限制
             offset: 偏移量
+            sort: 排序方式（relevance/name）
             include_notes: 是否包含注释行
 
         Returns:
@@ -470,6 +511,9 @@ class PartRepository:
         source_dir_prefix = f"{source_dir_norm}/%" if source_dir_norm else ""
         pn_like = _looks_like_pn_query(q)
         term_kw = len(q) >= 3 or (len(q) >= 2 and any(ch.isdigit() for ch in q))
+        sort_norm = (sort or "relevance").strip().lower()
+        if sort_norm not in {"relevance", "name"}:
+            sort_norm = "relevance"
 
         prefix = 1 if len(q) >= 4 else 0
         contains = 1 if len(q) >= 3 else 0
@@ -519,6 +563,17 @@ class PartRepository:
             SELECT id, min(rank) AS rank FROM hits GROUP BY id
         )
         """
+        snippet_expr = (
+            "CASE "
+            "WHEN :snippet_query = '' THEN substr(replace(coalesce(p.nomenclature_clean, p.nomenclature, ''), char(10), ' '), 1, 220) "
+            "WHEN instr(upper(replace(coalesce(p.nomenclature_clean, p.nomenclature, ''), char(10), ' ')), :snippet_query) <= 0 "
+            "THEN substr(replace(coalesce(p.nomenclature_clean, p.nomenclature, ''), char(10), ' '), 1, 220) "
+            "ELSE trim(substr("
+            "replace(coalesce(p.nomenclature_clean, p.nomenclature, ''), char(10), ' '), "
+            "max(instr(upper(replace(coalesce(p.nomenclature_clean, p.nomenclature, ''), char(10), ' ')), :snippet_query) - 80, 1), "
+            "260"
+            ")) END"
+        )
 
         count_sql = f"""
         {with_cte}
@@ -531,11 +586,14 @@ class PartRepository:
           AND (:source_dir = '' OR d.relative_path = :source_dir OR d.relative_path LIKE :source_dir_prefix)
         """
 
-        order_by = (
-            "best.rank, p.pn_needs_review DESC, coalesce(p.pn_best_similarity, 0.0) DESC, d.pdf_name, p.figure_code, p.page_num"
-            if pn_like
-            else "best.rank, d.pdf_name, p.figure_code, p.page_num"
-        )
+        if sort_norm == "name":
+            order_by = "upper(coalesce(p.part_number_canonical, p.part_number_cell, '')), d.pdf_name, p.page_num, p.id"
+        else:
+            order_by = (
+                "best.rank, p.pn_needs_review DESC, coalesce(p.pn_best_similarity, 0.0) DESC, d.pdf_name, p.figure_code, p.page_num"
+                if pn_like
+                else "best.rank, d.pdf_name, p.figure_code, p.page_num"
+            )
 
         sql = f"""
         {with_cte}
@@ -568,7 +626,8 @@ class PartRepository:
           p.effectivity,
           p.units_per_assy,
           substr(replace(coalesce(p.nomenclature_clean, p.nomenclature, ''), char(10), ' '), 1, 220) AS nomenclature_preview,
-          substr(replace(coalesce(p.nomenclature, ''), char(10), ' '), 1, 220) AS nomenclature_preview_raw
+          substr(replace(coalesce(p.nomenclature, ''), char(10), ' '), 1, 220) AS nomenclature_preview_raw,
+          {snippet_expr} AS nomenclature_hit_snippet
         FROM best
         JOIN parts p ON p.id = best.id
         JOIN documents d ON d.id = p.document_id
@@ -599,6 +658,7 @@ class PartRepository:
             "source_pdf": source_pdf_norm,
             "source_dir": source_dir_norm,
             "source_dir_prefix": source_dir_prefix,
+            "snippet_query": q if (term_enabled and not term_dot_only) else "",
         }
 
         with self._db.connection() as conn:
@@ -814,6 +874,7 @@ class PartRepository:
             "pn_corrected": int(r["pn_corrected"] or 0),
             "nom_level": int(r["nom_level"] or 0),
             "nomenclature_preview": r["nomenclature_preview"],
+            "nomenclature_hit_snippet": r["nomenclature_hit_snippet"] if "nomenclature_hit_snippet" in r.keys() else r["nomenclature_preview"],
             "effectivity": r["effectivity"],
             "units_per_assy": r["units_per_assy"],
         }

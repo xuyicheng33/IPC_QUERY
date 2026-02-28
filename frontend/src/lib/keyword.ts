@@ -34,3 +34,34 @@ export function renderHighlightedSegments(value: string | null | undefined): Arr
 
   return segments.length ? segments : [{ text: source, hit: false }];
 }
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function renderQueryHighlightedSegments(
+  value: string | null | undefined,
+  query: string | null | undefined
+): Array<{ text: string; hit: boolean }> {
+  const source = String(value || "");
+  const normalizedQuery = String(query || "").trim();
+  if (!source) return [{ text: "", hit: false }];
+  if (!normalizedQuery) return [{ text: source, hit: false }];
+
+  const tokens = Array.from(
+    new Set(
+      normalizedQuery
+        .split(/\s+/)
+        .map((part) => part.trim())
+        .filter((part) => part.length >= 2)
+    )
+  );
+  if (tokens.length === 0) return [{ text: source, hit: false }];
+
+  const pattern = new RegExp(`(${tokens.map((token) => escapeRegExp(token)).join("|")})`, "gi");
+  const chunks = source.split(pattern).filter((chunk) => chunk.length > 0);
+  return chunks.map((chunk) => ({
+    text: chunk,
+    hit: tokens.some((token) => chunk.toLowerCase() === token.toLowerCase()),
+  }));
+}

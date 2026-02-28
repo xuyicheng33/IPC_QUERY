@@ -315,6 +315,7 @@ def test_handle_search_normalizes_non_positive_page(tmp_path: Path) -> None:
     search_service.search.assert_called_once_with(
         query="abc",
         match="pn",
+        sort="relevance",
         page=1,
         page_size=10,
         include_notes=False,
@@ -344,6 +345,7 @@ def test_handle_search_page_size_falls_back_to_default_limit(tmp_path: Path) -> 
     search_service.search.assert_called_once_with(
         query="abc",
         match="all",
+        sort="relevance",
         page=1,
         page_size=20,
         include_notes=False,
@@ -375,6 +377,7 @@ def test_handle_search_page_size_uses_config_default(tmp_path: Path) -> None:
     search_service.search.assert_called_once_with(
         query="abc",
         match="all",
+        sort="relevance",
         page=1,
         page_size=33,
         include_notes=False,

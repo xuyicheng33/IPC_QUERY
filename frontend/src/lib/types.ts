@@ -1,8 +1,10 @@
 export type MatchMode = "pn" | "term" | "all";
+export type SortMode = "relevance" | "name";
 
 export type SearchState = {
   q: string;
   match: MatchMode;
+  sort: SortMode;
   page: number;
   include_notes: boolean;
   source_dir: string;
@@ -17,6 +19,7 @@ export type SearchResultItem = {
   source_pdf?: string | null;
   page_num?: number | null;
   nomenclature_preview?: string | null;
+  nomenclature_hit_snippet?: string | null;
 };
 
 export type SearchResponse = {
@@ -26,6 +29,7 @@ export type SearchResponse = {
   page_size: number;
   has_more: boolean;
   match: MatchMode;
+  sort?: SortMode;
   source_pdf?: string;
   source_dir?: string;
 };

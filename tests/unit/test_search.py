@@ -110,6 +110,18 @@ class TestSearchService:
         mock_part_repo.search_all.assert_called_once()
         assert result["match"] == "all"
 
+    def test_search_invalid_sort_defaults_to_relevance(
+        self, search_service: SearchService, mock_part_repo: MagicMock
+    ) -> None:
+        """无效排序模式回落到 relevance"""
+        mock_part_repo.search_all.return_value = ([], 0)
+
+        result = search_service.search("test", match="all", sort="invalid")
+
+        call_args = mock_part_repo.search_all.call_args
+        assert call_args.kwargs["sort"] == "relevance"
+        assert result["sort"] == "relevance"
+
     def test_search_caching(self, search_service: SearchService, mock_part_repo: MagicMock) -> None:
         """相同查询命中缓存"""
         mock_part_repo.search_by_pn.return_value = (

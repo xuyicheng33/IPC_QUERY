@@ -40,6 +40,7 @@ class SearchService:
         self,
         query: str,
         match: str = "all",
+        sort: str = "relevance",
         page: int = 1,
         page_size: int | None = None,
         include_notes: bool = False,
@@ -52,6 +53,7 @@ class SearchService:
         Args:
             query: 查询词
             match: 匹配模式 (pn/term/all)
+            sort: 排序模式 (relevance/name)
             page: 页码
             page_size: 每页数量
             include_notes: 是否包含注释行
@@ -60,6 +62,7 @@ class SearchService:
             搜索结果字典
         """
         match = self._normalize_match(match)
+        sort = self._normalize_sort(sort)
         page = self._normalize_positive_int(page, default=1)
 
         requested_page_size = self._normalize_positive_int(
@@ -80,13 +83,14 @@ class SearchService:
                 "page_size": page_size,
                 "has_more": False,
                 "match": match,
+                "sort": sort,
             }
 
         # 参数处理
         offset = (page - 1) * page_size
 
         # 检查缓存
-        cache_key = f"{query}:{match}:{page}:{page_size}:{include_notes}:{source_pdf}:{source_dir}"
+        cache_key = f"{query}:{match}:{sort}:{page}:{page_size}:{include_notes}:{source_pdf}:{source_dir}"
         cached = self._cache.get(cache_key)
         if cached is not None:
             metrics.record_search(0, cache_hit=True)
@@ -102,6 +106,7 @@ class SearchService:
             results, total = self._do_search(
                 query=query,
                 match=match,
+                sort=sort,
                 offset=offset,
                 limit=page_size,
                 include_notes=include_notes,
@@ -126,6 +131,7 @@ class SearchService:
             "page_size": page_size,
             "has_more": total > page * page_size,
             "match": match,
+            "sort": sort,
             "source_pdf": source_pdf,
             "source_dir": source_dir,
         }
@@ -138,6 +144,7 @@ class SearchService:
             extra_fields={
                 "query": query,
                 "match": match,
+                "sort": sort,
                 "total": total,
                 "duration_ms": round(duration_ms, 2),
             },
@@ -151,6 +158,11 @@ class SearchService:
         return m if m in ("pn", "term", "all") else "all"
 
     @staticmethod
+    def _normalize_sort(sort: str | None) -> str:
+        s = (sort or "relevance").lower()
+        return s if s in ("relevance", "name") else "relevance"
+
+    @staticmethod
     def _normalize_positive_int(value: Any, default: int) -> int:
         try:
             parsed = int(value)
@@ -162,6 +174,7 @@ class SearchService:
         self,
         query: str,
         match: str,
+        sort: str,
         offset: int,
         limit: int,
         include_notes: bool,
@@ -175,6 +188,7 @@ class SearchService:
                 query=query,
                 limit=limit,
                 offset=offset,
+                sort=sort,
                 include_notes=include_notes,
                 enable_contains=False,
                 source_pdf=source_pdf,
@@ -186,6 +200,7 @@ class SearchService:
                     query=query,
                     limit=limit,
                     offset=offset,
+                    sort=sort,
                     include_notes=include_notes,
                     enable_contains=True,
                     source_pdf=source_pdf,
@@ -197,6 +212,7 @@ class SearchService:
                 query=query,
                 limit=limit,
                 offset=offset,
+                sort=sort,
                 include_notes=include_notes,
                 source_pdf=source_pdf,
                 source_dir=source_dir,
@@ -207,6 +223,7 @@ class SearchService:
                 query=query,
                 limit=limit,
                 offset=offset,
+                sort=sort,
                 include_notes=include_notes,
                 source_pdf=source_pdf,
                 source_dir=source_dir,

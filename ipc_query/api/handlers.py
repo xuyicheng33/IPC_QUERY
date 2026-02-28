@@ -103,6 +103,7 @@ class ApiHandlers:
 
         q = (qs.get("q") or [""])[0].strip()
         match = (qs.get("match") or ["all"])[0]
+        sort = (qs.get("sort") or ["relevance"])[0]
         page_raw = (qs.get("page") or [""])[0]
         page_size_raw = (qs.get("page_size") or [""])[0]
         page = _safe_int(page_raw, 1)
@@ -122,6 +123,7 @@ class ApiHandlers:
         result = self._search.search(
             query=q,
             match=match,
+            sort=sort,
             page=page,
             page_size=page_size,
             include_notes=include_notes,
