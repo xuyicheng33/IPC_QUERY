@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import { Select } from "@/components/ui/Select";
+import { fetchJson } from "@/lib/api";
 import { parseSafeReturnTo } from "@/lib/urlState";
 
 function toPositiveInt(value: string | null, fallback: number): number {
@@ -20,6 +21,11 @@ function toPositiveFloat(value: string | null, fallback: number): number {
 const SCALE_OPTIONS = [1, 1.5, 2, 3, 4] as const;
 
 type ViewerStatus = "idle" | "loading" | "ready" | "error";
+type ViewerFitMode = "fit-width" | "natural";
+type PdfMetaResponse = {
+  pdf: string;
+  page_count: number;
+};
 
 export function ViewerPage() {
   const query = useMemo(() => new URLSearchParams(window.location.search || ""), []);
@@ -32,7 +38,49 @@ export function ViewerPage() {
   const [scale, setScale] = useState(() => toPositiveFloat(query.get("scale"), 2));
   const [status, setStatus] = useState<ViewerStatus>(hasPdf ? "loading" : "idle");
   const [statusText, setStatusText] = useState("");
+  const [totalPages, setTotalPages] = useState(0);
+  const [metaError, setMetaError] = useState("");
+  const [fitMode, setFitMode] = useState<ViewerFitMode>("fit-width");
   const [reloadTick, setReloadTick] = useState(0);
+
+  const pageDisplay = totalPages > 0 ? `${page}/${totalPages}` : `${page}/?`;
+  const canGoPrev = hasPdf && page > 1;
+  const canGoNext = hasPdf && (totalPages <= 0 || page < totalPages);
+  const imageClass = fitMode === "fit-width" ? "block w-full bg-surface" : "block w-auto max-w-none bg-surface";
+  const textActionClass =
+    "inline-flex items-center gap-1 whitespace-nowrap bg-transparent p-0 text-xs font-medium text-muted transition-colors hover:text-accent focus-visible:outline-none focus-visible:text-accent disabled:cursor-not-allowed disabled:text-muted/50";
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!hasPdf) {
+      setTotalPages(0);
+      setMetaError("");
+      return () => {
+        cancelled = true;
+      };
+    }
+    void fetchJson<PdfMetaResponse>(`/api/pdf/meta?pdf=${encodeURIComponent(pdf)}`)
+      .then((payload) => {
+        if (cancelled) return;
+        const count = Math.max(0, Number.parseInt(String(payload.page_count || 0), 10) || 0);
+        setTotalPages(count);
+        setMetaError("");
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setTotalPages(0);
+        setMetaError(String((error as Error)?.message || error));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [hasPdf, pdf, reloadTick]);
+
+  useEffect(() => {
+    if (totalPages <= 0) return;
+    if (page <= totalPages) return;
+    setPage(totalPages);
+  }, [page, totalPages]);
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -50,8 +98,8 @@ export function ViewerPage() {
       return;
     }
     setStatus("loading");
-    setStatusText(`正在加载第 ${page} 页（x${scale}）...`);
-  }, [hasPdf, page, scale, reloadTick]);
+    setStatusText(`正在加载第 ${pageDisplay} 页（x${scale}）...`);
+  }, [hasPdf, pageDisplay, scale, reloadTick]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -59,53 +107,113 @@ export function ViewerPage() {
       const target = event.target as HTMLElement | null;
       const tagName = target?.tagName || "";
       if (tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT") return;
-      if (event.key === "ArrowLeft") setPage((prev) => Math.max(1, prev - 1));
-      if (event.key === "ArrowRight") setPage((prev) => prev + 1);
+      if (event.key === "ArrowLeft") {
+        setPage((prev) => Math.max(1, prev - 1));
+      }
+      if (event.key === "ArrowRight" && canGoNext) {
+        setPage((prev) => prev + 1);
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [hasPdf]);
+  }, [canGoNext, hasPdf]);
 
   const imageUrl = `/render/${encodedPdf}/${page}.png?scale=${encodeURIComponent(String(scale))}&t=${reloadTick}`;
 
   return (
     <DesktopShell backHref={backHref} contentClassName="py-6">
       <Card className="grid gap-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="ghost" className="gap-1.5" disabled={!hasPdf} onClick={() => setPage((prev) => Math.max(1, prev - 1))}>
-            <MaterialSymbol name="chevron_left" size={18} />
-            上一页
-          </Button>
-          <Input
-            type="number"
-            inputProps={{ min: 1, step: 1 }}
-            className="w-[96px]"
-            value={page}
-            onChange={(event) => setPage(Math.max(1, toPositiveInt(event.target.value, page)))}
-            disabled={!hasPdf}
-            aria-label="页码"
-          />
-          <Button variant="ghost" className="gap-1.5" disabled={!hasPdf} onClick={() => setPage((prev) => prev + 1)}>
-            下一页
-            <MaterialSymbol name="chevron_right" size={18} />
-          </Button>
-          <Select
-            className="w-[104px]"
-            value={String(scale)}
-            onChange={(event) => setScale(toPositiveFloat(event.target.value, 2))}
-            disabled={!hasPdf}
-            aria-label="缩放"
+        <div className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-surface-soft px-3 py-2">
+          <div className="inline-flex items-center gap-2">
+            <button type="button" className={textActionClass} disabled={!canGoPrev} onClick={() => setPage((prev) => Math.max(1, prev - 1))}>
+              <MaterialSymbol name="chevron_left" size={16} />
+              上一页
+            </button>
+            <span className="text-border">|</span>
+            <button type="button" className={textActionClass} disabled={!canGoNext} onClick={() => setPage((prev) => prev + 1)}>
+              下一页
+              <MaterialSymbol name="chevron_right" size={16} />
+            </button>
+          </div>
+
+          <div className="h-5 w-px bg-border" />
+
+          <div className="inline-flex items-center gap-2">
+            <span className="text-xs text-muted">第</span>
+            <Input
+              type="number"
+              inputProps={{ min: 1, max: totalPages > 0 ? totalPages : undefined, step: 1 }}
+              className="w-[88px]"
+              value={page}
+              onChange={(event) => {
+                const next = Math.max(1, toPositiveInt(event.target.value, page));
+                if (totalPages > 0) {
+                  setPage(Math.min(totalPages, next));
+                  return;
+                }
+                setPage(next);
+              }}
+              disabled={!hasPdf}
+              aria-label="页码"
+            />
+            <span className="text-xs text-muted">/ {totalPages > 0 ? totalPages : "?"}</span>
+          </div>
+
+          <div className="h-5 w-px bg-border" />
+
+          <div className="inline-flex items-center gap-2">
+            <span className="text-xs text-muted">缩放</span>
+            <Select
+              className="w-[104px]"
+              value={String(scale)}
+              onChange={(event) => setScale(toPositiveFloat(event.target.value, 2))}
+              disabled={!hasPdf}
+              aria-label="缩放"
+            >
+              {SCALE_OPTIONS.map((value) => (
+                <option key={value} value={value}>
+                  x{value}
+                </option>
+              ))}
+            </Select>
+          </div>
+
+          <div className="h-5 w-px bg-border" />
+
+          <div className="inline-flex items-center gap-2">
+            <button
+              type="button"
+              className={textActionClass}
+              disabled={!hasPdf}
+              onClick={() => setFitMode("fit-width")}
+              aria-pressed={fitMode === "fit-width"}
+            >
+              适应宽度
+            </button>
+            <span className="text-border">|</span>
+            <button
+              type="button"
+              className={textActionClass}
+              disabled={!hasPdf}
+              onClick={() => setFitMode("natural")}
+              aria-pressed={fitMode === "natural"}
+            >
+              原始尺寸
+            </button>
+          </div>
+
+          <div className="h-5 w-px bg-border" />
+
+          <a
+            href={hasPdf ? `/pdf/${encodedPdf}?p=${page}#page=${page}` : "#"}
+            target="_blank"
+            rel="noreferrer"
+            className={`${textActionClass} ${!hasPdf ? "pointer-events-none" : ""}`}
+            aria-disabled={!hasPdf}
           >
-            {SCALE_OPTIONS.map((value) => (
-              <option key={value} value={value}>
-                x{value}
-              </option>
-            ))}
-          </Select>
-          <Button component="a" href={hasPdf ? `/pdf/${encodedPdf}?p=${page}#page=${page}` : "#"} target="_blank" rel="noreferrer" variant="ghost" className="gap-2" disabled={!hasPdf}>
-            <MaterialSymbol name="description" size={18} />
+            <MaterialSymbol name="description" size={16} />
             原 PDF
-          </Button>
+          </a>
         </div>
 
         {!hasPdf ? (
@@ -114,17 +222,21 @@ export function ViewerPage() {
           </div>
         ) : (
           <>
-            <div className="overflow-hidden rounded-md border border-border">
+            <div className="overflow-auto rounded-md border border-border">
               <img
                 src={imageUrl}
                 alt="PDF page preview"
-                className="block w-full bg-surface"
+                className={imageClass}
                 onLoad={() => {
                   setStatus("ready");
-                  setStatusText(`${pdf} · 第 ${page} 页 · x${scale}`);
+                  setStatusText(`${pdf} · 第 ${pageDisplay} 页 · x${scale}`);
                 }}
                 onError={() => {
                   setStatus("error");
+                  if (totalPages > 0 && page > totalPages) {
+                    setStatusText(`预览加载失败：当前页超出范围（1-${totalPages}）`);
+                    return;
+                  }
                   setStatusText("预览加载失败：可能页码超出范围，或 PDF 未找到");
                 }}
               />
@@ -138,6 +250,7 @@ export function ViewerPage() {
                   className={status === "loading" ? "animate-spin" : ""}
                 />
                 {statusText || "准备完成"}
+                {metaError ? `（总页数读取失败：${metaError}）` : null}
               </div>
               {status === "error" ? (
                 <Button variant="ghost" onClick={() => setReloadTick((prev) => prev + 1)}>

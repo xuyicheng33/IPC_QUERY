@@ -11,6 +11,8 @@ import time
 from pathlib import Path
 from urllib.parse import quote
 
+import fitz
+
 from ipc_query.api.server import create_server
 from ipc_query.config import Config
 
@@ -177,6 +179,29 @@ def test_render_invalid_path_returns_not_found(tmp_path: Path) -> None:
         body = json.loads(payload.decode("utf-8"))
         assert status == 404
         assert body["error"] == "NOT_FOUND"
+    finally:
+        server.stop()
+        thread.join(timeout=3.0)
+
+
+def test_pdf_meta_route_returns_page_count(tmp_path: Path) -> None:
+    db_path = tmp_path / "data.sqlite"
+    cfg = _make_config(tmp_path, db_path)
+    pdf_name = "meta test.pdf"
+    doc = fitz.open()
+    doc.new_page(width=200, height=200)
+    doc.save(str(cfg.pdf_dir / pdf_name))
+    doc.close()
+
+    server = create_server(cfg)
+    thread, port = _start_server(server)
+    try:
+        status, payload, headers = _request(port, "GET", f"/api/pdf/meta?pdf={quote(pdf_name, safe='')}")
+        assert status == 200
+        assert "application/json" in headers.get("content-type", "")
+        body = json.loads(payload.decode("utf-8"))
+        assert body["pdf"] == pdf_name
+        assert int(body["page_count"]) >= 1
     finally:
         server.stop()
         thread.join(timeout=3.0)

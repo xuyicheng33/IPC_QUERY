@@ -222,6 +222,12 @@ class RequestHandler(BaseHTTPRequestHandler):
                 status, job_body, ct = self._handlers().handle_scan_job(job_id)
                 self._send(status, job_body, ct)
 
+            elif path == "/api/pdf/meta":
+                qs = parse_qs(query_string) if query_string else {}
+                pdf_name = (qs.get("pdf") or [""])[0]
+                status, body, ct = self._handlers().handle_pdf_meta(pdf_name)
+                self._send(status, body, ct)
+
             elif path.startswith("/render/"):
                 # /render/{pdf}/{page}.png
                 match = re.match(r"^/render/([^/]+)/(\d+)\.png$", path)
