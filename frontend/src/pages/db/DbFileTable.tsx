@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/Input";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import { Select } from "@/components/ui/Select";
 import type { DbListItem, DbRowActionState } from "@/lib/types";
-import { buildReturnTo, normalizeDir } from "@/lib/urlState";
+import { normalizeDir } from "@/lib/urlState";
 
 type DbFileTableProps = {
   items: DbListItem[];
@@ -114,11 +114,7 @@ export function DbFileTable({
           const rel = normalizeDir(item.relative_path || item.name || "");
           const actionState = getRowActionState(rel);
           const moveTarget = normalizeDir(actionState.value || "");
-          const previewParams = new URLSearchParams();
-          previewParams.set("pdf", rel);
-          previewParams.set("page", "1");
-          previewParams.set("return_to", buildReturnTo(`${window.location.pathname}${window.location.search}`));
-          const previewHref = `/viewer.html?${previewParams.toString()}`;
+          const previewHref = `/pdf/${encodeURIComponent(rel)}#page=1`;
           const pending = actionState.phase === "pending";
           const isDirectory = item.is_dir;
           const isSelected = !isDirectory && selectedPaths.has(rel);

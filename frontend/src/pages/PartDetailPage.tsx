@@ -9,7 +9,7 @@ import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import { fetchJson } from "@/lib/api";
 import { detectKeywordFlags, renderHighlightedSegments } from "@/lib/keyword";
 import type { HierarchyItem, PartDetailResponse, SearchState } from "@/lib/types";
-import { buildReturnTo, buildSearchUrl, contextParamsFromState, parseSafeReturnTo, searchStateFromUrl } from "@/lib/urlState";
+import { buildSearchUrl, contextParamsFromState, parseSafeReturnTo, searchStateFromUrl } from "@/lib/urlState";
 
 function parsePartId(locationLike: Pick<Location, "pathname" | "search">): number | null {
   const { pathname, search } = locationLike;
@@ -111,24 +111,16 @@ export function PartDetailPage() {
   const flags = detectKeywordFlags(desc);
   const highlighted = renderHighlightedSegments(desc || "-");
   const pdfEncoded = encodeURIComponent(sourcePath);
-  const viewerParams = new URLSearchParams();
-  viewerParams.set("pdf", sourcePath);
-  viewerParams.set("page", String(page));
-  viewerParams.set("return_to", buildReturnTo(`${window.location.pathname}${window.location.search}`));
-  const viewerHref = `/viewer.html?${viewerParams.toString()}`;
+  const pdfHref = `/pdf/${pdfEncoded}#page=${page}`;
 
   return (
     <DesktopShell backHref={backUrl}>
       <div className="grid gap-4">
         <Card className="grid gap-4">
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <Button component="a" href={viewerHref} target="_blank" rel="noreferrer" variant="primary" className="gap-2">
-              <MaterialSymbol name="open_in_new" size={18} />
-              打开页面
-            </Button>
-            <Button component="a" href={`/pdf/${pdfEncoded}#page=${page}`} target="_blank" rel="noreferrer" variant="ghost" className="gap-2">
+            <Button component="a" href={pdfHref} target="_blank" rel="noreferrer" variant="primary" className="gap-2">
               <MaterialSymbol name="description" size={18} />
-              原 PDF
+              打开 PDF
             </Button>
           </div>
 
