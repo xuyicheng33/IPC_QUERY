@@ -15,6 +15,9 @@
   --warning-soft: #fdf0d3;
   --info: #00639b;
   --info-soft: #d8e7f4;
+  --hit-bg: #ffeb3b;
+  --hit-text: #2a2200;
+  --hit-border: #d4b200;
 
   --font-sans: "Roboto", "Noto Sans SC", "PingFang SC", "Segoe UI", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
@@ -46,4 +49,7 @@
   --accent-hover: #78b8aa;
   --accent-soft: #21302d;
   --danger: #cf7c7c;
+  --hit-bg: #ffe066;
+  --hit-text: #2a1f00;
+  --hit-border: #cda503;
 }

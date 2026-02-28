@@ -28,6 +28,16 @@ a {
   text-decoration: none;
 }
 
+.kw-hit {
+  display: inline;
+  border: 1px solid var(--hit-border);
+  border-radius: 4px;
+  background: var(--hit-bg);
+  color: var(--hit-text);
+  padding: 0 3px;
+  font-weight: 700;
+}
+
 :where(a, button, input, select, textarea, [role="button"], [tabindex]):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
