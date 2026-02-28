@@ -56,7 +56,7 @@ export function DbToolbarPanel({
         <div className="min-w-0">
           <Box className="flex flex-wrap items-center gap-2 text-sm text-text">
             <a
-              href="/db"
+              href="/db.html"
               onClick={(event) => {
                 event.preventDefault();
                 onNavigate("");

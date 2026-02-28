@@ -509,11 +509,15 @@ class ApiHandlers:
 
         GET /static/{path} 或 GET /
         """
-        if path == "/search":
+        normalized_path = path.rstrip("/") if path != "/" else path
+
+        if normalized_path == "/search":
             path = "/search.html"
-        elif path == "/db":
+        elif normalized_path == "/db":
             path = "/db.html"
-        elif re.fullmatch(r"/part/\d+", path):
+        elif normalized_path == "/part":
+            path = "/part.html"
+        elif re.fullmatch(r"/part/\d+", normalized_path):
             path = "/part.html"
 
         if not path or path == "/":

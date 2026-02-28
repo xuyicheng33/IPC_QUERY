@@ -103,7 +103,7 @@ export function DbPage() {
   }, []);
 
   return (
-    <DesktopShell actions={[{ href: "/search", label: "搜索" }]} hideHeaderTitle>
+    <DesktopShell actions={[{ href: "/search.html", label: "搜索" }]} hideHeaderTitle>
       <div className="grid gap-4">
         <Card className="grid min-w-0 gap-4 p-4">
           <DbToolbarPanel

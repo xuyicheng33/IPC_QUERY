@@ -43,8 +43,8 @@ export function DesktopShell({
     actions && actions.length > 0
       ? actions
       : [
-          { href: "/search", label: "搜索" },
-          { href: "/db", label: "数据库" },
+          { href: "/search.html", label: "搜索" },
+          { href: "/db.html", label: "数据库" },
         ];
 
   return (

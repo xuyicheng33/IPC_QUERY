@@ -70,7 +70,7 @@ export function buildSearchQuery(state: SearchState, pageSize: number): URLSearc
 }
 
 export function buildSearchUrl(state: SearchState, pageSize = 60): string {
-  return `/search?${buildSearchQuery(state, pageSize).toString()}`;
+  return `/search.html?${buildSearchQuery(state, pageSize).toString()}`;
 }
 
 export function contextParamsFromState(state: SearchState): URLSearchParams {
@@ -92,17 +92,17 @@ export function dbPathFromUrl(search: string): string {
 
 export function buildDbUrl(path: string): string {
   const normalized = normalizeDir(path || "");
-  if (!normalized) return "/db";
-  return `/db?path=${encodeURIComponent(normalized)}`;
+  if (!normalized) return "/db.html";
+  return `/db.html?path=${encodeURIComponent(normalized)}`;
 }
 
 export function buildReturnTo(url: string): string {
-  return sanitizeReturnTo(url, "/search");
+  return sanitizeReturnTo(url, "/search.html");
 }
 
 export function parseSafeReturnTo(search: string, fallback: string): string {
   const params = new URLSearchParams(search || "");
-  return sanitizeReturnTo(params.get("return_to"), sanitizeReturnTo(fallback, "/search"));
+  return sanitizeReturnTo(params.get("return_to"), sanitizeReturnTo(fallback, "/search.html"));
 }
 
 export function appendReturnTo(params: URLSearchParams, returnTo: string | null | undefined): URLSearchParams {

@@ -11,11 +11,14 @@ import { detectKeywordFlags, renderHighlightedSegments } from "@/lib/keyword";
 import type { HierarchyItem, PartDetailResponse, SearchState } from "@/lib/types";
 import { buildReturnTo, buildSearchUrl, contextParamsFromState, parseSafeReturnTo, searchStateFromUrl } from "@/lib/urlState";
 
-function parsePartId(pathname: string): number | null {
-  const match = pathname.match(/^\/part\/(\d+)$/);
-  if (!match) return null;
-  const parsed = Number(match[1]);
-  return Number.isFinite(parsed) ? parsed : null;
+function parsePartId(locationLike: Pick<Location, "pathname" | "search">): number | null {
+  const { pathname, search } = locationLike;
+  const match = pathname.match(/^\/part\/(\d+)\/?$/);
+  const fromPath = match ? Number(match[1]) : NaN;
+  if (Number.isFinite(fromPath) && fromPath > 0) return fromPath;
+  const params = new URLSearchParams(search || "");
+  const parsed = Number(params.get("id") || "");
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
 function HierLinks({ title, items, state }: { title: string; items: HierarchyItem[]; state: SearchState }) {
@@ -30,7 +33,7 @@ function HierLinks({ title, items, state }: { title: string; items: HierarchyIte
           {items.map((item) => (
             <a
               key={item.id}
-              href={`/part/${encodeURIComponent(String(item.id))}${context ? `?${context}` : ""}`}
+              href={`/part.html?id=${encodeURIComponent(String(item.id))}${context ? `&${context}` : ""}`}
               className="rounded-md border border-border bg-surface-soft px-3 py-2 font-mono text-xs transition-colors duration-fast ease-premium hover:bg-accent-soft"
             >
               {item.pn || item.part_number || "-"}
@@ -43,7 +46,7 @@ function HierLinks({ title, items, state }: { title: string; items: HierarchyIte
 }
 
 export function PartDetailPage() {
-  const partId = parsePartId(window.location.pathname);
+  const partId = parsePartId(window.location);
   const [payload, setPayload] = useState<PartDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");

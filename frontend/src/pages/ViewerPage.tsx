@@ -26,7 +26,7 @@ export function ViewerPage() {
   const pdf = String(query.get("pdf") || "");
   const hasPdf = Boolean(pdf.trim());
   const encodedPdf = encodeURIComponent(pdf);
-  const backHref = useMemo(() => parseSafeReturnTo(window.location.search, "/search"), []);
+  const backHref = useMemo(() => parseSafeReturnTo(window.location.search, "/search.html"), []);
 
   const [page, setPage] = useState(() => toPositiveInt(query.get("page"), 1));
   const [scale, setScale] = useState(() => toPositiveFloat(query.get("scale"), 2));

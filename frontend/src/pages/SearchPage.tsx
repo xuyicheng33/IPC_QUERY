@@ -152,7 +152,7 @@ export function SearchPage() {
 
           <div className="justify-self-end">
             <a
-              href="/db"
+              href="/db.html"
               className="inline-flex h-10 items-center justify-center px-2 text-sm font-semibold text-text transition-colors hover:text-accent"
             >
               数据库
@@ -280,7 +280,13 @@ export function SearchPage() {
 
 function ResultRow({ row, state }: { row: SearchResultItem; state: SearchState }) {
   const context = contextParamsFromState(state).toString();
-  const href = `/part/${encodeURIComponent(String(row.id))}${context ? `?${context}` : ""}`;
+  const params = new URLSearchParams();
+  params.set("id", String(row.id));
+  if (context) {
+    const extra = new URLSearchParams(context);
+    extra.forEach((value, key) => params.set(key, value));
+  }
+  const href = `/part.html?${params.toString()}`;
   const pn = String(row.part_number_canonical || row.part_number_cell || "-");
   const source = String(row.source_relative_path || row.source_pdf || "-");
   const page = String(row.page_num ?? "-");

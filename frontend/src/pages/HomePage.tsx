@@ -20,7 +20,7 @@ export function HomePage() {
     params.set("q", q);
     params.set("match", "pn");
     params.set("page", "1");
-    window.location.href = `/search?${params.toString()}`;
+    window.location.href = `/search.html?${params.toString()}`;
   };
 
   return (
@@ -30,7 +30,7 @@ export function HomePage() {
       <header className="absolute inset-x-0 top-0 z-20 border-b border-border/80 bg-surface/70 backdrop-blur">
         <div className="mx-auto flex h-16 w-full max-w-[1360px] items-center justify-end px-6">
           <a
-            href="/db"
+            href="/db.html"
             className="inline-flex h-10 items-center justify-center px-2 text-sm font-semibold text-text transition-colors hover:text-accent"
           >
             数据库
