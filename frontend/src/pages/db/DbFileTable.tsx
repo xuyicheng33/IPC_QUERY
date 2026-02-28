@@ -113,6 +113,7 @@ export function DbFileTable({
           const isSelected = !isDirectory && selectedPaths.has(rel);
           const displayName = String(item.name || rel || "-");
           const showRelativePath = Boolean(rel && rel !== displayName);
+          const actionAreaClass = "w-[180px] md:w-[332px]";
 
           const stopRowEvent = (event: MouseEvent<HTMLElement>) => {
             event.preventDefault();
@@ -149,7 +150,7 @@ export function DbFileTable({
               role={isDirectory ? "button" : undefined}
               aria-label={isDirectory ? `目录 ${displayName}` : `${displayName}${isSelected ? "（已选）" : ""}`}
               tabIndex={0}
-              className={`group flex cursor-pointer items-center gap-2 border-b border-border px-3 py-2 last:border-b-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${
+              className={`group grid cursor-pointer grid-cols-[28px_minmax(0,1fr)_180px] items-center gap-2 border-b border-border px-3 py-2 last:border-b-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent md:grid-cols-[28px_minmax(0,1fr)_332px] ${
                 isSelected ? "bg-accent-soft" : "hover:bg-surface-soft"
               }`}
               onClick={(event) => {
@@ -179,13 +180,14 @@ export function DbFileTable({
                 {showRelativePath ? <div className="truncate font-mono text-xs text-muted">{rel}</div> : null}
               </div>
 
-              <div className="min-w-[170px] md:min-w-[320px]">
+              <div className={actionAreaClass}>
                 {isDirectory ? (
-                  <div className="flex justify-end text-muted">
-                    <MaterialSymbol name="chevron_right" size={18} />
+                  <div className="flex h-8 items-center justify-end gap-1 px-2.5 text-xs font-medium text-muted">
+                    <span>进入</span>
+                    <MaterialSymbol name="chevron_right" size={16} />
                   </div>
                 ) : actionState.mode === "renaming" ? (
-                  <div className="grid gap-1">
+                  <div className="grid w-full gap-1">
                     <div className="flex items-center gap-1">
                       <Input
                         name={`rename-${rel}`}
@@ -212,7 +214,7 @@ export function DbFileTable({
                       />
                       <Button
                         variant="ghost"
-                        className="h-8 min-w-8 px-2"
+                        className="h-8 min-w-8 px-2 text-xs"
                         onClick={(event) => {
                           stopRowEvent(event);
                           onApplyRename(rel);
@@ -224,7 +226,7 @@ export function DbFileTable({
                       />
                       <Button
                         variant="ghost"
-                        className="h-8 min-w-8 px-2"
+                        className="h-8 min-w-8 px-2 text-xs"
                         onClick={(event) => {
                           stopRowEvent(event);
                           onClearRowActionState(rel);
@@ -238,7 +240,7 @@ export function DbFileTable({
                     {actionState.error ? <div className="text-xs text-danger">{actionState.error}</div> : null}
                   </div>
                 ) : actionState.mode === "moving" ? (
-                  <div className="grid gap-1">
+                  <div className="grid w-full gap-1">
                     <div className="flex items-center gap-1">
                       <Select
                         name={`move-${rel}`}
@@ -272,7 +274,7 @@ export function DbFileTable({
                       </Select>
                       <Button
                         variant="ghost"
-                        className="h-8 min-w-8 px-2"
+                        className="h-8 min-w-8 px-2 text-xs"
                         onClick={(event) => {
                           stopRowEvent(event);
                           onApplyMove(rel);
@@ -284,7 +286,7 @@ export function DbFileTable({
                       />
                       <Button
                         variant="ghost"
-                        className="h-8 min-w-8 px-2"
+                        className="h-8 min-w-8 px-2 text-xs"
                         onClick={(event) => {
                           stopRowEvent(event);
                           onClearRowActionState(rel);
@@ -304,11 +306,11 @@ export function DbFileTable({
                     alignItems="center"
                     flexWrap="nowrap"
                     gap={0.5}
-                    className="opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+                    className="w-full opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
                   >
                     <Button
                       variant="ghost"
-                      className="h-8 gap-1.5 px-2"
+                      className="h-8 gap-1 px-2.5 text-xs"
                       disabled={!rel}
                       startIcon={<MaterialSymbol name="open_in_new" size={16} />}
                       onClick={(event) => {
@@ -321,7 +323,7 @@ export function DbFileTable({
                     </Button>
                     <Button
                       variant="ghost"
-                      className="h-8 gap-1.5 px-2"
+                      className="h-8 gap-1 px-2.5 text-xs"
                       disabled={!rel || !capabilitiesImportEnabled}
                       title={capabilitiesImportEnabled ? undefined : importDisabledReason}
                       startIcon={<MaterialSymbol name="edit" size={16} />}
@@ -334,7 +336,7 @@ export function DbFileTable({
                     </Button>
                     <Button
                       variant="ghost"
-                      className="h-8 gap-1.5 px-2"
+                      className="h-8 gap-1 px-2.5 text-xs"
                       disabled={!rel || !capabilitiesImportEnabled}
                       title={capabilitiesImportEnabled ? undefined : importDisabledReason}
                       startIcon={<MaterialSymbol name="drive_file_move" size={16} />}
@@ -347,7 +349,7 @@ export function DbFileTable({
                     </Button>
                     <Button
                       variant="ghost"
-                      className="h-8 gap-1.5 px-2 text-danger"
+                      className="h-8 gap-1 border-danger px-2.5 text-xs text-danger hover:bg-[#fff5f5]"
                       disabled={!rel || !capabilitiesImportEnabled}
                       title={capabilitiesImportEnabled ? undefined : importDisabledReason}
                       startIcon={<MaterialSymbol name="delete" size={16} />}

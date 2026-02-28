@@ -1,5 +1,5 @@
-import React, { FormEvent, useRef } from "react";
-import { Box } from "@mui/material";
+import React, { FormEvent, useRef, useState } from "react";
+import { Box, Dialog, DialogActions, DialogContent, DialogTitle } from "@mui/material";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
@@ -42,12 +42,21 @@ export function DbToolbarPanel({
   onCreateFolder,
 }: DbToolbarPanelProps) {
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const createFolderDisabled = !capabilities.import_enabled || currentPath !== "";
   const allowBatchDelete = capabilities.import_enabled && selectedCount > 0;
+  const createFolderHint = capabilities.import_enabled
+    ? currentPath
+      ? "仅支持在根目录创建子目录"
+      : ""
+    : importDisabledReason;
+  const createFolderCanSubmit = !createFolderDisabled && Boolean(folderName.trim());
 
   const submitCreateFolder = (event: FormEvent) => {
     event.preventDefault();
+    if (!createFolderCanSubmit) return;
     onCreateFolder();
+    setCreateDialogOpen(false);
   };
 
   return (
@@ -93,7 +102,7 @@ export function DbToolbarPanel({
 
         <div className="flex flex-wrap items-center gap-2 lg:justify-end">
           <Button
-            variant="primary"
+            variant="ghost"
             className="h-10 gap-1.5 px-4"
             disabled={!capabilities.import_enabled}
             title={capabilities.import_enabled ? "上传 PDF" : importDisabledReason}
@@ -114,32 +123,21 @@ export function DbToolbarPanel({
             }}
           />
 
-          <form className="flex flex-wrap items-center gap-2" onSubmit={submitCreateFolder}>
-            <Input
-              id="db-folder-name"
-              name="folder_name"
-              value={folderName}
-              onChange={(event) => onFolderNameChange(event.target.value)}
-              placeholder={currentPath ? "仅根目录可创建子目录" : "新建子目录名称"}
-              className="h-10 w-[220px]"
-              disabled={createFolderDisabled}
-              aria-label="新建子目录名称"
-            />
-            <Button
-              variant="ghost"
-              type="submit"
-              className="h-10 gap-1.5 px-4"
-              disabled={createFolderDisabled || !folderName.trim()}
-              title={capabilities.import_enabled ? (currentPath ? "仅支持在根目录创建子目录" : undefined) : importDisabledReason}
-              startIcon={<MaterialSymbol name="create_new_folder" size={16} />}
-            >
-              创建子目录
-            </Button>
-          </form>
+          <Button
+            variant="ghost"
+            type="button"
+            className="h-10 gap-1.5 px-4"
+            disabled={createFolderDisabled}
+            title={createFolderHint || "创建子目录"}
+            startIcon={<MaterialSymbol name="create_new_folder" size={16} />}
+            onClick={() => setCreateDialogOpen(true)}
+          >
+            创建子目录
+          </Button>
 
           <Button
-            variant="danger"
-            className="h-10 gap-1.5 px-4"
+            variant="ghost"
+            className="h-10 gap-1.5 border-danger px-4 text-danger hover:bg-[#fff5f5]"
             disabled={!allowBatchDelete}
             title={capabilities.import_enabled ? undefined : importDisabledReason}
             startIcon={<MaterialSymbol name="delete" size={16} />}
@@ -157,6 +155,45 @@ export function DbToolbarPanel({
       {status ? <div className="rounded-md border border-border bg-surface-soft px-3 py-2 text-xs text-muted">{status}</div> : null}
 
       <p className="text-xs text-muted">提示：目录支持单击进入；文件支持 Shift / Cmd(Ctrl) 多选。</p>
+
+      <Dialog
+        open={createDialogOpen}
+        onClose={() => setCreateDialogOpen(false)}
+        fullWidth
+        maxWidth="xs"
+        aria-labelledby="db-create-folder-title"
+        BackdropProps={{
+          sx: {
+            backgroundColor: "transparent",
+          },
+        }}
+      >
+        <form onSubmit={submitCreateFolder}>
+          <DialogTitle id="db-create-folder-title">新建子目录</DialogTitle>
+          <DialogContent>
+            <Input
+              id="db-folder-name"
+              name="folder_name"
+              value={folderName}
+              onChange={(event) => onFolderNameChange(event.target.value)}
+              placeholder="填写新建子目录名称"
+              className="mt-2 w-full"
+              disabled={createFolderDisabled}
+              aria-label="新建子目录名称"
+              autoFocus
+            />
+            {createFolderHint ? <p className="mt-2 text-xs text-muted">{createFolderHint}</p> : null}
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2.5 }}>
+            <Button variant="ghost" type="button" onClick={() => setCreateDialogOpen(false)}>
+              取消
+            </Button>
+            <Button variant="ghost" type="submit" disabled={!createFolderCanSubmit}>
+              创建
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
     </div>
   );
 }
