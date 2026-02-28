@@ -141,19 +141,17 @@ export function PartDetailPage() {
   const pdfEncoded = encodeURIComponent(sourcePathRaw);
   const pdfHref = `/pdf/${pdfEncoded}#page=${page}`;
   const canOpenPdf = Boolean(sourcePathRaw);
-  const baseInfoItems = [
+  const infoItems = [
     { label: "来源", value: sourcePath },
     { label: "页码", value: pageText },
     { label: "图号", value: figureCode },
     { label: "项号", value: figItem },
     { label: "数量", value: units },
     { label: "适用号段", value: effectivity },
-  ];
-  const footerInfoItems = [
     { label: "页脚图标", value: figureLabel },
     { label: "页脚日期", value: dateText },
     { label: "页脚 PAGE", value: pageToken },
-    { label: "页脚 RF", value: displayValue(rfText) },
+    { label: "RF", value: displayValue(rfText) },
     { label: "是否含 optional", value: flags.optional ? "是" : "否" },
     { label: "是否含 replace", value: flags.replace ? "是" : "否" },
   ];
@@ -183,22 +181,10 @@ export function PartDetailPage() {
             </Button>
           </div>
 
-          <div>
-            <div className="mb-2 text-sm font-medium text-text">基础信息</div>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-              {baseInfoItems.map((item) => (
-                <Meta key={item.label} label={item.label} value={item.value} />
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <div className="mb-2 text-sm font-medium text-text">页脚信息</div>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-              {footerInfoItems.map((item) => (
-                <Meta key={item.label} label={item.label} value={item.value} />
-              ))}
-            </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+            {infoItems.map((item) => (
+              <Meta key={item.label} label={item.label} value={item.value} />
+            ))}
           </div>
         </Card>
 
