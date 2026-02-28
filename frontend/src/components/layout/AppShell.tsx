@@ -1,13 +1,7 @@
 import React from "react";
-import { AppBar, Box, Container, Stack, Toolbar, Typography } from "@mui/material";
-import { Button } from "@/components/ui/Button";
-import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
+import { DesktopShell, type DesktopShellAction } from "@/components/layout/DesktopShell";
 
-type ShellAction = {
-  href: string;
-  label: string;
-  icon?: React.ReactNode;
-};
+type ShellAction = DesktopShellAction;
 
 type AppShellProps = {
   title?: string;
@@ -21,68 +15,26 @@ type AppShellProps = {
 };
 
 export function AppShell({
-  title = "IPC 查询系统",
-  hideHeaderTitle = true,
+  title,
+  hideHeaderTitle,
   actions,
-  showBack = true,
-  backHref = "/",
-  backLabel = "返回上一级",
+  showBack,
+  backHref,
+  backLabel,
   children,
   contentClassName,
 }: AppShellProps) {
-  const nav =
-    actions && actions.length > 0
-      ? actions
-      : [
-        { href: "/search", label: "搜索", icon: <MaterialSymbol name="search" size={18} /> },
-        { href: "/db", label: "数据库", icon: <MaterialSymbol name="database" size={18} /> },
-      ];
-
   return (
-    <Box sx={{ minHeight: "100vh", bgcolor: "background.default", color: "text.primary" }}>
-      <AppBar position="sticky" color="inherit" elevation={0} sx={{ borderBottom: "1px solid", borderColor: "divider" }}>
-        <Toolbar sx={{ px: { xs: 2, md: 3 }, py: 1 }}>
-          <Container maxWidth={false} sx={{ maxWidth: 1360, px: "0 !important" }}>
-            <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between">
-              {hideHeaderTitle ? (
-                <div />
-              ) : (
-                <a href="/">
-                  <Typography variant="h6">{title}</Typography>
-                </a>
-              )}
-              <Stack component="nav" direction="row" spacing={1} flexWrap="wrap" aria-label="主导航" justifyContent="flex-end">
-                {showBack ? (
-                  <Button
-                    variant="ghost"
-                    className="h-9 gap-1.5 px-4"
-                    startIcon={<MaterialSymbol name="arrow_back" size={18} />}
-                    onClick={() => {
-                      if (window.history.length > 1) {
-                        window.history.back();
-                        return;
-                      }
-                      window.location.href = backHref;
-                    }}
-                  >
-                    {backLabel}
-                  </Button>
-                ) : null}
-                {nav.map((item) => (
-                  <a key={item.href} href={item.href}>
-                    <Button variant="ghost" className="h-9 gap-1.5 px-4" startIcon={item.icon}>
-                      {item.label}
-                    </Button>
-                  </a>
-                ))}
-              </Stack>
-            </Stack>
-          </Container>
-        </Toolbar>
-      </AppBar>
-      <Container maxWidth={false} sx={{ maxWidth: 1360, px: { xs: 2, md: 3 }, py: 3 }} className={contentClassName}>
+    <DesktopShell
+      title={title}
+      hideHeaderTitle={hideHeaderTitle}
+      actions={actions}
+      showBack={showBack}
+      backHref={backHref}
+      backLabel={backLabel}
+      contentClassName={contentClassName}
+    >
         {children}
-      </Container>
-    </Box>
+    </DesktopShell>
   );
 }

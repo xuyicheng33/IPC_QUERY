@@ -6,11 +6,10 @@ import { Input } from "@/components/ui/Input";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import { Select } from "@/components/ui/Select";
 import type { DbListItem, DbRowActionState } from "@/lib/types";
-import { normalizeDir } from "@/lib/urlState";
+import { buildReturnTo, normalizeDir } from "@/lib/urlState";
 
 type DbFileTableProps = {
   items: DbListItem[];
-  isMobile: boolean;
   selectedPaths: Set<string>;
   onSelectionChange: (paths: string[]) => void;
   knownDirectories: string[];
@@ -29,7 +28,6 @@ type DbFileTableProps = {
 
 export function DbFileTable({
   items,
-  isMobile,
   selectedPaths,
   onSelectionChange,
   knownDirectories,
@@ -45,7 +43,6 @@ export function DbFileTable({
   onDeleteSingle,
   onOpenDirectory,
 }: DbFileTableProps) {
-  const [activeDirectoryPath, setActiveDirectoryPath] = useState("");
   const [anchorPath, setAnchorPath] = useState("");
   const orderedFilePaths = useMemo(
     () => items.filter((item) => !item.is_dir).map((item) => normalizeDir(item.relative_path || item.name || "")).filter(Boolean),
@@ -60,7 +57,7 @@ export function DbFileTable({
     rel: string,
     modifier: { shift: boolean; toggle: boolean }
   ) => {
-    if (isMobile || !rel) return;
+    if (!rel) return;
     const next = new Set<string>(selectedPaths);
 
     if (modifier.shift) {
@@ -106,15 +103,23 @@ export function DbFileTable({
           const rel = normalizeDir(item.relative_path || item.name || "");
           const actionState = getRowActionState(rel);
           const moveTarget = normalizeDir(actionState.value || "");
-          const previewHref = `/viewer.html?pdf=${encodeURIComponent(rel)}&page=1`;
+          const previewParams = new URLSearchParams();
+          previewParams.set("pdf", rel);
+          previewParams.set("page", "1");
+          previewParams.set("return_to", buildReturnTo(`${window.location.pathname}${window.location.search}`));
+          const previewHref = `/viewer.html?${previewParams.toString()}`;
           const pending = actionState.phase === "pending";
           const isDirectory = item.is_dir;
-          const isActiveDirectory = isDirectory && activeDirectoryPath === rel;
           const isSelected = !isDirectory && selectedPaths.has(rel);
           const displayName = String(item.name || rel || "-");
           const showRelativePath = Boolean(rel && rel !== displayName);
 
           const stopRowEvent = (event: MouseEvent<HTMLElement>) => {
+            event.preventDefault();
+            event.stopPropagation();
+          };
+
+          const stopRowKeyEvent = (event: KeyboardEvent<HTMLElement>) => {
             event.preventDefault();
             event.stopPropagation();
           };
@@ -144,24 +149,15 @@ export function DbFileTable({
               role={isDirectory ? "button" : undefined}
               aria-label={isDirectory ? `目录 ${displayName}` : `${displayName}${isSelected ? "（已选）" : ""}`}
               tabIndex={0}
-              className={`group flex gap-2 border-b border-border px-3 py-2 last:border-b-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${
-                isMobile && !isDirectory ? "flex-col items-stretch" : "items-center"
-              } ${
-                isDirectory || !isMobile ? "cursor-pointer" : ""
-              } ${isDirectory && isActiveDirectory ? "bg-accent-soft" : isSelected ? "bg-accent-soft" : "hover:bg-surface-soft"}`}
+              className={`group flex cursor-pointer items-center gap-2 border-b border-border px-3 py-2 last:border-b-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${
+                isSelected ? "bg-accent-soft" : "hover:bg-surface-soft"
+              }`}
               onClick={(event) => {
                 if (isDirectory) {
-                  if (isMobile) {
-                    onOpenDirectory(rel);
-                    return;
-                  }
-                  setActiveDirectoryPath(rel);
+                  onOpenDirectory(rel);
                   return;
                 }
                 handleFileClick(event);
-              }}
-              onDoubleClick={() => {
-                if (isDirectory && !isMobile) onOpenDirectory(rel);
               }}
               onKeyDown={(event) => {
                 if (isDirectory) {
@@ -183,7 +179,7 @@ export function DbFileTable({
                 {showRelativePath ? <div className="truncate font-mono text-xs text-muted">{rel}</div> : null}
               </div>
 
-              <div className={isMobile && !isDirectory ? "w-full" : "min-w-[170px] md:min-w-[320px]"}>
+              <div className="min-w-[170px] md:min-w-[320px]">
                 {isDirectory ? (
                   <div className="flex justify-end text-muted">
                     <MaterialSymbol name="chevron_right" size={18} />
@@ -197,9 +193,22 @@ export function DbFileTable({
                         onChange={(event) =>
                           onSetRowActionState(rel, { ...actionState, value: event.target.value, error: "", phase: "idle" })
                         }
+                        onFocus={(event) => {
+                          event.target.select();
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            stopRowKeyEvent(event);
+                            onApplyRename(rel);
+                          } else if (event.key === "Escape") {
+                            stopRowKeyEvent(event);
+                            onClearRowActionState(rel);
+                          }
+                        }}
                         className="h-8"
                         placeholder="新文件名，如 b.pdf"
                         disabled={pending}
+                        autoFocus
                       />
                       <Button
                         variant="ghost"
@@ -209,6 +218,8 @@ export function DbFileTable({
                           onApplyRename(rel);
                         }}
                         disabled={pending}
+                        aria-label={pending ? "正在改名" : "确认改名"}
+                        title={pending ? "正在改名" : "确认改名"}
                         startIcon={pending ? <CircularProgress size={14} /> : <MaterialSymbol name="check" size={16} />}
                       />
                       <Button
@@ -219,6 +230,8 @@ export function DbFileTable({
                           onClearRowActionState(rel);
                         }}
                         disabled={pending}
+                        aria-label="取消改名"
+                        title="取消改名"
                         startIcon={<MaterialSymbol name="close" size={16} />}
                       />
                     </div>
@@ -239,7 +252,17 @@ export function DbFileTable({
                             phase: "idle",
                           })
                         }
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            stopRowKeyEvent(event);
+                            onApplyMove(rel);
+                          } else if (event.key === "Escape") {
+                            stopRowKeyEvent(event);
+                            onClearRowActionState(rel);
+                          }
+                        }}
                         disabled={pending}
+                        autoFocus
                       >
                         {knownDirectories.map((dir) => (
                           <option key={dir || "root"} value={dir}>
@@ -255,6 +278,8 @@ export function DbFileTable({
                           onApplyMove(rel);
                         }}
                         disabled={pending}
+                        aria-label={pending ? "正在移动" : "确认移动"}
+                        title={pending ? "正在移动" : "确认移动"}
                         startIcon={pending ? <CircularProgress size={14} /> : <MaterialSymbol name="check" size={16} />}
                       />
                       <Button
@@ -265,6 +290,8 @@ export function DbFileTable({
                           onClearRowActionState(rel);
                         }}
                         disabled={pending}
+                        aria-label="取消移动"
+                        title="取消移动"
                         startIcon={<MaterialSymbol name="close" size={16} />}
                       />
                     </div>
@@ -275,9 +302,9 @@ export function DbFileTable({
                     display="flex"
                     justifyContent="flex-end"
                     alignItems="center"
-                    flexWrap={isMobile ? "wrap" : "nowrap"}
+                    flexWrap="nowrap"
                     gap={0.5}
-                    className={isMobile ? "opacity-100" : "opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"}
+                    className="opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
                   >
                     <Button
                       variant="ghost"
@@ -326,9 +353,7 @@ export function DbFileTable({
                       startIcon={<MaterialSymbol name="delete" size={16} />}
                       onClick={(event) => {
                         stopRowEvent(event);
-                        if (window.confirm(`确认删除 ${rel}？此操作不可撤销。`)) {
-                          onDeleteSingle(rel);
-                        }
+                        onDeleteSingle(rel);
                       }}
                     >
                       删除

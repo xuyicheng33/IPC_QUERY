@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Snackbar, useMediaQuery } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
-import { AppShell } from "@/components/layout/AppShell";
+import { Alert, Snackbar } from "@mui/material";
+import { DesktopShell } from "@/components/layout/DesktopShell";
 import { Card } from "@/components/ui/Card";
 import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import { fetchJson } from "@/lib/api";
@@ -16,8 +15,6 @@ import { useDbOperations } from "@/pages/db/useDbOperations";
 export function DbPage() {
   const [folderName, setFolderName] = useState("");
   const [toastOpen, setToastOpen] = useState(false);
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [capabilities, setCapabilities] = useState<CapabilitiesResponse>({
     import_enabled: true,
     scan_enabled: true,
@@ -91,12 +88,6 @@ export function DbPage() {
   }, [operations.actionFeedback]);
 
   useEffect(() => {
-    if (!isMobile) return;
-    if (directory.selectedCount === 0) return;
-    directory.clearSelection();
-  }, [directory.clearSelection, directory.selectedCount, isMobile]);
-
-  useEffect(() => {
     const onPopState = () => {
       void directory.loadDirectory(dbPathFromUrl(window.location.search), { push: false, force: false });
     };
@@ -113,7 +104,7 @@ export function DbPage() {
   }, []);
 
   return (
-    <AppShell actions={[{ href: "/search", label: "搜索", icon: <MaterialSymbol name="search" size={18} /> }]} hideHeaderTitle>
+    <DesktopShell actions={[{ href: "/search", label: "搜索", icon: <MaterialSymbol name="search" size={18} /> }]} hideHeaderTitle>
       <div className="grid gap-4">
         <Card className="grid min-w-0 gap-4 p-4">
           <DbToolbarPanel
@@ -123,7 +114,6 @@ export function DbPage() {
             status={directory.status}
             selectedCount={directory.selectedCount}
             fileCount={directory.files.length}
-            isMobile={isMobile}
             folderName={folderName}
             onFolderNameChange={setFolderName}
             capabilities={capabilities}
@@ -141,7 +131,6 @@ export function DbPage() {
 
           <DbFileTable
             items={listItems}
-            isMobile={isMobile}
             selectedPaths={directory.selectedPaths}
             onSelectionChange={directory.setSelection}
             knownDirectories={directory.knownDirectories}
@@ -179,6 +168,6 @@ export function DbPage() {
           {operations.actionFeedback?.message || "操作完成"}
         </Alert>
       </Snackbar>
-    </AppShell>
+    </DesktopShell>
   );
 }

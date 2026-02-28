@@ -3,6 +3,15 @@ import type { MatchMode, SearchState, SortMode } from "@/lib/types";
 const VALID_MATCH = new Set<MatchMode>(["pn", "term", "all"]);
 const VALID_SORT = new Set<SortMode>(["relevance", "name"]);
 
+function sanitizeReturnTo(value: string | null | undefined, fallback = "/"): string {
+  const candidate = String(value || "").trim();
+  if (!candidate) return fallback;
+  if (!candidate.startsWith("/")) return fallback;
+  if (candidate.startsWith("//")) return fallback;
+  if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(candidate)) return fallback;
+  return candidate;
+}
+
 export function normalizeDir(input: string | null | undefined): string {
   const raw = String(input ?? "")
     .split("\\")
@@ -85,4 +94,21 @@ export function buildDbUrl(path: string): string {
   const normalized = normalizeDir(path || "");
   if (!normalized) return "/db";
   return `/db?path=${encodeURIComponent(normalized)}`;
+}
+
+export function buildReturnTo(url: string): string {
+  return sanitizeReturnTo(url, "/search");
+}
+
+export function parseSafeReturnTo(search: string, fallback: string): string {
+  const params = new URLSearchParams(search || "");
+  return sanitizeReturnTo(params.get("return_to"), sanitizeReturnTo(fallback, "/search"));
+}
+
+export function appendReturnTo(params: URLSearchParams, returnTo: string | null | undefined): URLSearchParams {
+  const safe = sanitizeReturnTo(returnTo, "");
+  if (safe) {
+    params.set("return_to", safe);
+  }
+  return params;
 }

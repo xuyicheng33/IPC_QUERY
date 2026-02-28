@@ -5,6 +5,10 @@ type ButtonVariant = "primary" | "ghost" | "danger";
 
 type ButtonProps = Omit<MuiButtonProps, "variant" | "color"> & {
   variant?: ButtonVariant;
+  component?: React.ElementType;
+  href?: string;
+  target?: string;
+  rel?: string;
 };
 
 const variantMap: Record<ButtonVariant, { variant: MuiButtonProps["variant"]; color: MuiButtonProps["color"] }> = {
@@ -15,7 +19,7 @@ const variantMap: Record<ButtonVariant, { variant: MuiButtonProps["variant"]; co
 
 export function Button({
   variant = "ghost",
-  type = "button",
+  type,
   sx,
   ...props
 }: ButtonProps) {
@@ -29,13 +33,20 @@ export function Button({
       disableElevation
       sx={[
         {
-          minHeight: 38,
+          minHeight: 40,
           borderRadius: 999,
-          px: 1.75,
+          px: 2,
           fontWeight: 600,
           letterSpacing: 0,
           textTransform: "none",
           whiteSpace: "nowrap",
+          "&.Mui-disabled": {
+            opacity: 0.5,
+          },
+          "&:focus-visible": {
+            outline: "2px solid #00639B",
+            outlineOffset: 2,
+          },
         },
         ...(Array.isArray(sx) ? sx : sx ? [sx] : []),
       ]}

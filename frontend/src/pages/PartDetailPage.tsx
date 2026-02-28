@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { AppShell } from "@/components/layout/AppShell";
+import { DesktopShell } from "@/components/layout/DesktopShell";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -9,7 +9,7 @@ import { MaterialSymbol } from "@/components/ui/MaterialSymbol";
 import { fetchJson } from "@/lib/api";
 import { detectKeywordFlags, renderHighlightedSegments } from "@/lib/keyword";
 import type { HierarchyItem, PartDetailResponse, SearchState } from "@/lib/types";
-import { buildSearchUrl, contextParamsFromState, searchStateFromUrl } from "@/lib/urlState";
+import { buildReturnTo, buildSearchUrl, contextParamsFromState, parseSafeReturnTo, searchStateFromUrl } from "@/lib/urlState";
 
 function parsePartId(pathname: string): number | null {
   const match = pathname.match(/^\/part\/(\d+)$/);
@@ -48,7 +48,8 @@ export function PartDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const searchState = useMemo(() => searchStateFromUrl(window.location.search), []);
-  const backUrl = useMemo(() => buildSearchUrl(searchState), [searchState]);
+  const fallbackBackUrl = useMemo(() => buildSearchUrl(searchState), [searchState]);
+  const backUrl = useMemo(() => parseSafeReturnTo(window.location.search, fallbackBackUrl), [fallbackBackUrl]);
 
   useEffect(() => {
     if (!partId) {
@@ -71,31 +72,31 @@ export function PartDetailPage() {
 
   if (loading) {
     return (
-      <AppShell backHref={backUrl}>
+      <DesktopShell backHref={backUrl}>
         <Card>
           <div className="flex items-center gap-2 text-sm text-muted">
             <MaterialSymbol name="progress_activity" size={18} className="animate-spin" />
             加载中...
           </div>
         </Card>
-      </AppShell>
+      </DesktopShell>
     );
   }
 
   if (error) {
     return (
-      <AppShell backHref={backUrl}>
-        <ErrorState message={`加载失败：${error}`} />
-      </AppShell>
+      <DesktopShell backHref={backUrl}>
+        <ErrorState message={`加载失败：${error}`} actionLabel="重试" onAction={() => window.location.reload()} />
+      </DesktopShell>
     );
   }
 
   const part = payload?.part;
   if (!part) {
     return (
-      <AppShell backHref={backUrl}>
+      <DesktopShell backHref={backUrl}>
         <EmptyState title="未找到零件信息" />
-      </AppShell>
+      </DesktopShell>
     );
   }
 
@@ -107,28 +108,25 @@ export function PartDetailPage() {
   const flags = detectKeywordFlags(desc);
   const highlighted = renderHighlightedSegments(desc || "-");
   const pdfEncoded = encodeURIComponent(sourcePath);
+  const viewerParams = new URLSearchParams();
+  viewerParams.set("pdf", sourcePath);
+  viewerParams.set("page", String(page));
+  viewerParams.set("return_to", buildReturnTo(`${window.location.pathname}${window.location.search}`));
+  const viewerHref = `/viewer.html?${viewerParams.toString()}`;
+
   return (
-    <AppShell backHref={backUrl}>
+    <DesktopShell backHref={backUrl}>
       <div className="grid gap-4">
         <Card className="grid gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <a href={backUrl}>
-              <Button variant="ghost">返回结果页</Button>
-            </a>
-            <div className="flex flex-wrap items-center gap-2">
-              <a href={`/viewer.html?pdf=${pdfEncoded}&page=${page}`} target="_blank" rel="noreferrer">
-                <Button variant="primary" className="gap-2">
-                  <MaterialSymbol name="open_in_new" size={18} />
-                  打开页面
-                </Button>
-              </a>
-              <a href={`/pdf/${pdfEncoded}#page=${page}`} target="_blank" rel="noreferrer">
-                <Button variant="ghost" className="gap-2">
-                  <MaterialSymbol name="description" size={18} />
-                  原 PDF
-                </Button>
-              </a>
-            </div>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button component="a" href={viewerHref} target="_blank" rel="noreferrer" variant="primary" className="gap-2">
+              <MaterialSymbol name="open_in_new" size={18} />
+              打开页面
+            </Button>
+            <Button component="a" href={`/pdf/${pdfEncoded}#page=${page}`} target="_blank" rel="noreferrer" variant="ghost" className="gap-2">
+              <MaterialSymbol name="description" size={18} />
+              原 PDF
+            </Button>
           </div>
 
           <div className="border-b border-border pb-3">
@@ -195,7 +193,7 @@ export function PartDetailPage() {
           </div>
         </Card>
       </div>
-    </AppShell>
+    </DesktopShell>
   );
 }
 

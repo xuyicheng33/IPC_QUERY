@@ -13,7 +13,6 @@ type DbToolbarPanelProps = {
   status: string;
   selectedCount: number;
   fileCount: number;
-  isMobile: boolean;
   folderName: string;
   onFolderNameChange: (value: string) => void;
   capabilities: CapabilitiesResponse;
@@ -32,7 +31,6 @@ export function DbToolbarPanel({
   status,
   selectedCount,
   fileCount,
-  isMobile,
   folderName,
   onFolderNameChange,
   capabilities,
@@ -45,7 +43,7 @@ export function DbToolbarPanel({
 }: DbToolbarPanelProps) {
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const createFolderDisabled = !capabilities.import_enabled || currentPath !== "";
-  const allowBatchDelete = capabilities.import_enabled && selectedCount > 0 && !isMobile;
+  const allowBatchDelete = capabilities.import_enabled && selectedCount > 0;
 
   const submitCreateFolder = (event: FormEvent) => {
     event.preventDefault();
@@ -89,7 +87,7 @@ export function DbToolbarPanel({
           </Box>
           <div className="mt-1 text-xs text-muted">
             目录 {directoryCount} · 文件 {fileCount}
-            {isMobile ? "" : ` · 已选 ${selectedCount}`}
+            {` · 已选 ${selectedCount}`}
           </div>
         </div>
 
@@ -139,22 +137,16 @@ export function DbToolbarPanel({
             </Button>
           </form>
 
-          {!isMobile ? (
-            <Button
-              variant="danger"
-              className="h-10 gap-1.5 px-4"
-              disabled={!allowBatchDelete}
-              title={capabilities.import_enabled ? undefined : importDisabledReason}
-              startIcon={<MaterialSymbol name="delete" size={16} />}
-              onClick={() => {
-                if (window.confirm(`确认删除已选的 ${selectedCount} 个文件？此操作不可撤销。`)) {
-                  onDeleteSelected();
-                }
-              }}
-            >
-              删除所选{selectedCount > 0 ? ` (${selectedCount})` : ""}
-            </Button>
-          ) : null}
+          <Button
+            variant="danger"
+            className="h-10 gap-1.5 px-4"
+            disabled={!allowBatchDelete}
+            title={capabilities.import_enabled ? undefined : importDisabledReason}
+            startIcon={<MaterialSymbol name="delete" size={16} />}
+            onClick={onDeleteSelected}
+          >
+            删除所选{selectedCount > 0 ? ` (${selectedCount})` : ""}
+          </Button>
 
           <Button variant="ghost" className="h-10 gap-1.5 px-4" startIcon={<MaterialSymbol name="refresh" size={16} />} onClick={onRefresh}>
             刷新
@@ -164,7 +156,7 @@ export function DbToolbarPanel({
 
       {status ? <div className="rounded-md border border-border bg-surface-soft px-3 py-2 text-xs text-muted">{status}</div> : null}
 
-      {!isMobile ? <p className="text-xs text-muted">提示：按住 Shift / Cmd(Ctrl) 点击文件可进行多选。</p> : null}
+      <p className="text-xs text-muted">提示：目录支持单击进入；文件支持 Shift / Cmd(Ctrl) 多选。</p>
     </div>
   );
 }
