@@ -112,6 +112,8 @@ export type ImportJob = {
   job_id: string;
   filename?: string;
   relative_path?: string;
+  queue_depth?: number;
+  queue_capacity?: number;
   status?: JobStatus;
   error?: string;
 };

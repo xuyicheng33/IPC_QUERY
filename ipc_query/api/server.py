@@ -289,7 +289,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                 qs = parse_qs(query_string) if query_string else {}
                 limit_raw = (qs.get("limit") or ["20"])[0]
                 try:
-                    limit = max(1, min(200, int(limit_raw)))
+                    limit = max(1, min(5000, int(limit_raw)))
                 except Exception:
                     limit = 20
                 status, jobs_body, ct = self._handlers().handle_import_jobs(limit=limit)

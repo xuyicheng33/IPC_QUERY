@@ -150,6 +150,7 @@ docker compose up -d --build
 - 写接口鉴权失败返回 `401`，错误码为 `UNAUTHORIZED`。
 - 当导入或扫描队列已满时，`POST /api/import` 与 `POST /api/scan` 返回 `429` + `Retry-After: 3`，错误码 `RATE_LIMITED`。
 - 兼容迁移说明：旧版本队列满返回 `400 (VALIDATION_ERROR)`，新版本改为 `429 (RATE_LIMITED)`。
+- `/db` 批量上传支持队列感知退避与自动降速，面向大批量（例如 500+ 文件）场景会优先“等待并继续提交”而非快速失败。
 - 运行时可通过 `/api/capabilities` 获取：
   - `write_auth_mode`
   - `write_auth_required`

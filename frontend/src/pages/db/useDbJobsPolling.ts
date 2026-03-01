@@ -16,6 +16,12 @@ type UseDbJobsPollingParams = {
   pollIntervalMs?: number;
 };
 
+type ImportJobsResponse = {
+  jobs?: ImportJob[];
+};
+
+const MAX_IMPORT_JOBS_POLL_LIMIT = 5000;
+
 function toJobStatus(value: string | undefined): JobStatus {
   if (value === "success") return "success";
   if (value === "failed") return "failed";
@@ -74,16 +80,41 @@ export function useDbJobsPolling({ onAllJobsSettled, pollIntervalMs = 1500 }: Us
 
     try {
       const doneImport: string[] = [];
-
-      for (const jobId of activeImportJobIdsRef.current.values()) {
+      const activeImportIds = Array.from(activeImportJobIdsRef.current.values());
+      if (activeImportIds.length > 0) {
+        const importJobsLimit = Math.min(MAX_IMPORT_JOBS_POLL_LIMIT, Math.max(200, activeImportIds.length * 2));
+        let snapshotById = new Map<string, ImportJob>();
         try {
-          const job = await fetchJson<ImportJob>(`/api/import/${encodeURIComponent(jobId)}`);
-          upsertJob(job, "import");
-          if (["success", "failed"].includes(String(job.status || ""))) {
-            doneImport.push(jobId);
+          const payload = await fetchJson<ImportJobsResponse>(`/api/import/jobs?limit=${importJobsLimit}`);
+          for (const job of payload.jobs || []) {
+            const jobId = String(job.job_id || "").trim();
+            if (jobId) snapshotById.set(jobId, job);
           }
         } catch {
-          doneImport.push(jobId);
+          snapshotById = new Map<string, ImportJob>();
+        }
+
+        if (snapshotById.size > 0) {
+          for (const jobId of activeImportIds) {
+            const job = snapshotById.get(jobId);
+            if (!job) continue;
+            upsertJob(job, "import");
+            if (["success", "failed"].includes(String(job.status || ""))) {
+              doneImport.push(jobId);
+            }
+          }
+        } else {
+          for (const jobId of activeImportIds) {
+            try {
+              const job = await fetchJson<ImportJob>(`/api/import/${encodeURIComponent(jobId)}`);
+              upsertJob(job, "import");
+              if (["success", "failed"].includes(String(job.status || ""))) {
+                doneImport.push(jobId);
+              }
+            } catch {
+              doneImport.push(jobId);
+            }
+          }
         }
       }
 

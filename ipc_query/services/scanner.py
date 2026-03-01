@@ -99,13 +99,27 @@ class ScanService:
         try:
             self._queue.put_nowait(job_id)
         except queue.Full as e:
+            queue_depth = self._queue.qsize()
+            queue_capacity = self._queue.maxsize
             with self._lock:
                 self._jobs[job_id].status = "failed"
                 self._jobs[job_id].error = "scan queue is full"
                 self._jobs[job_id].finished_at = time.time()
                 self._prune_jobs_locked()
             metrics.counter_increment("scan_queue_rejected_total")
-            raise RateLimitError("Scan queue is full, please retry later", retry_after=3) from e
+            metrics.gauge_set("scan_queue_depth", float(queue_depth))
+            metrics.gauge_set("scan_queue_capacity", float(queue_capacity))
+            raise RateLimitError(
+                "Scan queue is full, please retry later",
+                retry_after=3,
+                details={
+                    "queue_depth": queue_depth,
+                    "queue_capacity": queue_capacity,
+                },
+            ) from e
+
+        metrics.gauge_set("scan_queue_depth", float(self._queue.qsize()))
+        metrics.gauge_set("scan_queue_capacity", float(self._queue.maxsize))
 
         return job.to_dict()
 

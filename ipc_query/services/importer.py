@@ -133,6 +133,8 @@ class ImportService:
         try:
             self._queue.put_nowait(job_id)
         except queue.Full as e:
+            queue_depth = self._queue.qsize()
+            queue_capacity = self._queue.maxsize
             with self._lock:
                 self._jobs[job_id].status = "failed"
                 self._jobs[job_id].error = "import queue is full"
@@ -140,13 +142,35 @@ class ImportService:
                 self._prune_jobs_locked()
             self._safe_unlink(staged_path)
             metrics.counter_increment("import_queue_rejected_total")
-            raise RateLimitError("Import queue is full, please retry later", retry_after=3) from e
+            metrics.gauge_set("import_queue_depth", float(queue_depth))
+            metrics.gauge_set("import_queue_capacity", float(queue_capacity))
+            raise RateLimitError(
+                "Import queue is full, please retry later",
+                retry_after=3,
+                details={
+                    "queue_depth": queue_depth,
+                    "queue_capacity": queue_capacity,
+                },
+            ) from e
+
+        queue_depth = self._queue.qsize()
+        queue_capacity = self._queue.maxsize
+        metrics.gauge_set("import_queue_depth", float(queue_depth))
+        metrics.gauge_set("import_queue_capacity", float(queue_capacity))
 
         logger.info(
             "Import job queued",
-            extra_fields={"job_id": job_id, "filename": safe_name},
+            extra_fields={
+                "job_id": job_id,
+                "filename": safe_name,
+                "queue_depth": queue_depth,
+                "queue_capacity": queue_capacity,
+            },
         )
-        return job.to_dict()
+        payload_out = job.to_dict()
+        payload_out["queue_depth"] = queue_depth
+        payload_out["queue_capacity"] = queue_capacity
+        return payload_out
 
     def get_job(self, job_id: str) -> dict[str, Any] | None:
         """获取任务状态"""

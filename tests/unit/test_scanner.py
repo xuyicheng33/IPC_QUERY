@@ -64,5 +64,7 @@ def test_submit_scan_queue_full_returns_rate_limited(
         with pytest.raises(RateLimitError) as exc:
             service.submit_scan("")
         assert exc.value.details.get("retry_after") == 3
+        assert int(exc.value.details.get("queue_capacity", 0)) == 64
+        assert int(exc.value.details.get("queue_depth", 0)) >= 0
     finally:
         service.stop()

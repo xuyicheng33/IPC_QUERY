@@ -31,6 +31,11 @@ type ActionFeedback = {
   message: string;
 };
 
+type QueueState = {
+  depth: number;
+  capacity: number;
+};
+
 type UseDbOperationsParams = {
   currentPath: string;
   visiblePaths: string[];
@@ -65,8 +70,9 @@ function baseActionState(mode: DbRowActionState["mode"], value = ""): DbRowActio
   };
 }
 
-const MAX_UPLOAD_WAIT_MS_PER_FILE = 15 * 60 * 1000;
+const MAX_UPLOAD_WAIT_MS_PER_FILE = 60 * 60 * 1000;
 const MAX_UPLOAD_BACKOFF_MS = 15_000;
+const MAX_QUEUE_UTILIZATION_BEFORE_COOLING = 0.85;
 
 function delayMs(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, Math.max(0, ms)));
@@ -85,6 +91,39 @@ function parseRetryAfterMsFromBody(data: unknown): number {
   const parsed = Number.parseInt(String(retryAfterRaw ?? "").trim(), 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return 0;
   return parsed * 1000;
+}
+
+function parseQueueState(data: unknown): QueueState | null {
+  if (!data || typeof data !== "object") return null;
+  const raw = data as {
+    queue_depth?: unknown;
+    queue_capacity?: unknown;
+    details?: {
+      queue_depth?: unknown;
+      queue_capacity?: unknown;
+    };
+  };
+  const rawDepth = raw.queue_depth ?? raw.details?.queue_depth;
+  const rawCapacity = raw.queue_capacity ?? raw.details?.queue_capacity;
+  const depth = Number.parseInt(String(rawDepth ?? "").trim(), 10);
+  const capacity = Number.parseInt(String(rawCapacity ?? "").trim(), 10);
+  if (!Number.isFinite(depth) || depth < 0) return null;
+  if (!Number.isFinite(capacity) || capacity <= 0) return null;
+  return { depth, capacity };
+}
+
+function queueHintText(queueState: QueueState | null): string {
+  if (!queueState) return "";
+  return `（队列 ${queueState.depth}/${queueState.capacity}）`;
+}
+
+function computeQueueCoolingWaitMs(queueState: QueueState | null): number {
+  if (!queueState) return 0;
+  const utilization = queueState.capacity > 0 ? queueState.depth / queueState.capacity : 0;
+  if (utilization < MAX_QUEUE_UTILIZATION_BEFORE_COOLING) return 0;
+  const overload = Math.max(0, utilization - MAX_QUEUE_UTILIZATION_BEFORE_COOLING);
+  const waitMs = 500 + overload * 5000;
+  return Math.max(400, Math.min(6000, Math.round(waitMs)));
 }
 
 export function useDbOperations({
@@ -293,6 +332,7 @@ export function useDbOperations({
             );
 
             const data = (await response.json().catch(() => ({}))) as ImportJob & { message?: string };
+            const queueState = parseQueueState(data);
             if (!response.ok) {
               const message = String(data.message || `${response.status} ${response.statusText}`);
               const retryable = response.status === 429 || message.toLowerCase().includes("queue is full");
@@ -303,21 +343,34 @@ export function useDbOperations({
               const error = new Error(message) as Error & {
                 retryable?: boolean;
                 retryAfterMs?: number;
+                queueState?: QueueState | null;
               };
               error.retryable = retryable;
               error.retryAfterMs = retryAfterMs;
+              error.queueState = queueState;
               throw error;
             }
 
             successCount += 1;
             upsertJob(data, "import");
             startImportJob(String(data.job_id || ""));
+
+            const coolingWaitMs = computeQueueCoolingWaitMs(queueState);
+            if (coolingWaitMs > 0) {
+              const queueText = queueHintText(queueState);
+              const coolText = `上传队列接近饱和${queueText}，暂停 ${Math.ceil(coolingWaitMs / 1000)}s 以平滑提交`;
+              updateGlobalAction("upload", "pending", coolText);
+              setStatus(coolText);
+              await delayMs(coolingWaitMs);
+            }
+
             submitted = true;
             break;
           } catch (error) {
             const typed = error as Error & {
               retryable?: boolean;
               retryAfterMs?: number;
+              queueState?: QueueState | null;
             };
             const canRetry = Boolean(typed.retryable);
             if (canRetry) {
@@ -341,7 +394,8 @@ export function useDbOperations({
                 break;
               }
               const waitSec = Math.ceil(waitMs / 1000);
-              const retryText = `上传队列繁忙，${waitSec}s 后重试：${file.name}（第 ${attempt + 1} 次重试，已提交 ${successCount}/${uploadFiles.length}）`;
+              const queueText = queueHintText(typed.queueState || null);
+              const retryText = `上传队列繁忙${queueText}，${waitSec}s 后重试：${file.name}（第 ${attempt + 1} 次重试，已提交 ${successCount}/${uploadFiles.length}）`;
               updateGlobalAction("upload", "pending", retryText);
               setStatus(retryText);
               await delayMs(waitMs);

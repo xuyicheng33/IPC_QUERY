@@ -158,9 +158,16 @@ class ConflictError(IpcQueryError):
 class RateLimitError(IpcQueryError):
     """请求频率限制错误"""
 
-    def __init__(self, message: str = "Too many requests", retry_after: int | None = None):
-        details = {"retry_after": retry_after} if retry_after else None
-        super().__init__(message, code="RATE_LIMITED", details=details)
+    def __init__(
+        self,
+        message: str = "Too many requests",
+        retry_after: int | None = None,
+        details: dict[str, Any] | None = None,
+    ):
+        merged_details = dict(details or {})
+        if retry_after:
+            merged_details["retry_after"] = retry_after
+        super().__init__(message, code="RATE_LIMITED", details=merged_details or None)
 
 
 class UnauthorizedError(IpcQueryError):

@@ -49,6 +49,8 @@ def test_submit_upload_queue_full_cleans_temp_file(
         with pytest.raises(RateLimitError) as exc:
             service.submit_upload("queue-full.pdf", _PDF_PAYLOAD, "application/pdf")
         assert exc.value.details.get("retry_after") == 3
+        assert int(exc.value.details.get("queue_capacity", 0)) == 1
+        assert int(exc.value.details.get("queue_depth", 0)) >= 0
 
         assert list((tmp_path / "uploads").glob("*.pdf")) == []
         jobs = service.list_jobs(limit=10)
