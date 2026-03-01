@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import queue
 import sqlite3
 from pathlib import Path
 
+import pytest
+
 from build_db import ensure_schema
+from ipc_query.exceptions import RateLimitError
 from ipc_query.services.scanner import ScanService
 
 
@@ -40,3 +44,25 @@ def test_scan_removes_deleted_documents_and_scan_state(tmp_path: Path) -> None:
         scan_state_left = conn.execute("SELECT COUNT(1) FROM scan_state").fetchone()[0]
         assert docs_left == 0
         assert scan_state_left == 0
+
+
+def test_submit_scan_queue_full_returns_rate_limited(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db_path = tmp_path / "scan.sqlite"
+    pdf_dir = tmp_path / "pdfs"
+    pdf_dir.mkdir(parents=True, exist_ok=True)
+
+    service = ScanService(db_path=db_path, pdf_dir=pdf_dir)
+    try:
+        def _raise_full(_: str) -> None:
+            raise queue.Full
+
+        monkeypatch.setattr(service._queue, "put_nowait", _raise_full)
+
+        with pytest.raises(RateLimitError) as exc:
+            service.submit_scan("")
+        assert exc.value.details.get("retry_after") == 3
+    finally:
+        service.stop()

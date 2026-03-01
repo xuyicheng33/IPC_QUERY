@@ -11,9 +11,12 @@ import threading
 import time
 from pathlib import Path
 
+import pytest
+
 from build_db import ensure_schema
 from ipc_query.api.server import create_server
 from ipc_query.config import Config
+from ipc_query.exceptions import RateLimitError
 from ipc_query.services import importer as importer_module
 
 _PDF_PAYLOAD = b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n"
@@ -79,6 +82,30 @@ def _request_json(
 
     data = json.loads(payload.decode("utf-8")) if payload else {}
     return resp.status, data
+
+
+def _request_json_with_headers(
+    port: int,
+    method: str,
+    path: str,
+    *,
+    body: bytes | None = None,
+    headers: dict[str, str] | None = None,
+) -> tuple[int, dict, dict[str, str]]:
+    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5.0)
+    try:
+        req_headers = {"Accept": "application/json"}
+        if headers:
+            req_headers.update(headers)
+        conn.request(method, path, body=body, headers=req_headers)
+        resp = conn.getresponse()
+        payload = resp.read()
+        out_headers = {k.lower(): v for (k, v) in resp.getheaders()}
+    finally:
+        conn.close()
+
+    data = json.loads(payload.decode("utf-8")) if payload else {}
+    return resp.status, data, out_headers
 
 
 def _raw_post_json(port: int, path: str, headers: dict[str, str], body: bytes = b"") -> tuple[int, dict]:
@@ -297,6 +324,36 @@ def test_import_disabled_when_import_mode_is_disabled(tmp_path: Path) -> None:
         assert status == 400
         assert body["error"] == "VALIDATION_ERROR"
         assert "not enabled" in body["message"].lower()
+    finally:
+        server.stop()
+        thread.join(timeout=3.0)
+
+
+def test_import_queue_full_returns_429_with_retry_after(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    db_path = tmp_path / "rate-limit.sqlite"
+    cfg = _make_config(tmp_path, db_path, import_mode="enabled")
+
+    def _raise_rate_limited(*_args, **_kwargs):
+        raise RateLimitError("Import queue is full, please retry later", retry_after=3)
+
+    monkeypatch.setattr(importer_module.ImportService, "submit_upload", _raise_rate_limited)
+
+    server = create_server(cfg)
+    thread, port = _start_server(server)
+    try:
+        status, body, headers = _request_json_with_headers(
+            port,
+            "POST",
+            "/api/import",
+            body=_PDF_PAYLOAD,
+            headers={
+                "Content-Type": "application/pdf",
+                "X-File-Name": "queue-full.pdf",
+            },
+        )
+        assert status == 429
+        assert body["error"] == "RATE_LIMITED"
+        assert headers.get("retry-after") == "3"
     finally:
         server.stop()
         thread.join(timeout=3.0)

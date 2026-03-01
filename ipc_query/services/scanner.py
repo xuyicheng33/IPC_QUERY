@@ -18,8 +18,9 @@ from typing import Any, Callable
 
 from build_db import ensure_schema, ingest_pdfs
 
-from ..exceptions import ValidationError
+from ..exceptions import RateLimitError, ValidationError
 from ..utils.logger import get_logger
+from ..utils.metrics import metrics
 
 logger = get_logger(__name__)
 
@@ -103,7 +104,8 @@ class ScanService:
                 self._jobs[job_id].error = "scan queue is full"
                 self._jobs[job_id].finished_at = time.time()
                 self._prune_jobs_locked()
-            raise ValidationError("Scan queue is full, please retry later") from e
+            metrics.counter_increment("scan_queue_rejected_total")
+            raise RateLimitError("Scan queue is full, please retry later", retry_after=3) from e
 
         return job.to_dict()
 

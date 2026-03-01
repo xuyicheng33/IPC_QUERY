@@ -22,7 +22,7 @@ from build_db import ensure_schema
 from ..config import Config
 from ..db.connection import Database
 from ..db.repository import DocumentRepository, PartRepository
-from ..exceptions import IpcQueryError, NotFoundError, UnauthorizedError, ValidationError
+from ..exceptions import IpcQueryError, NotFoundError, RateLimitError, UnauthorizedError, ValidationError
 from ..services.importer import ImportService
 from ..services.render import RenderService, create_render_service
 from ..services.scanner import ScanService
@@ -140,7 +140,17 @@ class RequestHandler(BaseHTTPRequestHandler):
     def _handle_error(self, error: Exception, extra_headers: Mapping[str, str] | None = None) -> None:
         """处理错误"""
         status, body, ct = self._handlers().handle_error(error)
-        self._send(status, body, ct, extra_headers=extra_headers)
+        merged_headers: dict[str, str] = dict(extra_headers or {})
+        if isinstance(error, RateLimitError):
+            retry_after_raw = getattr(error, "details", {}).get("retry_after")
+            retry_after_text = "" if retry_after_raw is None else str(retry_after_raw)
+            try:
+                retry_after = int(retry_after_text)
+            except Exception:
+                retry_after = 0
+            if retry_after > 0:
+                merged_headers["Retry-After"] = str(retry_after)
+        self._send(status, body, ct, extra_headers=merged_headers or None)
 
     def _cleanup_request_db(self) -> None:
         """请求结束后清理当前线程数据库连接。"""
@@ -474,7 +484,14 @@ class RequestHandler(BaseHTTPRequestHandler):
             if canonical_path == "/api/scan":
                 qs = parse_qs(query_string) if query_string else {}
                 path_arg = (qs.get("path") or [""])[0]
-                if not path_arg and (self.headers.get("Content-Length") or "").strip():
+                raw_content_length = (self.headers.get("Content-Length") or "").strip()
+                has_request_body = False
+                if raw_content_length:
+                    try:
+                        has_request_body = int(raw_content_length) > 0
+                    except ValueError as e:
+                        raise ValidationError("Invalid Content-Length header") from e
+                if not path_arg and has_request_body:
                     json_payload = self._read_json_body()
                     path_arg = str(json_payload.get("path") or "")
                 status, body, ct = self._handlers().handle_scan_submit(path=path_arg)

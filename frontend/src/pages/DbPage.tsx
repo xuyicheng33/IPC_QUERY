@@ -19,6 +19,7 @@ type DeleteTarget = {
 
 export function DbPage() {
   const [folderName, setFolderName] = useState("");
+  const [writeApiKey, setWriteApiKey] = useState("");
   const [toastOpen, setToastOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTargets, setDeleteTargets] = useState<DeleteTarget[]>([]);
@@ -89,6 +90,7 @@ export function DbPage() {
     currentPath: directory.currentPath,
     visiblePaths: listItems.map((item) => item.relative_path),
     capabilities,
+    writeApiKey,
     importDisabledReason,
     scanDisabledReason,
     refreshCurrentDirectory: directory.refreshCurrentDirectory,
@@ -170,7 +172,10 @@ export function DbPage() {
             folderName={folderName}
             onFolderNameChange={setFolderName}
             capabilities={capabilities}
+            writeApiKeyConfigured={Boolean(writeApiKey.trim())}
             importDisabledReason={importDisabledReason}
+            onSetWriteApiKey={setWriteApiKey}
+            onClearWriteApiKey={() => setWriteApiKey("")}
             onNavigate={(path) => void directory.loadDirectory(path, { push: true, force: false })}
             onUploadFiles={(selected) => void operations.submitUploads(selected)}
             onDeleteSelected={() => requestDelete(Array.from(directory.selectedPaths).map((path) => ({ path, kind: "file" })))}

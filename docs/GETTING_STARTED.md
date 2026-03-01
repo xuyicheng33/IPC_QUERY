@@ -82,6 +82,8 @@ python3 -m ipc_query serve \
 - `write_auth_mode` / `write_auth_required`
 - `directory_policy`（v4.0 固定为 `single_level`）
 
+默认导入队列长度为 `IMPORT_QUEUE_SIZE=64`，如需调优可在环境变量中覆盖。
+
 ### 8.2 详情页 PDF 无法打开
 
 检查：
@@ -94,14 +96,26 @@ python3 -m ipc_query serve \
 - 是否开启了 `WRITE_API_AUTH_MODE=api_key`
 - 请求头是否携带 `X-API-Key: <WRITE_API_KEY>`
 - 写接口范围包括导入/删除/改名/移动/建目录/删目录/扫描
+- `/db` 页支持设置“会话 API Key”，仅保存在当前页面内存，刷新后需要重新输入
 
-### 8.4 目录操作被拒绝（single-level policy）
+### 8.4 上传/扫描返回 429（队列满）
+
+说明：
+- `POST /api/import`、`POST /api/scan` 在队列满时会返回 `429`
+- 响应头带 `Retry-After: 3`，响应体错误码 `RATE_LIMITED`
+- 客户端应按 `Retry-After` 或指数退避重试
+
+兼容迁移：
+- 旧版本队列满为 `400 (VALIDATION_ERROR)`
+- 当前版本已改为 `429 (RATE_LIMITED)`
+
+### 8.5 目录操作被拒绝（single-level policy）
 
 v4.0 当前仅支持根目录和一级子目录：
 - 允许：`""`、`engine`
 - 拒绝：`a/b`、`a/b/c`
 
-### 8.3 修改前端后页面不生效
+### 8.6 修改前端后页面不生效
 
 重新执行：
 

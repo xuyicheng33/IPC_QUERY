@@ -48,6 +48,10 @@ DATABASE_PATH=/app/data/ipc.sqlite
 PDF_HOST_DIR=./data/pdfs
 PDF_MOUNT_MODE=ro
 IMPORT_MODE=auto
+IMPORT_QUEUE_SIZE=64
+IMPORT_MAX_FILE_SIZE_MB=100
+IMPORT_JOB_TIMEOUT_S=600
+IMPORT_JOBS_RETAINED=1000
 WRITE_API_AUTH_MODE=disabled
 # WRITE_API_KEY=change-me-if-api-key-mode
 LEGACY_FOLDER_ROUTES_ENABLED=true
@@ -58,8 +62,10 @@ LOG_FORMAT=json
 配置建议：
 - 只读检索服务：`PDF_MOUNT_MODE=ro` + `IMPORT_MODE=disabled` 或 `auto`
 - 允许在线导入/删除：`PDF_MOUNT_MODE=rw` + `IMPORT_MODE=enabled` 或 `auto`
+- 队列容量建议：`IMPORT_QUEUE_SIZE` 默认 `64`，高峰写入可按机器资源继续上调
 - 需要写接口鉴权：设置 `WRITE_API_AUTH_MODE=api_key` 并配置 `WRITE_API_KEY`
 - 容器内的 `PDF_DIR` 固定为 `/app/pdfs`，无需手动填写。
+- `docker-compose.yml` 会透传 `IMPORT_QUEUE_SIZE/IMPORT_MAX_FILE_SIZE_MB/IMPORT_JOB_TIMEOUT_S/IMPORT_JOBS_RETAINED/WRITE_API_AUTH_MODE/WRITE_API_KEY/LEGACY_FOLDER_ROUTES_ENABLED`，并固定 `CACHE_DIR=/app/cache`。
 
 ### 2.4 首次启动
 
@@ -249,8 +255,20 @@ docker compose up -d --build
 - `WRITE_API_AUTH_MODE` 是否为 `api_key`
 - 客户端是否发送了正确的 `X-API-Key`
 - `WRITE_API_KEY` 是否在服务侧正确配置
+- `/db` 页面可设置“会话 API Key”（仅内存态，刷新页面后失效）
 
-### 7.1.2 目录接口兼容期说明
+### 7.1.2 上传/扫描返回 429（队列满）
+
+说明：
+- 当导入或扫描队列已满时，`POST /api/import`、`POST /api/scan` 返回 `429 Too Many Requests`
+- 响应头包含 `Retry-After: 3`，响应体错误码为 `RATE_LIMITED`
+- 建议客户端按 `Retry-After` 执行退避重试
+
+兼容迁移：
+- 旧版本队列满返回 `400 (VALIDATION_ERROR)`
+- 新版本统一为 `429 (RATE_LIMITED)`，用于明确限流语义
+
+### 7.1.3 目录接口兼容期说明
 
 - Canonical 路由：`/api/folders`、`/api/folders/rename`、`/api/folders/delete`
 - Legacy alias：`/api/docs/folder/create`、`/api/docs/folder/rename`、`/api/docs/folder/delete`

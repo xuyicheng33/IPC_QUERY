@@ -75,6 +75,7 @@ docker compose up -d --build
 
 默认端口 `8791`，容器健康检查接口为 `/api/health`。
 如需自定义宿主机 PDF 目录，设置 `.env` 中 `PDF_HOST_DIR`（默认 `./data/pdfs`）。
+`docker-compose.yml` 会透传以下导入/鉴权相关变量：`IMPORT_QUEUE_SIZE`、`IMPORT_MAX_FILE_SIZE_MB`、`IMPORT_JOB_TIMEOUT_S`、`IMPORT_JOBS_RETAINED`、`WRITE_API_AUTH_MODE`、`WRITE_API_KEY`、`LEGACY_FOLDER_ROUTES_ENABLED`（`CACHE_DIR` 固定为 `/app/cache`）。
 
 ## 云服务器部署
 
@@ -125,6 +126,10 @@ docker compose up -d --build
 | `PDF_DIR` | 空 | PDF 目录（不填时由 `UPLOAD_DIR` 或默认值兜底） |
 | `UPLOAD_DIR` | 空 | 上传目录（未设置时默认跟随 `PDF_DIR`） |
 | `IMPORT_MODE` | `auto` | `auto`/`enabled`/`disabled` |
+| `IMPORT_QUEUE_SIZE` | `64` | 导入/扫描任务共享队列长度 |
+| `IMPORT_MAX_FILE_SIZE_MB` | `100` | 单文件上传大小限制（MB） |
+| `IMPORT_JOB_TIMEOUT_S` | `600` | 单任务超时（秒） |
+| `IMPORT_JOBS_RETAINED` | `1000` | 内存中保留任务数量上限 |
 | `CACHE_SIZE` | `1000` | 缓存条目上限 |
 | `CACHE_TTL` | `300` | 搜索缓存 TTL（秒，`search_results` 与详情缓存均使用该值） |
 | `RENDER_SEMAPHORE` | `4` | 渲染并发上限（canonical） |
@@ -141,7 +146,10 @@ docker compose up -d --build
 
 - 目录策略固定为 `single_level`：仅允许根目录和一级子目录，不支持多级目录写入。
 - 当 `WRITE_API_AUTH_MODE=api_key` 时，所有写接口（导入/删除/改名/移动/建目录/删目录/扫描）必须携带 `X-API-Key`。
+- `/db` 页面提供“会话 API Key”输入，仅保存在当前页面内存中（刷新后失效，不写入 localStorage/sessionStorage）。
 - 写接口鉴权失败返回 `401`，错误码为 `UNAUTHORIZED`。
+- 当导入或扫描队列已满时，`POST /api/import` 与 `POST /api/scan` 返回 `429` + `Retry-After: 3`，错误码 `RATE_LIMITED`。
+- 兼容迁移说明：旧版本队列满返回 `400 (VALIDATION_ERROR)`，新版本改为 `429 (RATE_LIMITED)`。
 - 运行时可通过 `/api/capabilities` 获取：
   - `write_auth_mode`
   - `write_auth_required`

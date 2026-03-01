@@ -44,6 +44,9 @@
 - 支持双击文件直接预览 PDF；
 - 状态反馈统一采用顶部/行内提示。
 - 当前目录策略固定为 `single_level`（仅根目录 + 一级子目录）。
+- 当 `write_auth_required=true` 时，前端会先检查“会话 API Key”是否已设置，未设置则阻断写操作并提示。
+- 会话 API Key 仅保存在页面内存态，刷新后失效（不写入 localStorage/sessionStorage）。
+- 批量上传遇到队列满（`429` 或 message 含 `queue is full`）会自动退避重试（最多 3 次重试）。
 
 ### 3.4 目录接口路由策略（兼容期）
 
@@ -77,6 +80,8 @@
 
 - 当后端启用 `WRITE_API_AUTH_MODE=api_key` 时，写接口必须携带 `X-API-Key`。
 - 缺失或错误 key 返回 `401` + `UNAUTHORIZED`。
+- 导入/扫描队列满返回 `429` + `RATE_LIMITED`，并附带 `Retry-After: 3`。
+- 兼容迁移：旧版本队列满语义为 `400 (VALIDATION_ERROR)`，当前版本改为 `429 (RATE_LIMITED)`。
 - 服务端异常类（`DatabaseError`/`SearchError`/`RenderError`）统一返回 `500`，不再伪装 `400`。
 
 ## 6. 开发与构建

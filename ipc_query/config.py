@@ -129,7 +129,7 @@ class Config:
     render_timeout: float = 30.0
     render_semaphore: int = 4
     import_max_file_size_mb: int = 100
-    import_queue_size: int = 8
+    import_queue_size: int = 64
     import_job_timeout_s: int = 600
     import_jobs_retained: int = 1000
     import_mode: str = "auto"  # auto | enabled | disabled
@@ -175,7 +175,7 @@ class Config:
             render_timeout=float(os.getenv("RENDER_TIMEOUT", "30.0")),
             render_semaphore=render_semaphore,
             import_max_file_size_mb=int(os.getenv("IMPORT_MAX_FILE_SIZE_MB", "100")),
-            import_queue_size=int(os.getenv("IMPORT_QUEUE_SIZE", "8")),
+            import_queue_size=int(os.getenv("IMPORT_QUEUE_SIZE", "64")),
             import_job_timeout_s=int(os.getenv("IMPORT_JOB_TIMEOUT_S", "600")),
             import_jobs_retained=int(os.getenv("IMPORT_JOBS_RETAINED", "1000")),
             import_mode=_parse_import_mode(os.getenv("IMPORT_MODE", "auto")),

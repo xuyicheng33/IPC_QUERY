@@ -16,12 +16,15 @@ type DbToolbarPanelProps = {
   folderName: string;
   onFolderNameChange: (value: string) => void;
   capabilities: CapabilitiesResponse;
+  writeApiKeyConfigured: boolean;
   importDisabledReason: string;
   onNavigate: (path: string) => void;
   onUploadFiles: (files: File[]) => void;
   onDeleteSelected: () => void;
   onRefresh: () => void;
   onCreateFolder: () => void;
+  onSetWriteApiKey: (value: string) => void;
+  onClearWriteApiKey: () => void;
 };
 
 export function DbToolbarPanel({
@@ -34,29 +37,51 @@ export function DbToolbarPanel({
   folderName,
   onFolderNameChange,
   capabilities,
+  writeApiKeyConfigured,
   importDisabledReason,
   onNavigate,
   onUploadFiles,
   onDeleteSelected,
   onRefresh,
   onCreateFolder,
+  onSetWriteApiKey,
+  onClearWriteApiKey,
 }: DbToolbarPanelProps) {
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
+  const [apiKeyDraft, setApiKeyDraft] = useState("");
   const createFolderDisabled = !capabilities.import_enabled || currentPath !== "";
   const allowBatchDelete = capabilities.import_enabled && selectedCount > 0;
+  const writeAuthApiKeyMode = capabilities.write_auth_mode === "api_key";
   const createFolderHint = capabilities.import_enabled
     ? currentPath
       ? "仅支持在根目录创建子目录"
       : ""
     : importDisabledReason;
   const createFolderCanSubmit = !createFolderDisabled && Boolean(folderName.trim());
+  const writeAuthHint = writeAuthApiKeyMode
+    ? capabilities.write_auth_required
+      ? writeApiKeyConfigured
+        ? "写接口鉴权已启用，会话 API Key 已设置"
+        : "写接口鉴权已启用，请先设置会话 API Key"
+      : "写接口支持可选 API Key"
+    : "";
 
   const submitCreateFolder = (event: FormEvent) => {
     event.preventDefault();
     if (!createFolderCanSubmit) return;
     onCreateFolder();
     setCreateDialogOpen(false);
+  };
+
+  const submitApiKey = (event: FormEvent) => {
+    event.preventDefault();
+    const value = apiKeyDraft.trim();
+    if (!value) return;
+    onSetWriteApiKey(value);
+    setApiKeyDialogOpen(false);
+    setApiKeyDraft("");
   };
 
   return (
@@ -98,6 +123,7 @@ export function DbToolbarPanel({
             目录 {directoryCount} · 文件 {fileCount}
             {` · 已选 ${selectedCount}`}
           </div>
+          {writeAuthHint ? <div className="mt-1 text-xs text-muted">{writeAuthHint}</div> : null}
         </div>
 
         <div className="flex flex-wrap items-center gap-2 lg:justify-end">
@@ -149,6 +175,22 @@ export function DbToolbarPanel({
           <Button variant="ghost" className="h-10 gap-1.5 px-4" startIcon={<MaterialSymbol name="refresh" size={16} />} onClick={onRefresh}>
             刷新
           </Button>
+
+          {writeAuthApiKeyMode ? (
+            <Button
+              variant="ghost"
+              type="button"
+              className="h-10 gap-1.5 px-4"
+              title={writeApiKeyConfigured ? "当前会话已设置 API Key" : "设置当前会话 API Key"}
+              startIcon={<MaterialSymbol name="vpn_key" size={16} />}
+              onClick={() => {
+                setApiKeyDialogOpen(true);
+                setApiKeyDraft("");
+              }}
+            >
+              {writeApiKeyConfigured ? "API Key 已设置" : "设置 API Key"}
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -183,6 +225,51 @@ export function DbToolbarPanel({
             </Button>
             <Button variant="ghost" type="submit" disabled={!createFolderCanSubmit}>
               创建
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
+
+      <Dialog
+        open={apiKeyDialogOpen}
+        onClose={() => setApiKeyDialogOpen(false)}
+        fullWidth
+        maxWidth="xs"
+        aria-labelledby="db-write-api-key-title"
+      >
+        <form onSubmit={submitApiKey}>
+          <DialogTitle id="db-write-api-key-title">设置会话 API Key</DialogTitle>
+          <DialogContent>
+            <Input
+              id="db-write-api-key"
+              name="write_api_key"
+              type="password"
+              value={apiKeyDraft}
+              onChange={(event) => setApiKeyDraft(event.target.value)}
+              placeholder="输入写接口 API Key"
+              className="mt-2 w-full"
+              aria-label="写接口 API Key"
+              autoFocus
+            />
+            <p className="mt-2 text-xs text-muted">仅保存在当前页面内存中，刷新页面后需要重新输入。</p>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2.5 }}>
+            <Button
+              variant="ghost"
+              type="button"
+              onClick={() => {
+                onClearWriteApiKey();
+                setApiKeyDraft("");
+                setApiKeyDialogOpen(false);
+              }}
+            >
+              清除
+            </Button>
+            <Button variant="ghost" type="button" onClick={() => setApiKeyDialogOpen(false)}>
+              取消
+            </Button>
+            <Button variant="ghost" type="submit" disabled={!apiKeyDraft.trim()}>
+              保存
             </Button>
           </DialogActions>
         </form>

@@ -35,6 +35,7 @@ type UseDbOperationsParams = {
   currentPath: string;
   visiblePaths: string[];
   capabilities: CapabilitiesResponse;
+  writeApiKey: string;
   importDisabledReason: string;
   scanDisabledReason: string;
   refreshCurrentDirectory: () => Promise<void>;
@@ -64,10 +65,23 @@ function baseActionState(mode: DbRowActionState["mode"], value = ""): DbRowActio
   };
 }
 
+const MAX_UPLOAD_RETRIES = 3;
+
+function delayMs(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, Math.max(0, ms)));
+}
+
+function parseRetryAfterMs(value: string | null): number {
+  const parsed = Number.parseInt(String(value || "").trim(), 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+  return parsed * 1000;
+}
+
 export function useDbOperations({
   currentPath,
   visiblePaths,
   capabilities,
+  writeApiKey,
   importDisabledReason,
   scanDisabledReason,
   refreshCurrentDirectory,
@@ -80,6 +94,9 @@ export function useDbOperations({
   const [rowActionStates, setRowActionStates] = useState<Record<string, DbRowActionState>>({});
   const [globalActionState, setGlobalActionState] = useState<DbGlobalActionState>(() => createInitialGlobalActionState());
   const [actionFeedback, setActionFeedback] = useState<ActionFeedback | null>(null);
+  const normalizedWriteApiKey = (writeApiKey || "").trim();
+  const writeAuthRequired = Boolean(capabilities.write_auth_required);
+  const writeAuthMessage = "写操作已启用 API Key 鉴权，请先设置会话 API Key";
 
   useEffect(() => {
     const visible = new Set(visiblePaths.map((value) => normalizeDir(value || "")).filter(Boolean));
@@ -122,6 +139,25 @@ export function useDbOperations({
     });
   }, []);
 
+  const buildWriteHeaders = useCallback(
+    (base: Record<string, string> = {}) => {
+      const headers = { ...base };
+      if (normalizedWriteApiKey) {
+        headers["X-API-Key"] = normalizedWriteApiKey;
+      }
+      return headers;
+    },
+    [normalizedWriteApiKey]
+  );
+
+  const ensureWriteAuthorized = useCallback(
+    (actionLabel: string): string => {
+      if (!writeAuthRequired || normalizedWriteApiKey) return "";
+      return `${actionLabel}不可用：${writeAuthMessage}`;
+    },
+    [normalizedWriteApiKey, writeAuthMessage, writeAuthRequired]
+  );
+
   const formatFailedSummary = useCallback((payload: BatchDeleteResult): string => {
     const failed = (payload.results || []).filter((item) => !item.ok);
     if (failed.length === 0) return "";
@@ -150,6 +186,12 @@ export function useDbOperations({
         setStatus(`删除不可用：${message}`);
         return;
       }
+      const authMessage = ensureWriteAuthorized("删除文件");
+      if (authMessage) {
+        updateGlobalAction("batchDelete", "error", authMessage, authMessage);
+        setStatus(authMessage);
+        return;
+      }
 
       const list = paths.map((path) => normalizeDir(path || "")).filter(Boolean);
       if (list.length === 0) return;
@@ -161,7 +203,7 @@ export function useDbOperations({
       try {
         const payload = await fetchJson<BatchDeleteResult>("/api/docs/batch-delete", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: buildWriteHeaders({ "Content-Type": "application/json" }),
           body: JSON.stringify({ paths: list }),
         });
 
@@ -183,7 +225,9 @@ export function useDbOperations({
     },
     [
       capabilities.import_enabled,
+      buildWriteHeaders,
       clearSelection,
+      ensureWriteAuthorized,
       formatFailedSummary,
       importDisabledReason,
       refreshCurrentDirectory,
@@ -200,6 +244,12 @@ export function useDbOperations({
         setStatus(`上传不可用：${message}`);
         return;
       }
+      const authMessage = ensureWriteAuthorized("上传");
+      if (authMessage) {
+        updateGlobalAction("upload", "error", authMessage, authMessage);
+        setStatus(authMessage);
+        return;
+      }
 
       if (uploadFiles.length === 0) {
         setStatus("请选择 PDF 文件");
@@ -214,39 +264,73 @@ export function useDbOperations({
       let failedCount = 0;
 
       for (const file of uploadFiles) {
-        try {
-          const response = await fetch(
-            `/api/import?filename=${encodeURIComponent(file.name)}&target_dir=${encodeURIComponent(currentPath)}`,
-            {
-              method: "POST",
-              headers: {
-                Accept: "application/json",
-                "Content-Type": file.type || "application/pdf",
-                "X-File-Name": file.name,
-                "X-Target-Dir": currentPath,
-              },
-              body: file,
+        let submitted = false;
+        for (let attempt = 0; attempt <= MAX_UPLOAD_RETRIES; attempt += 1) {
+          try {
+            const response = await fetch(
+              `/api/import?filename=${encodeURIComponent(file.name)}&target_dir=${encodeURIComponent(currentPath)}`,
+              {
+                method: "POST",
+                headers: buildWriteHeaders({
+                  Accept: "application/json",
+                  "Content-Type": file.type || "application/pdf",
+                  "X-File-Name": file.name,
+                  "X-Target-Dir": currentPath,
+                }),
+                body: file,
+              }
+            );
+
+            const data = (await response.json().catch(() => ({}))) as ImportJob & { message?: string };
+            if (!response.ok) {
+              const message = String(data.message || `${response.status} ${response.statusText}`);
+              const retryable = response.status === 429 || message.toLowerCase().includes("queue is full");
+              const retryAfterMs = parseRetryAfterMs(response.headers.get("Retry-After"));
+              const error = new Error(message) as Error & {
+                retryable?: boolean;
+                retryAfterMs?: number;
+              };
+              error.retryable = retryable;
+              error.retryAfterMs = retryAfterMs;
+              throw error;
             }
-          );
 
-          const data = (await response.json().catch(() => ({}))) as ImportJob & { message?: string };
-          if (!response.ok) throw new Error(String(data.message || `${response.status} ${response.statusText}`));
+            successCount += 1;
+            upsertJob(data, "import");
+            startImportJob(String(data.job_id || ""));
+            submitted = true;
+            break;
+          } catch (error) {
+            const typed = error as Error & {
+              retryable?: boolean;
+              retryAfterMs?: number;
+            };
+            const canRetry = Boolean(typed.retryable) && attempt < MAX_UPLOAD_RETRIES;
+            if (canRetry) {
+              const waitMs = Math.max(Number(typed.retryAfterMs || 0), 800 * 2 ** attempt);
+              const waitSec = Math.ceil(waitMs / 1000);
+              const retryText = `上传队列繁忙，${waitSec}s 后重试：${file.name}（重试 ${attempt + 1}/${MAX_UPLOAD_RETRIES}）`;
+              updateGlobalAction("upload", "pending", retryText);
+              setStatus(retryText);
+              await delayMs(waitMs);
+              continue;
+            }
 
-          successCount += 1;
-          upsertJob(data, "import");
-          startImportJob(String(data.job_id || ""));
-        } catch (error) {
-          failedCount += 1;
-          upsertJob(
-            {
-              job_id: `error-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-              filename: file.name,
-              status: "failed",
-              error: String((error as Error)?.message || error),
-            },
-            "import"
-          );
+            failedCount += 1;
+            upsertJob(
+              {
+                job_id: `error-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                filename: file.name,
+                status: "failed",
+                error: String((typed as Error)?.message || typed),
+              },
+              "import"
+            );
+            break;
+          }
         }
+
+        if (!submitted) continue;
       }
 
       const message = `上传提交完成：成功 ${successCount}/${uploadFiles.length}，失败 ${failedCount}`;
@@ -256,7 +340,9 @@ export function useDbOperations({
     },
     [
       capabilities.import_enabled,
+      buildWriteHeaders,
       currentPath,
+      ensureWriteAuthorized,
       importDisabledReason,
       setStatus,
       startImportJob,
@@ -271,6 +357,12 @@ export function useDbOperations({
         const message = importDisabledReason || "导入服务不可用";
         updateGlobalAction("createFolder", "error", `创建目录不可用：${message}`, message);
         setStatus(`创建目录不可用：${message}`);
+        return;
+      }
+      const authMessage = ensureWriteAuthorized("创建目录");
+      if (authMessage) {
+        updateGlobalAction("createFolder", "error", authMessage, authMessage);
+        setStatus(authMessage);
         return;
       }
 
@@ -290,7 +382,7 @@ export function useDbOperations({
       try {
         await fetchJson("/api/folders", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: buildWriteHeaders({ "Content-Type": "application/json" }),
           body: JSON.stringify({ path: currentPath, name }),
         });
         onSuccess?.();
@@ -304,7 +396,16 @@ export function useDbOperations({
         setStatus(`创建失败：${message}`);
       }
     },
-    [capabilities.import_enabled, currentPath, importDisabledReason, refreshCurrentDirectory, setStatus, updateGlobalAction]
+    [
+      buildWriteHeaders,
+      capabilities.import_enabled,
+      currentPath,
+      ensureWriteAuthorized,
+      importDisabledReason,
+      refreshCurrentDirectory,
+      setStatus,
+      updateGlobalAction,
+    ]
   );
 
   const beginFolderRename = useCallback(
@@ -320,6 +421,12 @@ export function useDbOperations({
       if (!capabilities.import_enabled) {
         const message = importDisabledReason || "导入服务不可用";
         setRowActionState(path, { ...baseActionState("renaming"), error: message, phase: "error" });
+        return;
+      }
+      const authMessage = ensureWriteAuthorized("目录改名");
+      if (authMessage) {
+        setRowActionState(path, { ...baseActionState("renaming"), error: authMessage, phase: "error" });
+        setStatus(authMessage);
         return;
       }
 
@@ -338,7 +445,7 @@ export function useDbOperations({
       try {
         const result = await fetchJson<{ updated: boolean; old_path: string; new_path: string }>("/api/folders/rename", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: buildWriteHeaders({ "Content-Type": "application/json" }),
           body: JSON.stringify({ path, new_name: newName }),
         });
         setRowActionState(path, { ...state, phase: "success" });
@@ -351,8 +458,10 @@ export function useDbOperations({
       }
     },
     [
+      buildWriteHeaders,
       capabilities.import_enabled,
       clearRowActionState,
+      ensureWriteAuthorized,
       getRowActionState,
       importDisabledReason,
       refreshCurrentDirectory,
@@ -369,6 +478,12 @@ export function useDbOperations({
         setStatus(`删除不可用：${message}`);
         return;
       }
+      const authMessage = ensureWriteAuthorized("删除目录");
+      if (authMessage) {
+        updateGlobalAction("batchDelete", "error", authMessage, authMessage);
+        setStatus(authMessage);
+        return;
+      }
 
       const list = paths.map((path) => normalizeDir(path || "")).filter(Boolean);
       if (list.length === 0) return;
@@ -380,7 +495,7 @@ export function useDbOperations({
       try {
         const payload = await fetchJson<BatchDeleteResult>("/api/folders/delete", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: buildWriteHeaders({ "Content-Type": "application/json" }),
           body: JSON.stringify({ paths: list, recursive: true }),
         });
 
@@ -399,7 +514,16 @@ export function useDbOperations({
         setStatus(`目录删除失败：${message}`);
       }
     },
-    [capabilities.import_enabled, formatFailedSummary, importDisabledReason, refreshCurrentDirectory, setStatus, updateGlobalAction]
+    [
+      buildWriteHeaders,
+      capabilities.import_enabled,
+      ensureWriteAuthorized,
+      formatFailedSummary,
+      importDisabledReason,
+      refreshCurrentDirectory,
+      setStatus,
+      updateGlobalAction,
+    ]
   );
 
   const triggerRescan = useCallback(async () => {
@@ -409,10 +533,19 @@ export function useDbOperations({
       setStatus(`重扫不可用：${message}`);
       return;
     }
+    const authMessage = ensureWriteAuthorized("触发重扫");
+    if (authMessage) {
+      updateGlobalAction("rescan", "error", authMessage, authMessage);
+      setStatus(authMessage);
+      return;
+    }
 
     updateGlobalAction("rescan", "pending", `正在提交重扫任务：${normalizeDir(currentPath) || "/"}`);
     try {
-      const job = await fetchJson<ScanJob>(`/api/scan?path=${encodeURIComponent(currentPath)}`, { method: "POST" });
+      const job = await fetchJson<ScanJob>(`/api/scan?path=${encodeURIComponent(currentPath)}`, {
+        method: "POST",
+        headers: buildWriteHeaders(),
+      });
       const jobId = String(job.job_id || "");
       if (!jobId) {
         throw new Error("scan job id missing");
@@ -428,8 +561,10 @@ export function useDbOperations({
       setStatus(`触发重扫失败：${message}`);
     }
   }, [
+    buildWriteHeaders,
     capabilities.scan_enabled,
     currentPath,
+    ensureWriteAuthorized,
     scanDisabledReason,
     setStatus,
     startScanJob,
@@ -453,6 +588,12 @@ export function useDbOperations({
         setRowActionState(path, { ...baseActionState("renaming"), error: message, phase: "error" });
         return;
       }
+      const authMessage = ensureWriteAuthorized("文件改名");
+      if (authMessage) {
+        setRowActionState(path, { ...baseActionState("renaming"), error: authMessage, phase: "error" });
+        setStatus(authMessage);
+        return;
+      }
 
       const state = getRowActionState(path);
       const newName = state.value.trim();
@@ -465,7 +606,7 @@ export function useDbOperations({
       try {
         const result = await fetchJson<RenameDocResponse>("/api/docs/rename", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: buildWriteHeaders({ "Content-Type": "application/json" }),
           body: JSON.stringify({ path, new_name: newName }),
         });
         setRowActionState(path, { ...state, phase: "success" });
@@ -478,8 +619,10 @@ export function useDbOperations({
       }
     },
     [
+      buildWriteHeaders,
       capabilities.import_enabled,
       clearRowActionState,
+      ensureWriteAuthorized,
       getRowActionState,
       importDisabledReason,
       refreshCurrentDirectory,
@@ -495,6 +638,12 @@ export function useDbOperations({
         setRowActionState(path, { ...baseActionState("moving"), error: message, phase: "error" });
         return;
       }
+      const authMessage = ensureWriteAuthorized("文件移动");
+      if (authMessage) {
+        setRowActionState(path, { ...baseActionState("moving"), error: authMessage, phase: "error" });
+        setStatus(authMessage);
+        return;
+      }
 
       const state = getRowActionState(path);
       const targetDir = normalizeDir(state.value || "");
@@ -503,7 +652,7 @@ export function useDbOperations({
       try {
         const result = await fetchJson<MoveDocResponse>("/api/docs/move", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: buildWriteHeaders({ "Content-Type": "application/json" }),
           body: JSON.stringify({ path, target_dir: targetDir }),
         });
         setRowActionState(path, { ...state, phase: "success" });
@@ -516,8 +665,10 @@ export function useDbOperations({
       }
     },
     [
+      buildWriteHeaders,
       capabilities.import_enabled,
       clearRowActionState,
+      ensureWriteAuthorized,
       getRowActionState,
       importDisabledReason,
       refreshCurrentDirectory,

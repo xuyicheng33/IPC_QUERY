@@ -13,6 +13,7 @@ from urllib.parse import quote
 
 from ipc_query.api.server import create_server
 from ipc_query.config import Config
+from ipc_query.exceptions import RateLimitError
 
 
 def _make_config(tmp_path: Path, db_path: Path) -> Config:
@@ -238,6 +239,29 @@ def test_render_invalid_path_returns_not_found(tmp_path: Path) -> None:
         body = json.loads(payload.decode("utf-8"))
         assert status == 404
         assert body["error"] == "NOT_FOUND"
+    finally:
+        server.stop()
+        thread.join(timeout=3.0)
+
+
+def test_scan_queue_full_returns_retry_after_header(tmp_path: Path) -> None:
+    db_path = tmp_path / "data.sqlite"
+    cfg = _make_config(tmp_path, db_path)
+    server = create_server(cfg)
+    thread, port = _start_server(server)
+    try:
+        assert server._scan is not None
+
+        def _raise_rate_limited(path: str = "") -> dict[str, object]:
+            raise RateLimitError("Scan queue is full, please retry later", retry_after=3)
+
+        server._scan.submit_scan = _raise_rate_limited  # type: ignore[method-assign]
+
+        status, payload, headers = _request(port, "POST", "/api/scan")
+        body = json.loads(payload.decode("utf-8"))
+        assert status == 429
+        assert body["error"] == "RATE_LIMITED"
+        assert headers.get("retry-after") == "3"
     finally:
         server.stop()
         thread.join(timeout=3.0)

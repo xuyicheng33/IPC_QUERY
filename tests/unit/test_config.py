@@ -61,6 +61,13 @@ def test_import_jobs_retained_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     assert config.import_jobs_retained == 321
 
 
+def test_import_queue_size_defaults_to_64(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("IMPORT_QUEUE_SIZE", raising=False)
+
+    config = Config.from_env()
+    assert config.import_queue_size == 64
+
+
 def test_import_mode_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("IMPORT_MODE", "enabled")
     config = Config.from_env()

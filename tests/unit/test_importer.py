@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from build_db import ensure_schema
-from ipc_query.exceptions import ConflictError, ValidationError
+from ipc_query.exceptions import ConflictError, RateLimitError, ValidationError
 from ipc_query.services import importer as importer_module
 from ipc_query.services.importer import ImportService
 
@@ -46,8 +46,9 @@ def test_submit_upload_queue_full_cleans_temp_file(
 
         monkeypatch.setattr(service._queue, "put_nowait", _raise_full)
 
-        with pytest.raises(ValidationError):
+        with pytest.raises(RateLimitError) as exc:
             service.submit_upload("queue-full.pdf", _PDF_PAYLOAD, "application/pdf")
+        assert exc.value.details.get("retry_after") == 3
 
         assert list((tmp_path / "uploads").glob("*.pdf")) == []
         jobs = service.list_jobs(limit=10)

@@ -18,8 +18,9 @@ from typing import Any, Callable, cast
 
 from build_db import ingest_pdfs
 
-from ..exceptions import ConflictError, ValidationError
+from ..exceptions import ConflictError, RateLimitError, ValidationError
 from ..utils.logger import get_logger
+from ..utils.metrics import metrics
 
 logger = get_logger(__name__)
 
@@ -73,7 +74,7 @@ class ImportService:
         pdf_dir: Path,
         upload_dir: Path | None = None,
         max_file_size_mb: int = 100,
-        queue_size: int = 8,
+        queue_size: int = 64,
         job_timeout_s: int = 600,
         max_jobs_retained: int = 1000,
         on_success: Callable[[], None] | None = None,
@@ -138,7 +139,8 @@ class ImportService:
                 self._jobs[job_id].finished_at = time.time()
                 self._prune_jobs_locked()
             self._safe_unlink(staged_path)
-            raise ValidationError("Import queue is full, please retry later") from e
+            metrics.counter_increment("import_queue_rejected_total")
+            raise RateLimitError("Import queue is full, please retry later", retry_after=3) from e
 
         logger.info(
             "Import job queued",

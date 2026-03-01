@@ -24,7 +24,15 @@ services:
       - LOG_FORMAT=${LOG_FORMAT:-json}
       - CACHE_SIZE=${CACHE_SIZE:-1000}
       - CACHE_TTL=${CACHE_TTL:-300}
+      - CACHE_DIR=/app/cache
       - IMPORT_MODE=${IMPORT_MODE:-auto}
+      - IMPORT_QUEUE_SIZE=${IMPORT_QUEUE_SIZE:-64}
+      - IMPORT_MAX_FILE_SIZE_MB=${IMPORT_MAX_FILE_SIZE_MB:-100}
+      - IMPORT_JOB_TIMEOUT_S=${IMPORT_JOB_TIMEOUT_S:-600}
+      - IMPORT_JOBS_RETAINED=${IMPORT_JOBS_RETAINED:-1000}
+      - WRITE_API_AUTH_MODE=${WRITE_API_AUTH_MODE:-disabled}
+      - WRITE_API_KEY=${WRITE_API_KEY:-}
+      - LEGACY_FOLDER_ROUTES_ENABLED=${LEGACY_FOLDER_ROUTES_ENABLED:-true}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8791/api/health', timeout=2).read()"]
