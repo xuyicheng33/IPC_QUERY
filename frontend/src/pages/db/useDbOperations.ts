@@ -65,7 +65,8 @@ function baseActionState(mode: DbRowActionState["mode"], value = ""): DbRowActio
   };
 }
 
-const MAX_UPLOAD_RETRIES = 3;
+const MAX_UPLOAD_WAIT_MS_PER_FILE = 15 * 60 * 1000;
+const MAX_UPLOAD_BACKOFF_MS = 15_000;
 
 function delayMs(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, Math.max(0, ms)));
@@ -73,6 +74,15 @@ function delayMs(ms: number): Promise<void> {
 
 function parseRetryAfterMs(value: string | null): number {
   const parsed = Number.parseInt(String(value || "").trim(), 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+  return parsed * 1000;
+}
+
+function parseRetryAfterMsFromBody(data: unknown): number {
+  if (!data || typeof data !== "object") return 0;
+  const details = (data as { details?: { retry_after?: unknown } }).details;
+  const retryAfterRaw = details?.retry_after;
+  const parsed = Number.parseInt(String(retryAfterRaw ?? "").trim(), 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return 0;
   return parsed * 1000;
 }
@@ -265,7 +275,8 @@ export function useDbOperations({
 
       for (const file of uploadFiles) {
         let submitted = false;
-        for (let attempt = 0; attempt <= MAX_UPLOAD_RETRIES; attempt += 1) {
+        let waitedMsTotal = 0;
+        for (let attempt = 0; ; attempt += 1) {
           try {
             const response = await fetch(
               `/api/import?filename=${encodeURIComponent(file.name)}&target_dir=${encodeURIComponent(currentPath)}`,
@@ -285,7 +296,10 @@ export function useDbOperations({
             if (!response.ok) {
               const message = String(data.message || `${response.status} ${response.statusText}`);
               const retryable = response.status === 429 || message.toLowerCase().includes("queue is full");
-              const retryAfterMs = parseRetryAfterMs(response.headers.get("Retry-After"));
+              const retryAfterMs = Math.max(
+                parseRetryAfterMs(response.headers.get("Retry-After")),
+                parseRetryAfterMsFromBody(data)
+              );
               const error = new Error(message) as Error & {
                 retryable?: boolean;
                 retryAfterMs?: number;
@@ -305,11 +319,29 @@ export function useDbOperations({
               retryable?: boolean;
               retryAfterMs?: number;
             };
-            const canRetry = Boolean(typed.retryable) && attempt < MAX_UPLOAD_RETRIES;
+            const canRetry = Boolean(typed.retryable);
             if (canRetry) {
-              const waitMs = Math.max(Number(typed.retryAfterMs || 0), 800 * 2 ** attempt);
+              const waitMs = Math.min(
+                MAX_UPLOAD_BACKOFF_MS,
+                Math.max(Number(typed.retryAfterMs || 0), 800 * 2 ** Math.min(attempt, 6))
+              );
+              waitedMsTotal += waitMs;
+              if (waitedMsTotal > MAX_UPLOAD_WAIT_MS_PER_FILE) {
+                const timeoutMessage = `上传队列长时间繁忙，单文件等待超过 ${Math.ceil(MAX_UPLOAD_WAIT_MS_PER_FILE / 1000)}s：${file.name}`;
+                failedCount += 1;
+                upsertJob(
+                  {
+                    job_id: `error-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                    filename: file.name,
+                    status: "failed",
+                    error: timeoutMessage,
+                  },
+                  "import"
+                );
+                break;
+              }
               const waitSec = Math.ceil(waitMs / 1000);
-              const retryText = `上传队列繁忙，${waitSec}s 后重试：${file.name}（重试 ${attempt + 1}/${MAX_UPLOAD_RETRIES}）`;
+              const retryText = `上传队列繁忙，${waitSec}s 后重试：${file.name}（第 ${attempt + 1} 次重试，已提交 ${successCount}/${uploadFiles.length}）`;
               updateGlobalAction("upload", "pending", retryText);
               setStatus(retryText);
               await delayMs(waitMs);
