@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ipc_query"
-version = "4.0.0"
+version = "4.0.1"
 description = "IPC (Illustrated Parts Catalog) data extraction and query system"
 readme = "README.md"
 license = {text = "MIT"}

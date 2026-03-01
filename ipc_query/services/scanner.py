@@ -58,6 +58,7 @@ class ScanService:
         self,
         db_path: Path,
         pdf_dir: Path,
+        queue_size: int = 64,
         max_jobs_retained: int = 200,
         on_success: Callable[[], None] | None = None,
         db_write_lock: threading.Lock | None = None,
@@ -71,7 +72,7 @@ class ScanService:
         self._jobs: dict[str, ScanJob] = {}
         self._job_order: list[str] = []
         self._lock = threading.Lock()
-        self._queue: queue.Queue[str] = queue.Queue(maxsize=64)
+        self._queue: queue.Queue[str] = queue.Queue(maxsize=max(1, int(queue_size)))
         self._stop_event = threading.Event()
         self._worker = threading.Thread(target=self._run_worker, name="ipc-scan-worker", daemon=True)
         self._worker.start()

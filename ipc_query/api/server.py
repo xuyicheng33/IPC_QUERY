@@ -852,6 +852,7 @@ def create_server(config: Config) -> Server:
         scan_service = ScanService(
             db_path=config.database_path,
             pdf_dir=config.pdf_dir,
+            queue_size=config.import_queue_size,
             max_jobs_retained=config.import_jobs_retained,
             on_success=_on_content_changed,
             db_write_lock=db_write_lock,

@@ -1,4 +1,4 @@
-# IPC_QUERY (v4.0.0)
+# IPC_QUERY (v4.0.1)
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://python.org)
 [![License](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
@@ -115,6 +115,8 @@ docker compose up -d --build
 | `/api/capabilities` | GET | 查询导入/扫描能力开关 |
 | `/api/health` | GET | 健康检查 |
 | `/api/metrics` | GET | 运行指标 |
+
+补充说明：`GET /api/import/jobs` 支持 `limit` 参数，取值范围 `1-5000`（默认 `20`）。
 
 ## 关键配置项（环境变量）
 
