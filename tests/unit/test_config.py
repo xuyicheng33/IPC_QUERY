@@ -89,3 +89,45 @@ def test_from_args_pdf_dir_defaults_upload_dir_to_same_path(monkeypatch: pytest.
     config = Config.from_args(args)
     assert config.pdf_dir == Path("/tmp/cli-pdfs")
     assert config.upload_dir == Path("/tmp/cli-pdfs")
+
+
+def test_write_api_auth_mode_requires_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("WRITE_API_AUTH_MODE", "api_key")
+    monkeypatch.delenv("WRITE_API_KEY", raising=False)
+
+    with pytest.raises(ConfigurationError):
+        Config.from_env()
+
+
+def test_write_api_auth_mode_with_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("WRITE_API_AUTH_MODE", "api_key")
+    monkeypatch.setenv("WRITE_API_KEY", "secret")
+
+    config = Config.from_env()
+    assert config.write_api_auth_mode == "api_key"
+    assert config.write_api_key == "secret"
+
+
+def test_legacy_folder_routes_enabled_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LEGACY_FOLDER_ROUTES_ENABLED", "false")
+
+    config = Config.from_env()
+    assert config.legacy_folder_routes_enabled is False
+
+
+def test_render_workers_env_acts_as_render_semaphore_alias(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RENDER_WORKERS", "7")
+    monkeypatch.delenv("RENDER_SEMAPHORE", raising=False)
+
+    config = Config.from_env()
+    assert config.render_semaphore == 7
+    assert config.render_workers == 7
+
+
+def test_render_semaphore_takes_precedence_over_render_workers(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RENDER_WORKERS", "7")
+    monkeypatch.setenv("RENDER_SEMAPHORE", "3")
+
+    config = Config.from_env()
+    assert config.render_semaphore == 3
+    assert config.render_workers == 3

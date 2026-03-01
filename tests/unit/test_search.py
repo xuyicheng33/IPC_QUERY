@@ -138,6 +138,37 @@ class TestSearchService:
         assert mock_part_repo.search_by_pn.call_count == 1
         assert result1 == result2
 
+    def test_constructor_uses_cache_size_and_ttl_from_config(self, mock_part_repo: MagicMock) -> None:
+        mock_config = MagicMock()
+        mock_config.cache_size = 42
+        mock_config.cache_ttl = 123
+        mock_config.default_page_size = 20
+        mock_config.max_page_size = 100
+
+        fake_cache = MagicMock()
+        with patch("ipc_query.services.search.get_cache", return_value=fake_cache) as get_cache_mock:
+            service = SearchService(mock_part_repo, mock_config)
+
+        assert service._cache is fake_cache
+        get_cache_mock.assert_called_once_with("search_results", max_size=42, ttl=123)
+
+    def test_search_uses_configured_cache_ttl(self, mock_part_repo: MagicMock) -> None:
+        mock_config = MagicMock()
+        mock_config.cache_size = 100
+        mock_config.cache_ttl = 77
+        mock_config.default_page_size = 20
+        mock_config.max_page_size = 100
+        service = SearchService(mock_part_repo, mock_config)
+        service._cache = MagicMock()
+        service._cache.get.return_value = None
+        mock_part_repo.search_all.return_value = ([], 0)
+
+        service.search("test", match="all")
+
+        assert service._cache.set.call_count == 1
+        set_kwargs = service._cache.set.call_args.kwargs
+        assert set_kwargs["ttl"] == 77
+
     def test_search_pagination(self, search_service: SearchService, mock_part_repo: MagicMock) -> None:
         """分页参数正确传递"""
         mock_part_repo.search_all.return_value = ([], 0)
@@ -302,6 +333,25 @@ class TestGetPartDetail:
 
         # 仓库只被调用一次
         assert mock_part_repo.get_detail.call_count == 1
+
+    def test_get_part_detail_uses_configured_cache_ttl(self, mock_part_repo: MagicMock) -> None:
+        mock_config = MagicMock()
+        mock_config.cache_size = 100
+        mock_config.cache_ttl = 88
+        mock_config.default_page_size = 20
+        mock_config.max_page_size = 100
+        service = SearchService(mock_part_repo, mock_config)
+        service._cache = MagicMock()
+        service._cache.get.return_value = None
+        mock_detail = MagicMock()
+        mock_detail.to_dict.return_value = {"id": 1}
+        mock_part_repo.get_detail.return_value = mock_detail
+
+        service.get_part_detail(1)
+
+        assert service._cache.set.call_count == 1
+        set_kwargs = service._cache.set.call_args.kwargs
+        assert set_kwargs["ttl"] == 88
 
 
 class TestWarmup:

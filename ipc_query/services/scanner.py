@@ -263,7 +263,9 @@ class ScanService:
         parts = [p for p in raw.split("/") if p]
         if any(p in {".", ".."} for p in parts):
             raise ValidationError("Invalid path")
-        return "/".join(parts)
+        if len(parts) > 1:
+            raise ValidationError("Only top-level directory is supported for path (single-level policy)")
+        return parts[0]
 
     def _prune_jobs_locked(self) -> None:
         if len(self._job_order) <= self._max_jobs_retained:

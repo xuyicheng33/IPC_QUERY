@@ -79,12 +79,27 @@ python3 -m ipc_query serve \
 - `scan_enabled`
 - `import_reason`
 - `scan_reason`
+- `write_auth_mode` / `write_auth_required`
+- `directory_policy`（v4.0 固定为 `single_level`）
 
 ### 8.2 详情页 PDF 无法打开
 
 检查：
 - 文档对应文件是否真实存在于 `--pdf-dir` 下
 - 直接访问 `/pdf/{relative_path}` 是否返回文件
+
+### 8.3 写接口返回 401（UNAUTHORIZED）
+
+检查：
+- 是否开启了 `WRITE_API_AUTH_MODE=api_key`
+- 请求头是否携带 `X-API-Key: <WRITE_API_KEY>`
+- 写接口范围包括导入/删除/改名/移动/建目录/删目录/扫描
+
+### 8.4 目录操作被拒绝（single-level policy）
+
+v4.0 当前仅支持根目录和一级子目录：
+- 允许：`""`、`engine`
+- 拒绝：`a/b`、`a/b/c`
 
 ### 8.3 修改前端后页面不生效
 

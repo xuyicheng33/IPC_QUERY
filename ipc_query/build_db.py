@@ -844,7 +844,59 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
         WHERE COALESCE(TRIM(relative_path), '') = ''
         """
     )
+    _ensure_documents_relative_path_unique(conn)
     conn.commit()
+
+
+def _ensure_documents_relative_path_unique(conn: sqlite3.Connection) -> None:
+    if _has_unique_index_on_relative_path(conn):
+        return
+
+    dup_rows = conn.execute(
+        """
+        SELECT relative_path, COUNT(1) AS n
+        FROM documents
+        GROUP BY relative_path
+        HAVING COUNT(1) > 1
+        ORDER BY n DESC, relative_path
+        LIMIT 20
+        """
+    ).fetchall()
+    if dup_rows:
+        samples = [f"{str(r[0])} (x{int(r[1])})" for r in dup_rows[:5]]
+        detail = "; ".join(samples)
+        raise sqlite3.IntegrityError(
+            "Cannot enforce UNIQUE(documents.relative_path): duplicate values found. "
+            f"Examples: {detail}. Please deduplicate rows before retrying."
+        )
+
+    conn.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_relative_path_unique
+        ON documents(relative_path)
+        """
+    )
+
+
+def _has_unique_index_on_relative_path(conn: sqlite3.Connection) -> bool:
+    try:
+        indexes = conn.execute("PRAGMA index_list(documents)").fetchall()
+    except sqlite3.Error:
+        return False
+
+    for idx in indexes:
+        if int(idx[2] or 0) != 1:
+            continue
+        index_name = str(idx[1] or "")
+        safe_index_name = index_name.replace("'", "''")
+        try:
+            cols = conn.execute(f"PRAGMA index_info('{safe_index_name}')").fetchall()
+        except sqlite3.Error:
+            continue
+        col_names = [str(col[2]) for col in cols if len(col) > 2]
+        if col_names == ["relative_path"]:
+            return True
+    return False
 
 
 def _migrate_documents_pdf_name_unique(conn: sqlite3.Connection) -> None:

@@ -123,11 +123,18 @@ export type ScanJob = {
   error?: string;
 };
 
+export type WriteAuthMode = "disabled" | "api_key";
+
 export type CapabilitiesResponse = {
   import_enabled: boolean;
   scan_enabled: boolean;
   import_reason: string;
   scan_reason: string;
+  write_auth_mode: WriteAuthMode;
+  write_auth_required: boolean;
+  legacy_folder_routes_enabled: boolean;
+  directory_policy: "single_level";
+  path_policy_warning_count: number;
 };
 
 export type RenameDocRequest = {

@@ -103,9 +103,12 @@ docker compose up -d --build
 | `/api/docs/batch-delete` | POST | 批量删除 PDF |
 | `/api/docs/rename` | POST | 重命名 PDF |
 | `/api/docs/move` | POST | 移动 PDF |
-| `/api/docs/folder/create` | POST | 新建目录 |
-| `/api/docs/folder/rename` | POST | 重命名目录 |
-| `/api/docs/folder/delete` | POST | 删除目录 |
+| `/api/folders` | POST | 新建目录（canonical） |
+| `/api/folders/rename` | POST | 重命名目录（canonical） |
+| `/api/folders/delete` | POST | 删除目录（canonical） |
+| `/api/docs/folder/create` | POST | 新建目录（legacy alias，计划于 2026-06-30 sunset） |
+| `/api/docs/folder/rename` | POST | 重命名目录（legacy alias，计划于 2026-06-30 sunset） |
+| `/api/docs/folder/delete` | POST | 删除目录（legacy alias，计划于 2026-06-30 sunset） |
 | `/api/scan` | POST | 触发增量扫描 |
 | `/api/scan/{job_id}` | GET | 查询扫描任务状态 |
 | `/api/capabilities` | GET | 查询导入/扫描能力开关 |
@@ -123,11 +126,28 @@ docker compose up -d --build
 | `UPLOAD_DIR` | 空 | 上传目录（未设置时默认跟随 `PDF_DIR`） |
 | `IMPORT_MODE` | `auto` | `auto`/`enabled`/`disabled` |
 | `CACHE_SIZE` | `1000` | 缓存条目上限 |
-| `CACHE_TTL` | `300` | 缓存 TTL（秒） |
+| `CACHE_TTL` | `300` | 搜索缓存 TTL（秒，`search_results` 与详情缓存均使用该值） |
+| `RENDER_SEMAPHORE` | `4` | 渲染并发上限（canonical） |
+| `RENDER_WORKERS` | `4` | `RENDER_SEMAPHORE` 的兼容别名（deprecated） |
+| `WRITE_API_AUTH_MODE` | `disabled` | 写接口鉴权模式：`disabled` / `api_key` |
+| `WRITE_API_KEY` | 空 | 当 `WRITE_API_AUTH_MODE=api_key` 时必填，请通过请求头 `X-API-Key` 传递 |
+| `LEGACY_FOLDER_ROUTES_ENABLED` | `true` | 是否启用 `/api/docs/folder/*` legacy 路由 |
 | `LOG_LEVEL` | `INFO` | 日志级别 |
 | `LOG_FORMAT` | `json` | `json` 或 `text` |
 
 参考模板：`.env.example`
+
+## 目录策略与鉴权说明
+
+- 目录策略固定为 `single_level`：仅允许根目录和一级子目录，不支持多级目录写入。
+- 当 `WRITE_API_AUTH_MODE=api_key` 时，所有写接口（导入/删除/改名/移动/建目录/删目录/扫描）必须携带 `X-API-Key`。
+- 写接口鉴权失败返回 `401`，错误码为 `UNAUTHORIZED`。
+- 运行时可通过 `/api/capabilities` 获取：
+  - `write_auth_mode`
+  - `write_auth_required`
+  - `legacy_folder_routes_enabled`
+  - `directory_policy`
+  - `path_policy_warning_count`
 
 ## 质量门禁（建议提交前执行）
 

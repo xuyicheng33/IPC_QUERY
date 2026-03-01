@@ -158,3 +158,45 @@ def test_ingest_pdfs_replaces_by_relative_path_only(
             ("engine/same.pdf", 1),
             ("other/same.pdf", 1),
         ]
+
+
+def test_ensure_schema_adds_unique_index_for_documents_relative_path(tmp_path: Path) -> None:
+    db_path = tmp_path / "unique-index.sqlite"
+    with sqlite3.connect(str(db_path)) as conn:
+        build_db_module.ensure_schema(conn)
+        rows = conn.execute("PRAGMA index_list(documents)").fetchall()
+        unique_index_names = {
+            str(r[1])
+            for r in rows
+            if int(r[2]) == 1
+        }
+        assert "idx_documents_relative_path_unique" in unique_index_names
+
+
+def test_ensure_schema_fails_fast_when_relative_path_has_duplicates(tmp_path: Path) -> None:
+    db_path = tmp_path / "dup.sqlite"
+    with sqlite3.connect(str(db_path)) as conn:
+        conn.executescript(
+            """
+            CREATE TABLE documents (
+              id INTEGER PRIMARY KEY,
+              pdf_name TEXT NOT NULL,
+              relative_path TEXT NOT NULL DEFAULT '',
+              pdf_path TEXT NOT NULL,
+              miner_dir TEXT NOT NULL,
+              created_at TEXT NOT NULL
+            );
+            """
+        )
+        conn.execute(
+            "INSERT INTO documents(pdf_name, relative_path, pdf_path, miner_dir, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
+            ("a.pdf", "dup/a.pdf", "dup/a.pdf", "{}"),
+        )
+        conn.execute(
+            "INSERT INTO documents(pdf_name, relative_path, pdf_path, miner_dir, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
+            ("a-copy.pdf", "dup/a.pdf", "dup/a.pdf", "{}"),
+        )
+        conn.commit()
+
+        with pytest.raises(sqlite3.IntegrityError, match="duplicate values found"):
+            build_db_module.ensure_schema(conn)

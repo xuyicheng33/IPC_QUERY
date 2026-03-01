@@ -27,6 +27,11 @@ export function DbPage() {
     scan_enabled: true,
     import_reason: "",
     scan_reason: "",
+    write_auth_mode: "disabled",
+    write_auth_required: false,
+    legacy_folder_routes_enabled: true,
+    directory_policy: "single_level",
+    path_policy_warning_count: 0,
   });
 
   const directory = useDbDirectoryModel({ initialPath: dbPathFromUrl(window.location.search) });
@@ -45,6 +50,11 @@ export function DbPage() {
         scan_enabled: Boolean(payload.scan_enabled),
         import_reason: String(payload.import_reason || ""),
         scan_reason: String(payload.scan_reason || ""),
+        write_auth_mode: payload.write_auth_mode === "api_key" ? "api_key" : "disabled",
+        write_auth_required: Boolean(payload.write_auth_required),
+        legacy_folder_routes_enabled: Boolean(payload.legacy_folder_routes_enabled),
+        directory_policy: "single_level",
+        path_policy_warning_count: Number(payload.path_policy_warning_count || 0),
       });
     } catch (error) {
       const message = String((error as Error)?.message || error);

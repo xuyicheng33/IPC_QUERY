@@ -182,6 +182,52 @@ def test_pdf_range_request_returns_partial_content(tmp_path: Path) -> None:
         thread.join(timeout=3.0)
 
 
+def test_pdf_range_suffix_and_open_ended_and_invalid_ranges(tmp_path: Path) -> None:
+    db_path = tmp_path / "data.sqlite"
+    cfg = _make_config(tmp_path, db_path)
+
+    pdf_name = "range-multi.pdf"
+    pdf_path = cfg.pdf_dir / pdf_name
+    content = b"%PDF-1.4\nabcdefghij\n%%EOF\n"
+    pdf_path.write_bytes(content)
+
+    server = create_server(cfg)
+    thread, port = _start_server(server)
+    try:
+        status_suffix, payload_suffix, headers_suffix = _request(
+            port,
+            "GET",
+            f"/pdf/{quote(pdf_name, safe='')}",
+            headers={"Range": "bytes=-4"},
+        )
+        assert status_suffix == 206
+        assert payload_suffix == content[-4:]
+        assert headers_suffix.get("content-range", "").endswith(f"/{len(content)}")
+
+        status_open, payload_open, headers_open = _request(
+            port,
+            "GET",
+            f"/pdf/{quote(pdf_name, safe='')}",
+            headers={"Range": "bytes=5-"},
+        )
+        assert status_open == 206
+        assert payload_open == content[5:]
+        assert headers_open.get("content-range", "").startswith(f"bytes 5-{len(content)-1}/")
+
+        status_invalid, payload_invalid, headers_invalid = _request(
+            port,
+            "GET",
+            f"/pdf/{quote(pdf_name, safe='')}",
+            headers={"Range": "bytes=9999-10000"},
+        )
+        assert status_invalid == 416
+        assert payload_invalid == b""
+        assert headers_invalid.get("content-range", "") == f"bytes */{len(content)}"
+    finally:
+        server.stop()
+        thread.join(timeout=3.0)
+
+
 def test_render_invalid_path_returns_not_found(tmp_path: Path) -> None:
     db_path = tmp_path / "data.sqlite"
     cfg = _make_config(tmp_path, db_path)

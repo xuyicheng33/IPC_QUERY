@@ -32,9 +32,24 @@ class SearchService:
         part_repo: PartRepository,
         config: Config,
     ):
+        cache_size_raw = getattr(config, "cache_size", 1000)
+        cache_ttl_raw = getattr(config, "cache_ttl", 300)
+        try:
+            cache_size = max(1, int(cache_size_raw))
+        except Exception:
+            cache_size = 1000
+        try:
+            cache_ttl = max(1, int(cache_ttl_raw))
+        except Exception:
+            cache_ttl = 300
+
         self._repo = part_repo
         self._config = config
-        self._cache = get_cache("search_results")
+        self._cache = get_cache(
+            "search_results",
+            max_size=cache_size,
+            ttl=cache_ttl,
+        )
 
     def search(
         self,
@@ -137,7 +152,7 @@ class SearchService:
         }
 
         # 存入缓存
-        self._cache.set(cache_key, result, ttl=60)
+        self._cache.set(cache_key, result, ttl=self._cache_ttl())
 
         logger.info(
             "Search completed",
@@ -260,7 +275,7 @@ class SearchService:
         result = detail.to_dict()
 
         # 存入缓存
-        self._cache.set(cache_key, result, ttl=300)
+        self._cache.set(cache_key, result, ttl=self._cache_ttl())
 
         logger.debug(
             "Part detail fetched",
@@ -293,6 +308,12 @@ class SearchService:
     def clear_cache(self) -> None:
         """清理搜索缓存"""
         self._cache.clear()
+
+    def _cache_ttl(self) -> int:
+        try:
+            return max(1, int(getattr(self._config, "cache_ttl", 300)))
+        except Exception:
+            return 300
 
 
 def create_search_service(

@@ -25,6 +25,35 @@
 - 前端行为变化后，同步更新 `docs/frontend/FRONTEND_HANDOFF_V4.md`。
 - 每次版本发布前，更新 `docs/RELEASE_CHECKLIST.md` 的版本区段。
 
+## Schema 维护（v4.0）
+
+- `documents.relative_path` 必须保持唯一，`ensure_schema()` 会创建唯一索引 `idx_documents_relative_path_unique`。
+- 若历史库存在重复 `relative_path`，建索引会 fail-fast（不会自动删数据）。
+
+排障 SQL（查重）：
+
+```sql
+SELECT relative_path, COUNT(1) AS n
+FROM documents
+GROUP BY relative_path
+HAVING COUNT(1) > 1
+ORDER BY n DESC, relative_path;
+```
+
+排障 SQL（定位重复明细）：
+
+```sql
+SELECT id, pdf_name, relative_path, created_at
+FROM documents
+WHERE relative_path IN (
+  SELECT relative_path
+  FROM documents
+  GROUP BY relative_path
+  HAVING COUNT(1) > 1
+)
+ORDER BY relative_path, id;
+```
+
 ## 建议清理命令（本地）
 
 ```bash

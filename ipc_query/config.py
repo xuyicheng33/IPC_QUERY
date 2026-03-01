@@ -67,6 +67,43 @@ def _parse_import_mode(value: str) -> str:
     return mode
 
 
+def _parse_write_api_auth_mode(value: str) -> str:
+    mode = (value or "").strip().lower()
+    if not mode:
+        return "disabled"
+    if mode not in {"disabled", "api_key"}:
+        raise ConfigurationError(
+            "WRITE_API_AUTH_MODE must be one of: disabled, api_key",
+            details={"write_api_auth_mode": value},
+        )
+    return mode
+
+
+def _parse_bool_env(value: str, *, default: bool) -> bool:
+    raw = (value or "").strip().lower()
+    if not raw:
+        return default
+    if raw in {"1", "true", "yes", "on"}:
+        return True
+    if raw in {"0", "false", "no", "off"}:
+        return False
+    raise ConfigurationError(
+        "Boolean environment value must be one of: true/false/1/0/yes/no/on/off",
+        details={"value": value},
+    )
+
+
+def _parse_render_semaphore_value() -> int:
+    explicit = os.getenv("RENDER_SEMAPHORE", "").strip()
+    if explicit:
+        return int(explicit)
+    # Backward-compatible alias: RENDER_WORKERS acts as the semaphore value
+    legacy = os.getenv("RENDER_WORKERS", "").strip()
+    if legacy:
+        return int(legacy)
+    return 4
+
+
 @dataclass
 class Config:
     """应用配置"""
@@ -96,6 +133,9 @@ class Config:
     import_job_timeout_s: int = 600
     import_jobs_retained: int = 1000
     import_mode: str = "auto"  # auto | enabled | disabled
+    write_api_auth_mode: str = "disabled"  # disabled | api_key
+    write_api_key: str = ""
+    legacy_folder_routes_enabled: bool = True
 
     # 日志配置
     log_level: str = "INFO"
@@ -113,6 +153,13 @@ class Config:
         pdf_dir = Path(pdf_dir_raw) if pdf_dir_raw else None
         upload_dir = Path(upload_dir_raw) if upload_dir_raw else (pdf_dir or Path("data/pdfs"))
 
+        write_api_auth_mode = _parse_write_api_auth_mode(os.getenv("WRITE_API_AUTH_MODE", "disabled"))
+        write_api_key = os.getenv("WRITE_API_KEY", "")
+        if write_api_auth_mode == "api_key" and not write_api_key:
+            raise ConfigurationError("WRITE_API_KEY is required when WRITE_API_AUTH_MODE=api_key")
+
+        render_semaphore = _parse_render_semaphore_value()
+
         return cls(
             database_path=_database_path_from_env(),
             host=os.getenv("HOST", "127.0.0.1"),
@@ -124,14 +171,20 @@ class Config:
             cache_dir=Path(os.getenv("CACHE_DIR", "tmp/cache")),
             cache_size=int(os.getenv("CACHE_SIZE", "1000")),
             cache_ttl=int(os.getenv("CACHE_TTL", "300")),
-            render_workers=int(os.getenv("RENDER_WORKERS", "4")),
+            render_workers=render_semaphore,
             render_timeout=float(os.getenv("RENDER_TIMEOUT", "30.0")),
-            render_semaphore=int(os.getenv("RENDER_SEMAPHORE", "4")),
+            render_semaphore=render_semaphore,
             import_max_file_size_mb=int(os.getenv("IMPORT_MAX_FILE_SIZE_MB", "100")),
             import_queue_size=int(os.getenv("IMPORT_QUEUE_SIZE", "8")),
             import_job_timeout_s=int(os.getenv("IMPORT_JOB_TIMEOUT_S", "600")),
             import_jobs_retained=int(os.getenv("IMPORT_JOBS_RETAINED", "1000")),
             import_mode=_parse_import_mode(os.getenv("IMPORT_MODE", "auto")),
+            write_api_auth_mode=write_api_auth_mode,
+            write_api_key=write_api_key,
+            legacy_folder_routes_enabled=_parse_bool_env(
+                os.getenv("LEGACY_FOLDER_ROUTES_ENABLED", "true"),
+                default=True,
+            ),
             log_level=os.getenv("LOG_LEVEL", "INFO"),
             log_format=os.getenv("LOG_FORMAT", "json"),
             default_page_size=int(os.getenv("DEFAULT_PAGE_SIZE", "20")),
@@ -185,12 +238,16 @@ class Config:
             "cache_size": self.cache_size,
             "cache_ttl": self.cache_ttl,
             "render_workers": self.render_workers,
+            "render_semaphore": self.render_semaphore,
             "render_timeout": self.render_timeout,
             "import_max_file_size_mb": self.import_max_file_size_mb,
             "import_queue_size": self.import_queue_size,
             "import_job_timeout_s": self.import_job_timeout_s,
             "import_jobs_retained": self.import_jobs_retained,
             "import_mode": self.import_mode,
+            "write_api_auth_mode": self.write_api_auth_mode,
+            "write_api_key": "***" if self.write_api_key else "",
+            "legacy_folder_routes_enabled": self.legacy_folder_routes_enabled,
             "log_level": self.log_level,
             "log_format": self.log_format,
         }

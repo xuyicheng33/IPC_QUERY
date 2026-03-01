@@ -11,11 +11,18 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from ipc_query.api.handlers import ApiHandlers
+from ipc_query.api.handlers import ApiHandlers, PdfRangePayload
 from ipc_query.config import Config
-from ipc_query.exceptions import ConflictError
-from ipc_query.exceptions import NotFoundError
-from ipc_query.exceptions import ValidationError
+from ipc_query.db.models import Document
+from ipc_query.exceptions import (
+    ConflictError,
+    DatabaseError,
+    NotFoundError,
+    RateLimitError,
+    RenderError,
+    SearchError,
+    ValidationError,
+)
 
 
 def _make_handlers(
@@ -44,7 +51,7 @@ def _make_handlers(
     )
 
 
-def test_handle_pdf_range_returns_partial_payload(tmp_path: Path) -> None:
+def test_handle_pdf_range_returns_partial_payload_metadata(tmp_path: Path) -> None:
     pdf_path = tmp_path / "sample.pdf"
     payload = b"0123456789abcdef"
     pdf_path.write_bytes(payload)
@@ -53,7 +60,11 @@ def test_handle_pdf_range_returns_partial_payload(tmp_path: Path) -> None:
     status, body, content_type, headers = handlers.handle_pdf("sample.pdf", "bytes=3-7")
 
     assert status == HTTPStatus.PARTIAL_CONTENT
-    assert body == payload[3:8]
+    assert isinstance(body, PdfRangePayload)
+    assert body.path == pdf_path
+    assert body.start == 3
+    assert body.end == 7
+    assert body.total_size == len(payload)
     assert content_type == "application/pdf"
     assert headers["Content-Range"] == f"bytes 3-7/{len(payload)}"
 
@@ -82,6 +93,36 @@ def test_handle_pdf_reverse_range_returns_416(tmp_path: Path) -> None:
     assert status == HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE
     assert body == b""
     assert headers["Content-Range"] == f"bytes */{len(payload)}"
+
+
+def test_handle_pdf_suffix_range_returns_metadata(tmp_path: Path) -> None:
+    pdf_path = tmp_path / "sample.pdf"
+    payload = b"0123456789"
+    pdf_path.write_bytes(payload)
+    handlers = _make_handlers(pdf_path)
+
+    status, body, _, headers = handlers.handle_pdf("sample.pdf", "bytes=-4")
+
+    assert status == HTTPStatus.PARTIAL_CONTENT
+    assert isinstance(body, PdfRangePayload)
+    assert body.start == 6
+    assert body.end == 9
+    assert headers["Content-Range"] == f"bytes 6-9/{len(payload)}"
+
+
+def test_handle_pdf_open_ended_range_returns_metadata(tmp_path: Path) -> None:
+    pdf_path = tmp_path / "sample.pdf"
+    payload = b"0123456789"
+    pdf_path.write_bytes(payload)
+    handlers = _make_handlers(pdf_path)
+
+    status, body, _, headers = handlers.handle_pdf("sample.pdf", "bytes=4-")
+
+    assert status == HTTPStatus.PARTIAL_CONTENT
+    assert isinstance(body, PdfRangePayload)
+    assert body.start == 4
+    assert body.end == 9
+    assert headers["Content-Range"] == f"bytes 4-9/{len(payload)}"
 
 
 def test_handle_doc_delete_success(tmp_path: Path) -> None:
@@ -195,6 +236,30 @@ def test_handle_capabilities_returns_reasons_when_disabled(tmp_path: Path) -> No
     assert payload["scan_enabled"] is False
     assert payload["import_reason"] == "import disabled by config"
     assert payload["scan_reason"] == "scan disabled by config"
+
+
+def test_handle_capabilities_includes_v4_security_and_policy_fields(tmp_path: Path) -> None:
+    handlers = _make_handlers(
+        tmp_path / "sample.pdf",
+        config=Config(
+            write_api_auth_mode="api_key",
+            write_api_key="test-key",
+            legacy_folder_routes_enabled=False,
+        ),
+        import_enabled=True,
+        scan_enabled=True,
+    )
+    handlers._path_policy_warning_count = 2
+
+    status, body, _ = handlers.handle_capabilities()
+
+    assert status == HTTPStatus.OK
+    payload = json.loads(body.decode("utf-8"))
+    assert payload["write_auth_mode"] == "api_key"
+    assert payload["write_auth_required"] is True
+    assert payload["legacy_folder_routes_enabled"] is False
+    assert payload["directory_policy"] == "single_level"
+    assert payload["path_policy_warning_count"] == 2
 
 
 def test_handle_docs_batch_delete_success(tmp_path: Path) -> None:
@@ -481,6 +546,70 @@ def test_handle_docs_tree_does_not_match_indexed_file_by_name_only(tmp_path: Pat
     assert payload["directories"] == []
 
 
+def test_handle_docs_hides_internal_paths(tmp_path: Path) -> None:
+    handlers = _make_handlers(tmp_path / "sample.pdf")
+    handlers._docs.get_all.return_value = [
+        Document(
+            id=1,
+            pdf_name="a.pdf",
+            relative_path="a.pdf",
+            pdf_path="/srv/data/a.pdf",
+            miner_dir="/srv/miner/a",
+            created_at="2026-01-01T00:00:00Z",
+        )
+    ]
+
+    status, body, _ = handlers.handle_docs()
+
+    assert status == HTTPStatus.OK
+    payload = json.loads(body.decode("utf-8"))
+    assert len(payload) == 1
+    assert payload[0]["relative_path"] == "a.pdf"
+    assert "pdf_path" not in payload[0]
+    assert "miner_dir" not in payload[0]
+
+
+def test_handle_docs_tree_sanitizes_internal_paths_from_lookup_payload(tmp_path: Path) -> None:
+    pdf_root = tmp_path / "pdfs"
+    pdf_root.mkdir(parents=True)
+    (pdf_root / "a.pdf").write_bytes(b"%PDF-1.4\n%%EOF\n")
+
+    handlers = _make_handlers(tmp_path / "sample.pdf")
+    handlers._config = Config(pdf_dir=pdf_root)
+    handlers._docs.get_lookup_for_dir.return_value = (
+        {
+            "a.pdf": {
+                "id": 1,
+                "pdf_name": "a.pdf",
+                "relative_path": "a.pdf",
+                "pdf_path": "/abs/a.pdf",
+                "miner_dir": "/tmp/miner",
+            }
+        },
+        {},
+    )
+
+    status, body, _ = handlers.handle_docs_tree("")
+
+    assert status == HTTPStatus.OK
+    payload = json.loads(body.decode("utf-8"))
+    row = next(f for f in payload["files"] if f["name"] == "a.pdf")
+    assert row["indexed"] is True
+    assert row["document"]["relative_path"] == "a.pdf"
+    assert "pdf_path" not in row["document"]
+    assert "miner_dir" not in row["document"]
+
+
+def test_handle_docs_tree_rejects_nested_path_under_single_level_policy(tmp_path: Path) -> None:
+    pdf_root = tmp_path / "pdfs"
+    (pdf_root / "a").mkdir(parents=True)
+    handlers = _make_handlers(tmp_path / "sample.pdf")
+    handlers._config = Config(pdf_dir=pdf_root)
+
+    with pytest.raises(ValidationError):
+        handlers.handle_docs_tree("a/b")
+
+
 def test_handle_render_propagates_scale(tmp_path: Path) -> None:
     pdf_path = tmp_path / "sample.pdf"
     pdf_path.write_bytes(b"%PDF-1.4\n%%EOF\n")
@@ -592,3 +721,39 @@ def test_handle_error_maps_conflict_to_409(tmp_path: Path) -> None:
     assert content_type == "application/json"
     payload = json.loads(body.decode("utf-8"))
     assert payload["error"] == "CONFLICT"
+
+
+def test_handle_error_maps_validation_to_400(tmp_path: Path) -> None:
+    handlers = _make_handlers(tmp_path / "sample.pdf")
+    status, body, _ = handlers.handle_error(ValidationError("bad request"))
+    assert status == HTTPStatus.BAD_REQUEST
+    assert json.loads(body.decode("utf-8"))["error"] == "VALIDATION_ERROR"
+
+
+def test_handle_error_maps_not_found_to_404(tmp_path: Path) -> None:
+    handlers = _make_handlers(tmp_path / "sample.pdf")
+    status, body, _ = handlers.handle_error(NotFoundError("missing"))
+    assert status == HTTPStatus.NOT_FOUND
+    assert json.loads(body.decode("utf-8"))["error"] == "NOT_FOUND"
+
+
+def test_handle_error_maps_rate_limit_to_429(tmp_path: Path) -> None:
+    handlers = _make_handlers(tmp_path / "sample.pdf")
+    status, body, _ = handlers.handle_error(RateLimitError())
+    assert status == HTTPStatus.TOO_MANY_REQUESTS
+    assert json.loads(body.decode("utf-8"))["error"] == "RATE_LIMITED"
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        DatabaseError("db"),
+        SearchError("search"),
+        RenderError("render"),
+    ],
+)
+def test_handle_error_maps_server_side_errors_to_500(tmp_path: Path, error: Exception) -> None:
+    handlers = _make_handlers(tmp_path / "sample.pdf")
+    status, body, _ = handlers.handle_error(error)
+    assert status == HTTPStatus.INTERNAL_SERVER_ERROR
+    assert "error" in json.loads(body.decode("utf-8"))

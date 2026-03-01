@@ -183,7 +183,9 @@ class ImportService:
         parts = [p for p in raw.split("/") if p]
         if any(p in {".", ".."} for p in parts):
             raise ValidationError("Invalid target_dir")
-        return "/".join(parts)
+        if len(parts) > 1:
+            raise ValidationError("Only top-level target_dir is supported (single-level policy)")
+        return parts[0]
 
     def _validate_payload(self, payload: bytes, content_type: str | None) -> None:
         if not payload:
@@ -974,6 +976,8 @@ class ImportService:
         parts = [p for p in raw.split("/") if p]
         if any(p in {".", ".."} for p in parts):
             raise ValidationError("Invalid filename")
+        if len(parts) > 2:
+            raise ValidationError("Only top-level folder is supported for file path (single-level policy)")
         normalized = "/".join(parts)
         if not normalized.lower().endswith(".pdf"):
             raise ValidationError("Only .pdf files are supported")

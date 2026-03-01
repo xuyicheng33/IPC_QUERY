@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import mimetypes
 import re
+from dataclasses import dataclass
 from http import HTTPStatus
 from pathlib import Path
 from typing import Any
@@ -18,8 +19,18 @@ from ..config import Config
 from ..constants import VERSION
 from ..db.connection import Database
 from ..db.repository import DocumentRepository
-from ..exceptions import ConflictError, IpcQueryError, NotFoundError, PartNotFoundError
-from ..exceptions import ValidationError
+from ..exceptions import (
+    ConflictError,
+    DatabaseError,
+    IpcQueryError,
+    NotFoundError,
+    PartNotFoundError,
+    RateLimitError,
+    RenderError,
+    SearchError,
+    UnauthorizedError,
+    ValidationError,
+)
 from ..services.importer import ImportService
 from ..services.render import RenderService
 from ..services.scanner import ScanService
@@ -28,6 +39,16 @@ from ..utils.logger import get_logger
 from ..utils.metrics import metrics
 
 logger = get_logger(__name__)
+
+
+@dataclass(frozen=True)
+class PdfRangePayload:
+    """PDF 范围响应元数据（由 RequestHandler 负责流式输出内容）。"""
+
+    path: Path
+    start: int
+    end: int
+    total_size: int
 
 
 def _json_bytes(obj: Any) -> bytes:
@@ -63,6 +84,7 @@ class ApiHandlers:
         scan_enabled: bool | None = None,
         import_reason: str = "",
         scan_reason: str = "",
+        path_policy_warning_count: int = 0,
     ):
         self._search = search_service
         self._render = render_service
@@ -75,6 +97,7 @@ class ApiHandlers:
         self._scan_enabled = bool(scan_enabled) if scan_enabled is not None else (scan_service is not None)
         self._import_reason = str(import_reason or "")
         self._scan_reason = str(scan_reason or "")
+        self._path_policy_warning_count = max(0, int(path_policy_warning_count))
 
     def import_enabled(self) -> bool:
         """导入服务是否可用。"""
@@ -85,11 +108,18 @@ class ApiHandlers:
         return self._scan_enabled
 
     def handle_capabilities(self) -> tuple[int, bytes, str]:
+        write_mode = (self._config.write_api_auth_mode or "disabled").strip().lower()
+        write_required = write_mode == "api_key"
         payload = {
             "import_enabled": self.import_enabled(),
             "scan_enabled": self.scan_enabled(),
             "import_reason": "" if self.import_enabled() else self._import_reason,
             "scan_reason": "" if self.scan_enabled() else self._scan_reason,
+            "write_auth_mode": write_mode,
+            "write_auth_required": write_required,
+            "legacy_folder_routes_enabled": bool(self._config.legacy_folder_routes_enabled),
+            "directory_policy": "single_level",
+            "path_policy_warning_count": self._path_policy_warning_count,
         }
         return HTTPStatus.OK, _json_bytes(payload), "application/json; charset=utf-8"
 
@@ -161,7 +191,7 @@ class ApiHandlers:
         return HTTPStatus.OK, _json_bytes(result), "application/json; charset=utf-8"
 
     def handle_docs_tree(self, path: str = "") -> tuple[int, bytes, str]:
-        rel = self._normalize_relative_dir(path, allow_empty=True)
+        rel = self._normalize_relative_dir(path, allow_empty=True, max_depth=1, field_name="path")
         root = self._require_pdf_root()
         target = root if not rel else root / rel
         if not target.exists() or not target.is_dir():
@@ -195,12 +225,13 @@ class ApiHandlers:
 
             rel_path = child.resolve().relative_to(root.resolve()).as_posix()
             db_doc = docs_by_rel.get(rel_path)
+            safe_doc = self._sanitize_document_payload(db_doc)
             files.append(
                 {
                     "name": child.name,
                     "relative_path": rel_path,
-                    "indexed": db_doc is not None,
-                    "document": db_doc,
+                    "indexed": safe_doc is not None,
+                    "document": safe_doc,
                 }
             )
 
@@ -531,7 +562,11 @@ class ApiHandlers:
 
         return HTTPStatus.OK, cache_path, "image/png"
 
-    def handle_pdf(self, pdf_name: str, range_header: str | None) -> tuple[int, bytes | Path, str, dict[str, str]]:
+    def handle_pdf(
+        self,
+        pdf_name: str,
+        range_header: str | None,
+    ) -> tuple[int, bytes | Path | PdfRangePayload, str, dict[str, str]]:
         """
         处理PDF文件请求
 
@@ -572,12 +607,12 @@ class ApiHandlers:
                             raise ValueError("end before start")
                         end = min(end, size - 1)
 
-                    chunk_len = (end - start) + 1
-                    with pdf_path.open("rb") as f:
-                        f.seek(start)
-                        payload = f.read(chunk_len)
-
-                    return HTTPStatus.PARTIAL_CONTENT, payload, content_type, {
+                    return HTTPStatus.PARTIAL_CONTENT, PdfRangePayload(
+                        path=pdf_path,
+                        start=start,
+                        end=end,
+                        total_size=size,
+                    ), content_type, {
                         **extra_headers,
                         "Content-Range": f"bytes {start}-{end}/{size}",
                     }
@@ -639,10 +674,18 @@ class ApiHandlers:
         """
         if isinstance(error, IpcQueryError):
             status = HTTPStatus.BAD_REQUEST
-            if isinstance(error, NotFoundError):
+            if isinstance(error, UnauthorizedError):
+                status = HTTPStatus.UNAUTHORIZED
+            elif isinstance(error, ValidationError):
+                status = HTTPStatus.BAD_REQUEST
+            elif isinstance(error, NotFoundError):
                 status = HTTPStatus.NOT_FOUND
             elif isinstance(error, ConflictError):
                 status = HTTPStatus.CONFLICT
+            elif isinstance(error, RateLimitError):
+                status = HTTPStatus.TOO_MANY_REQUESTS
+            elif isinstance(error, (DatabaseError, SearchError, RenderError)):
+                status = HTTPStatus.INTERNAL_SERVER_ERROR
             return status, _json_bytes(error.to_dict()), "application/json"
 
         # 未知错误
@@ -658,7 +701,14 @@ class ApiHandlers:
             raise ValidationError("PDF directory is not configured")
         return pdf_dir
 
-    def _normalize_relative_dir(self, path: str, *, allow_empty: bool) -> str:
+    def _normalize_relative_dir(
+        self,
+        path: str,
+        *,
+        allow_empty: bool,
+        max_depth: int | None = None,
+        field_name: str = "path",
+    ) -> str:
         raw = (path or "").replace("\\", "/").strip().strip("/")
         if not raw:
             if allow_empty:
@@ -667,6 +717,10 @@ class ApiHandlers:
         parts = [p for p in raw.split("/") if p]
         if any(p in {".", ".."} for p in parts):
             raise ValidationError("Invalid path")
+        if max_depth is not None and len(parts) > max_depth:
+            raise ValidationError(
+                f"Only top-level directory is supported for `{field_name}` (single-level policy)"
+            )
         return "/".join(parts)
 
     def _normalize_folder_name(self, name: str) -> str:
@@ -678,3 +732,12 @@ class ApiHandlers:
         if raw in {".", ".."}:
             raise ValidationError("Invalid folder name")
         return raw
+
+    @staticmethod
+    def _sanitize_document_payload(payload: Any) -> dict[str, Any] | None:
+        if not isinstance(payload, dict):
+            return None
+        clean = dict(payload)
+        clean.pop("pdf_path", None)
+        clean.pop("miner_dir", None)
+        return clean

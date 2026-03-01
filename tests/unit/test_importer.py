@@ -640,24 +640,37 @@ def test_move_document_updates_file_and_db(tmp_path: Path) -> None:
     (pdf_dir / "dir" / "a.pdf").write_bytes(_PDF_PAYLOAD)
     service = ImportService(db_path=db_path, pdf_dir=pdf_dir, upload_dir=upload_dir)
     try:
-        result = service.move_document("dir/a.pdf", "other/sub")
+        result = service.move_document("dir/a.pdf", "other")
         assert result["updated"] is True
         assert result["old_path"] == "dir/a.pdf"
-        assert result["new_path"] == "other/sub/a.pdf"
+        assert result["new_path"] == "other/a.pdf"
         assert result["pdf_name"] == "a.pdf"
         assert not (pdf_dir / "dir" / "a.pdf").exists()
-        assert (pdf_dir / "other" / "sub" / "a.pdf").exists()
+        assert (pdf_dir / "other" / "a.pdf").exists()
 
         with sqlite3.connect(str(db_path)) as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
                 "SELECT pdf_name, relative_path, pdf_path FROM documents WHERE relative_path = ?",
-                ("other/sub/a.pdf",),
+                ("other/a.pdf",),
             ).fetchone()
             assert row is not None
             assert row["pdf_name"] == "a.pdf"
-            assert row["relative_path"] == "other/sub/a.pdf"
-            assert row["pdf_path"] == "other/sub/a.pdf"
+            assert row["relative_path"] == "other/a.pdf"
+            assert row["pdf_path"] == "other/a.pdf"
+    finally:
+        service.stop()
+
+
+def test_move_document_rejects_nested_target_dir(tmp_path: Path) -> None:
+    service = ImportService(
+        db_path=tmp_path / "db.sqlite",
+        pdf_dir=tmp_path / "pdfs",
+        upload_dir=tmp_path / "uploads",
+    )
+    try:
+        with pytest.raises(ValidationError, match="Only top-level target_dir"):
+            service.move_document("a.pdf", "nested/path")
     finally:
         service.stop()
 

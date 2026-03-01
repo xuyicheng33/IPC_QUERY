@@ -10,6 +10,7 @@ import re
 import sqlite3
 import uuid
 import json
+import secrets
 import threading
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -21,15 +22,22 @@ from build_db import ensure_schema
 from ..config import Config
 from ..db.connection import Database
 from ..db.repository import DocumentRepository, PartRepository
-from ..exceptions import IpcQueryError, NotFoundError, ValidationError
+from ..exceptions import IpcQueryError, NotFoundError, UnauthorizedError, ValidationError
 from ..services.importer import ImportService
 from ..services.render import RenderService, create_render_service
 from ..services.scanner import ScanService
 from ..services.search import SearchService, create_search_service
 from ..utils.logger import get_logger
-from .handlers import ApiHandlers
+from .handlers import ApiHandlers, PdfRangePayload
 
 logger = get_logger(__name__)
+
+_LEGACY_FOLDER_ROUTES = {
+    "/api/docs/folder/create": "/api/folders",
+    "/api/docs/folder/rename": "/api/folders/rename",
+    "/api/docs/folder/delete": "/api/folders/delete",
+}
+_LEGACY_SUNSET_DATE = "2026-06-30"
 
 
 def _json_bytes(obj: Any) -> bytes:
@@ -129,10 +137,10 @@ class RequestHandler(BaseHTTPRequestHandler):
         """发送JSON响应"""
         self._send(status, _json_bytes(obj), "application/json; charset=utf-8")
 
-    def _handle_error(self, error: Exception) -> None:
+    def _handle_error(self, error: Exception, extra_headers: Mapping[str, str] | None = None) -> None:
         """处理错误"""
         status, body, ct = self._handlers().handle_error(error)
-        self._send(status, body, ct)
+        self._send(status, body, ct, extra_headers=extra_headers)
 
     def _cleanup_request_db(self) -> None:
         """请求结束后清理当前线程数据库连接。"""
@@ -159,6 +167,75 @@ class RequestHandler(BaseHTTPRequestHandler):
         if not isinstance(parsed, dict):
             raise ValidationError("JSON body must be an object")
         return parsed
+
+    def _legacy_headers_for_path(self, path: str) -> dict[str, str] | None:
+        if path not in _LEGACY_FOLDER_ROUTES:
+            return None
+        if not self._config().legacy_folder_routes_enabled:
+            raise NotFoundError(f"Unsupported POST path: {path}")
+        return {
+            "Deprecation": "true",
+            "Sunset": _LEGACY_SUNSET_DATE,
+        }
+
+    def _canonical_post_path(self, path: str) -> str:
+        if path in _LEGACY_FOLDER_ROUTES:
+            if not self._config().legacy_folder_routes_enabled:
+                raise NotFoundError(f"Unsupported POST path: {path}")
+            return _LEGACY_FOLDER_ROUTES[path]
+        return path
+
+    def _is_write_post_path(self, path: str) -> bool:
+        canonical = _LEGACY_FOLDER_ROUTES.get(path, path)
+        return canonical in {
+            "/api/import",
+            "/api/docs/batch-delete",
+            "/api/docs/rename",
+            "/api/docs/move",
+            "/api/folders",
+            "/api/folders/rename",
+            "/api/folders/delete",
+            "/api/scan",
+        }
+
+    def _is_write_delete_path(self, path: str) -> bool:
+        return path == "/api/docs" or path.startswith("/api/docs/")
+
+    def _require_write_auth(self) -> None:
+        cfg = self._config()
+        mode = (cfg.write_api_auth_mode or "disabled").strip().lower()
+        if mode != "api_key":
+            return
+
+        expected = cfg.write_api_key or ""
+        provided = (self.headers.get("X-API-Key") or "").strip()
+        if not provided or not expected or not secrets.compare_digest(provided, expected):
+            raise UnauthorizedError("Missing or invalid X-API-Key")
+
+    def _send_pdf_range(
+        self,
+        status: int,
+        payload: PdfRangePayload,
+        content_type: str,
+        extra_headers: Mapping[str, str] | None = None,
+    ) -> None:
+        remaining = max(0, payload.end - payload.start + 1)
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(remaining))
+        if extra_headers:
+            for k, v in extra_headers.items():
+                self.send_header(k, v)
+        self.end_headers()
+
+        with payload.path.open("rb") as f:
+            f.seek(payload.start)
+            while remaining > 0:
+                chunk = f.read(min(64 * 1024, remaining))
+                if not chunk:
+                    break
+                self.wfile.write(chunk)
+                remaining -= len(chunk)
 
     def do_GET(self) -> None:
         """处理GET请求"""
@@ -253,7 +330,9 @@ class RequestHandler(BaseHTTPRequestHandler):
                 pdf_name = unquote(path[len("/pdf/"):])
                 range_header = self.headers.get("Range")
                 status, pdf_body, ct, extra = self._handlers().handle_pdf(pdf_name, range_header)
-                if isinstance(pdf_body, Path):
+                if isinstance(pdf_body, PdfRangePayload):
+                    self._send_pdf_range(status, pdf_body, ct, extra_headers=extra)
+                elif isinstance(pdf_body, Path):
                     # 发送PDF文件
                     size = pdf_body.stat().st_size
                     self.send_response(status)
@@ -304,11 +383,17 @@ class RequestHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         """处理POST请求"""
+        response_extra_headers: Mapping[str, str] | None = None
         try:
             path, _, query_string = self.path.partition("?")
             path = path or "/"
+            response_extra_headers = self._legacy_headers_for_path(path)
+            canonical_path = self._canonical_post_path(path)
 
-            if path == "/api/import":
+            if self._is_write_post_path(path):
+                self._require_write_auth()
+
+            if canonical_path == "/api/import":
                 if not self._handlers().import_enabled():
                     raise ValidationError("Import service is not enabled")
                 qs = parse_qs(query_string) if query_string else {}
@@ -328,54 +413,54 @@ class RequestHandler(BaseHTTPRequestHandler):
                     content_type=content_type,
                     target_dir=target_dir,
                 )
-                self._send(status, body, ct)
+                self._send(status, body, ct, extra_headers=response_extra_headers)
                 return
 
-            if path == "/api/docs/batch-delete":
+            if canonical_path == "/api/docs/batch-delete":
                 json_payload = self._read_json_body()
                 raw_paths = json_payload.get("paths")
                 if not isinstance(raw_paths, list):
                     raise ValidationError("`paths` must be an array")
                 status, body, ct = self._handlers().handle_docs_batch_delete(paths=raw_paths)
-                self._send(status, body, ct)
+                self._send(status, body, ct, extra_headers=response_extra_headers)
                 return
 
-            if path == "/api/docs/rename":
+            if canonical_path == "/api/docs/rename":
                 json_payload = self._read_json_body()
                 status, body, ct = self._handlers().handle_doc_rename(
                     path=str(json_payload.get("path") or ""),
                     new_name=str(json_payload.get("new_name") or ""),
                 )
-                self._send(status, body, ct)
+                self._send(status, body, ct, extra_headers=response_extra_headers)
                 return
 
-            if path == "/api/docs/move":
+            if canonical_path == "/api/docs/move":
                 json_payload = self._read_json_body()
                 status, body, ct = self._handlers().handle_doc_move(
                     path=str(json_payload.get("path") or ""),
                     target_dir=str(json_payload.get("target_dir") or ""),
                 )
-                self._send(status, body, ct)
+                self._send(status, body, ct, extra_headers=response_extra_headers)
                 return
 
-            if path == "/api/folders":
+            if canonical_path == "/api/folders":
                 json_payload = self._read_json_body()
                 parent_path = str(json_payload.get("path") or "")
                 folder_name = str(json_payload.get("name") or "")
                 status, body, ct = self._handlers().handle_folder_create(path=parent_path, name=folder_name)
-                self._send(status, body, ct)
+                self._send(status, body, ct, extra_headers=response_extra_headers)
                 return
 
-            if path == "/api/folders/rename":
+            if canonical_path == "/api/folders/rename":
                 json_payload = self._read_json_body()
                 status, body, ct = self._handlers().handle_folder_rename(
                     path=str(json_payload.get("path") or ""),
                     new_name=str(json_payload.get("new_name") or ""),
                 )
-                self._send(status, body, ct)
+                self._send(status, body, ct, extra_headers=response_extra_headers)
                 return
 
-            if path == "/api/folders/delete":
+            if canonical_path == "/api/folders/delete":
                 json_payload = self._read_json_body()
                 raw_paths = json_payload.get("paths")
                 if not isinstance(raw_paths, list):
@@ -383,26 +468,26 @@ class RequestHandler(BaseHTTPRequestHandler):
                 recursive_raw = json_payload.get("recursive")
                 recursive = True if recursive_raw is None else bool(recursive_raw)
                 status, body, ct = self._handlers().handle_folder_delete(paths=raw_paths, recursive=recursive)
-                self._send(status, body, ct)
+                self._send(status, body, ct, extra_headers=response_extra_headers)
                 return
 
-            if path == "/api/scan":
+            if canonical_path == "/api/scan":
                 qs = parse_qs(query_string) if query_string else {}
                 path_arg = (qs.get("path") or [""])[0]
                 if not path_arg and (self.headers.get("Content-Length") or "").strip():
                     json_payload = self._read_json_body()
                     path_arg = str(json_payload.get("path") or "")
                 status, body, ct = self._handlers().handle_scan_submit(path=path_arg)
-                self._send(status, body, ct)
+                self._send(status, body, ct, extra_headers=response_extra_headers)
                 return
 
             raise NotFoundError(f"Unsupported POST path: {path}")
         except IpcQueryError as e:
-            self._handle_error(e)
+            self._handle_error(e, extra_headers=response_extra_headers)
         except BrokenPipeError:
             pass
         except Exception as e:
-            self._handle_error(e)
+            self._handle_error(e, extra_headers=response_extra_headers)
         finally:
             self._cleanup_request_db()
 
@@ -411,6 +496,8 @@ class RequestHandler(BaseHTTPRequestHandler):
         try:
             path, _, query_string = self.path.partition("?")
             path = path or "/"
+            if self._is_write_delete_path(path):
+                self._require_write_auth()
 
             if path == "/api/docs":
                 qs = parse_qs(query_string) if query_string else {}
@@ -475,6 +562,7 @@ class Server:
         scan_enabled: bool,
         import_reason: str,
         scan_reason: str,
+        path_policy_warning_count: int,
     ):
         self._config = config
         self._db = db
@@ -486,6 +574,7 @@ class Server:
         self._scan_enabled = bool(scan_enabled)
         self._import_reason = str(import_reason or "")
         self._scan_reason = str(scan_reason or "")
+        self._path_policy_warning_count = max(0, int(path_policy_warning_count))
         self._server: ThreadingHTTPServer | None = None
 
     def start(self) -> None:
@@ -505,6 +594,7 @@ class Server:
             scan_enabled=self._scan_enabled,
             import_reason=self._import_reason,
             scan_reason=self._scan_reason,
+            path_policy_warning_count=self._path_policy_warning_count,
         )
 
         # 创建服务器
@@ -603,6 +693,21 @@ def _is_directory_writable(path: Path) -> bool:
         return False
 
 
+def _count_deep_relative_paths(db_path: Path) -> int:
+    if not db_path.exists():
+        return 0
+    with sqlite3.connect(str(db_path)) as conn:
+        row = conn.execute(
+            """
+            SELECT COUNT(1)
+            FROM documents
+            WHERE (LENGTH(REPLACE(COALESCE(relative_path, ''), '\\', '/'))
+              - LENGTH(REPLACE(REPLACE(COALESCE(relative_path, ''), '\\', '/'), '/', ''))) >= 2
+            """
+        ).fetchone()
+    return int(row[0] if row else 0)
+
+
 def _resolve_import_enablement(config: Config) -> tuple[bool, dict[str, Any]]:
     mode = (config.import_mode or "auto").strip().lower()
     if mode not in {"auto", "enabled", "disabled"}:
@@ -687,6 +792,16 @@ def create_server(config: Config) -> Server:
         finally:
             rw_db.close_all()
 
+    path_policy_warning_count = _count_deep_relative_paths(config.database_path)
+    if path_policy_warning_count > 0:
+        logger.warning(
+            "Detected historical deep relative_path values under single-level policy",
+            extra_fields={
+                "count": path_policy_warning_count,
+                "directory_policy": "single_level",
+            },
+        )
+
     # 初始化只读数据库连接
     db = Database(config.database_path, readonly=True)
 
@@ -756,4 +871,5 @@ def create_server(config: Config) -> Server:
         scan_enabled=scan_enabled,
         import_reason=import_reason,
         scan_reason=scan_reason,
+        path_policy_warning_count=path_policy_warning_count,
     )

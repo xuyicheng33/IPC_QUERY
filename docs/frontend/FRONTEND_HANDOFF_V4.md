@@ -43,6 +43,21 @@
 - 支持文件改名、移动、删除；
 - 支持双击文件直接预览 PDF；
 - 状态反馈统一采用顶部/行内提示。
+- 当前目录策略固定为 `single_level`（仅根目录 + 一级子目录）。
+
+### 3.4 目录接口路由策略（兼容期）
+
+- Canonical：
+  - `POST /api/folders`
+  - `POST /api/folders/rename`
+  - `POST /api/folders/delete`
+- Legacy alias（兼容一个版本周期）：
+  - `POST /api/docs/folder/create`
+  - `POST /api/docs/folder/rename`
+  - `POST /api/docs/folder/delete`
+- legacy 路由响应头：
+  - `Deprecation: true`
+  - `Sunset: 2026-06-30`
 
 ## 4. 类型合同
 
@@ -56,8 +71,15 @@
 - `PartDetailResponse`
 - `DocsTreeResponse`
 - `DbRowActionState`
+- `CapabilitiesResponse`（新增 `write_auth_mode` / `write_auth_required` / `directory_policy` 等字段）
 
-## 5. 开发与构建
+## 5. 鉴权与错误语义
+
+- 当后端启用 `WRITE_API_AUTH_MODE=api_key` 时，写接口必须携带 `X-API-Key`。
+- 缺失或错误 key 返回 `401` + `UNAUTHORIZED`。
+- 服务端异常类（`DatabaseError`/`SearchError`/`RenderError`）统一返回 `500`，不再伪装 `400`。
+
+## 6. 开发与构建
 
 ```bash
 npm --prefix frontend install
@@ -67,7 +89,7 @@ npm --prefix frontend run build
 
 构建产物输出到 `web/`。
 
-## 6. 回归建议
+## 7. 回归建议
 
 发布前至少手工走查：
 

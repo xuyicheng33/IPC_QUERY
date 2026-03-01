@@ -358,14 +358,20 @@ class MultiCache:
 multi_cache = MultiCache()
 
 
-def get_cache(name: str) -> CacheService:
+def get_cache(
+    name: str,
+    max_size: int | None = None,
+    ttl: int | None = None,
+) -> CacheService:
     """
     获取缓存实例的便捷函数
 
     Args:
         name: 缓存名称
+        max_size: 最大缓存条目
+        ttl: 默认 TTL（秒）
 
     Returns:
         CacheService 实例
     """
-    return multi_cache.get_cache(name)
+    return multi_cache.get_cache(name, max_size=max_size, ttl=ttl)

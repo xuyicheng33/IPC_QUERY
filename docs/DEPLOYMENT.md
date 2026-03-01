@@ -48,6 +48,9 @@ DATABASE_PATH=/app/data/ipc.sqlite
 PDF_HOST_DIR=./data/pdfs
 PDF_MOUNT_MODE=ro
 IMPORT_MODE=auto
+WRITE_API_AUTH_MODE=disabled
+# WRITE_API_KEY=change-me-if-api-key-mode
+LEGACY_FOLDER_ROUTES_ENABLED=true
 LOG_LEVEL=INFO
 LOG_FORMAT=json
 ```
@@ -55,6 +58,7 @@ LOG_FORMAT=json
 配置建议：
 - 只读检索服务：`PDF_MOUNT_MODE=ro` + `IMPORT_MODE=disabled` 或 `auto`
 - 允许在线导入/删除：`PDF_MOUNT_MODE=rw` + `IMPORT_MODE=enabled` 或 `auto`
+- 需要写接口鉴权：设置 `WRITE_API_AUTH_MODE=api_key` 并配置 `WRITE_API_KEY`
 - 容器内的 `PDF_DIR` 固定为 `/app/pdfs`，无需手动填写。
 
 ### 2.4 首次启动
@@ -224,6 +228,8 @@ docker compose up -d --build
 
 - `GET /api/health` 返回 `status=healthy`
 - `GET /api/capabilities` 符合预期（导入功能开关）
+- `GET /api/capabilities` 中 `directory_policy=single_level`
+- 若启用写接口鉴权：`write_auth_required=true`
 - 首页、搜索页、详情页、`/db` 页面均可访问
 - 日志无连续报错，CPU/内存稳定
 - 已配置数据库与 PDF 周期性备份
@@ -236,6 +242,20 @@ docker compose up -d --build
 - `PDF_MOUNT_MODE` 是否为 `rw`
 - `IMPORT_MODE` 是否设置为 `enabled` 或 `auto`
 - `GET /api/capabilities` 返回的 `import_reason`
+
+### 7.1.1 写接口 401
+
+检查：
+- `WRITE_API_AUTH_MODE` 是否为 `api_key`
+- 客户端是否发送了正确的 `X-API-Key`
+- `WRITE_API_KEY` 是否在服务侧正确配置
+
+### 7.1.2 目录接口兼容期说明
+
+- Canonical 路由：`/api/folders`、`/api/folders/rename`、`/api/folders/delete`
+- Legacy alias：`/api/docs/folder/create`、`/api/docs/folder/rename`、`/api/docs/folder/delete`
+- legacy 路由响应会包含 `Deprecation: true` 与 `Sunset: 2026-06-30`
+- 可通过 `LEGACY_FOLDER_ROUTES_ENABLED=false` 提前关闭 legacy 路由
 
 ### 7.2 `/pdf/...` 返回 404
 

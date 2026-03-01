@@ -161,3 +161,10 @@ class RateLimitError(IpcQueryError):
     def __init__(self, message: str = "Too many requests", retry_after: int | None = None):
         details = {"retry_after": retry_after} if retry_after else None
         super().__init__(message, code="RATE_LIMITED", details=details)
+
+
+class UnauthorizedError(IpcQueryError):
+    """未授权错误"""
+
+    def __init__(self, message: str = "Unauthorized"):
+        super().__init__(message, code="UNAUTHORIZED")

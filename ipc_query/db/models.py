@@ -45,10 +45,14 @@ class Document:
             "pdf_name": self.pdf_name,
             "relative_path": rel or self.pdf_name,
             "relative_dir": rel_dir,
-            "pdf_path": self.pdf_path,
-            "miner_dir": self.miner_dir,
             "created_at": self.created_at,
         }
+
+    def to_internal_dict(self) -> dict[str, Any]:
+        payload = self.to_dict()
+        payload["pdf_path"] = self.pdf_path
+        payload["miner_dir"] = self.miner_dir
+        return payload
 
 
 @dataclass
